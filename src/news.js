@@ -74,4 +74,68 @@ async function releases(appids) {
     .sort((a, b) => (a.date || 9e12) - (b.date || 9e12));
 }
 
-module.exports = { news, releases, cleanText };
+// ---- Noticias de Nintendo (RSS públicos de dos medios) ----
+const NINTENDO_FEEDS = [
+  { source: 'Nintenderos', lang: 'es', url: 'https://www.nintenderos.com/feed/' },
+  { source: 'Nintendo Life', lang: 'en', url: 'https://www.nintendolife.com/feeds/latest' },
+];
+const NINTENDO_TTL = 2 * 3600000;
+
+const decode = (s) =>
+  String(s || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+function parseRss(xml, feed) {
+  const tag = (block, name) => {
+    const m = block.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`));
+    return m ? decode(m[1]).trim() : '';
+  };
+  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 15).map(([, b]) => {
+    const html = tag(b, 'content:encoded') || tag(b, 'description');
+    const img =
+      b.match(/<media:content[^>]*url="([^"]+)"/)?.[1] ||
+      b.match(/<media:thumbnail[^>]*url="([^"]+)"/)?.[1] ||
+      b.match(/<enclosure[^>]*url="([^"]+)"/)?.[1] ||
+      html.match(/<img[^>]*src="([^"]+)"/)?.[1] ||
+      null;
+    const link = tag(b, 'link');
+    const image = img ? decode(img) : null;
+    return {
+      source: feed.source,
+      lang: feed.lang,
+      title: tag(b, 'title'),
+      url: /^https:\/\//.test(link) ? link : null,
+      date: Math.round((Date.parse(tag(b, 'pubDate')) || Date.now()) / 1000),
+      text: cleanText(tag(b, 'description')).replace(/\[…\]/g, '…').slice(0, 260),
+      image: image && /^https:\/\//.test(image) ? image : null,
+    };
+  });
+}
+
+/** Últimas noticias de Nintendo de varios medios, mezcladas por fecha (caché de 2 horas). */
+async function nintendo({ read, write, force }) {
+  const cache = read('nintendo-news.json', null);
+  if (!force && cache && Date.now() - cache.at < NINTENDO_TTL) return cache.items;
+  const lists = await Promise.all(
+    NINTENDO_FEEDS.map(async (f) => {
+      try {
+        const r = await fetch(f.url, { headers: { 'User-Agent': 'Mozilla/5.0 BibliotecaDeJuegos' } });
+        return r.ok ? parseRss(await r.text(), f) : [];
+      } catch {
+        return [];
+      }
+    })
+  );
+  const items = lists.flat().filter((i) => i.title && i.url).sort((a, b) => b.date - a.date).slice(0, 30);
+  if (items.length) write('nintendo-news.json', { at: Date.now(), items });
+  return items.length ? items : cache?.items || [];
+}
+
+module.exports = { news, releases, cleanText, nintendo };

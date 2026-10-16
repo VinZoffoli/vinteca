@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" fill="#ec2a30">
+  <title>ViperTeca</title>
+  <rect x="98" y="48" width="24" height="268"/>
+  <rect x="20" y="171" width="82" height="22"/>
+  <polygon points="26.2,92.8 94.2,160.8 109.8,145.2 41.8,77.2"/>
+  <polygon points="41.8,286.8 109.8,218.8 94.2,203.2 26.2,271.2"/>
+  <g font-family="Bahnschrift, 'DIN Alternate', 'Arial Narrow', sans-serif" font-weight="700" font-size="164" letter-spacing="-4">
+    <text x="140" y="168">Viper</text>
+    <text x="140" y="316">Teca</text>
+  </g>
+</svg>

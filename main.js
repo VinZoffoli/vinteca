@@ -17,6 +17,10 @@ const screens = require('./src/screens');
 const saves = require('./src/saves');
 const { FpsMeter, presentMonPath } = require('./src/fps');
 const caches = require('./src/caches');
+const trainers = require('./src/trainers');
+const recs = require('./src/recs');
+const storeinfo = require('./src/storeinfo');
+const { LanServer } = require('./src/lan');
 
 // Protocolo propio para enseñar tus capturas sin dar acceso al resto del disco
 protocol.registerSchemesAsPrivileged([{ scheme: 'bjshot', privileges: { secure: true, supportFetchAPI: true, stream: true } }]);
@@ -118,7 +122,7 @@ function createWindow() {
     minHeight: 520,
     backgroundColor: '#16122a',
     icon: path.join(__dirname, 'build', 'icon.ico'),
-    title: 'Biblioteca de juegos',
+    title: 'ViperTeca',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -215,6 +219,10 @@ function snapshot(dir) {
     await js(`document.querySelector('#grid .card .title').click()`);
     await wait(2000);
     await shot('ficha.png');
+    await js(`document.querySelector('#gameDlg .col-box')?.scrollIntoView({ block: 'center' })`);
+    await wait(800);
+    await shot('ficha-colecciones.png');
+    await js(`document.querySelector('#gameDlg').scrollTo({ top: 0 })`);
     await wait(8000); // capturas y partidas guardadas de la ficha
     await shot('ficha-extras.png');
     await js(`document.querySelector('#gameDlg').close()`);
@@ -231,13 +239,69 @@ function snapshot(dir) {
     await js(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); const i = document.querySelector('#palInput'); i.value = 'hol'; i.dispatchEvent(new Event('input'));`);
     await wait(800);
     await shot('ctrlk.png');
+    await js(`document.querySelector('#palette').hidden = true`);
+    await js(`document.querySelector('[data-view=news]').click()`);
+    await wait(1500);
+    await js(`document.querySelector('.nin')?.scrollIntoView()`);
+    await wait(2500);
+    await shot('nintendo.png');
+    await js(`document.querySelector('[data-view=recs]').click()`);
+    for (let i = 0; i < 60 && !(await js(`!!document.querySelector('#recsBody .deal')`)); i++) await wait(1000);
+    await wait(2500);
+    await shot('para-ti.png');
+    await js(`document.querySelector('[data-view=deals]').click()`);
+    for (let i = 0; i < 40 && !(await js(`!!document.querySelector('#dlcDeals .deal') || /Ningún/.test(document.querySelector('#dlcDeals').textContent)`)); i++) await wait(1000);
+    await wait(3000);
+    await shot('ofertas-requisitos.png');
+    await js(`document.querySelector('#dlcDeals').scrollIntoView()`);
+    await wait(1200);
+    await shot('dlc.png');
+    await js(`document.querySelector('[data-view=lan]').click()`);
+    await wait(1200);
+    await shot('movil.png');
+    await js(`document.querySelector('[data-view=library]').click(); [...document.querySelectorAll('#grid .card')].find((x) => x.classList.contains('not-installed'))?.querySelector('.title')?.click()`);
+    await wait(9000);
+    await shot('ficha-no-instalado.png');
+    await js(`document.querySelector('#gameTrailers')?.scrollIntoView()`);
+    await wait(1000);
+    await shot('ficha-trailer.png');
+    await js(`document.querySelector('#gameTrailers video')?.play()`);
+    await wait(8000);
+    await js(`(() => { const v = document.querySelector('#gameTrailers video'); if (v) console.log('TRAILER t=' + v.currentTime.toFixed(1) + ' ready=' + v.readyState + ' dur=' + v.duration + ' err=' + (v.error && v.error.code)); })()`);
+    await shot('ficha-trailer-play.png');
+    await js(`document.querySelector('#gameSimilar')?.scrollIntoView()`);
+    await wait(800);
+    await shot('ficha-parecidos.png');
+    await js(`document.querySelector('#gameDlg').close()`);
+    await js(`document.documentElement.dataset.theme = 'light'; document.querySelector('#appBg').style.backgroundImage = 'url(' + JSON.stringify(document.querySelector('#hero img')?.src || '') + ')'; document.body.classList.add('has-bg')`);
+    await wait(1500);
+    await shot('tema-claro.png');
+    await js(`document.documentElement.dataset.theme = 'dark'`);
+    await wait(800);
+    await shot('fondo-oscuro.png');
+    await js(`document.querySelector('#settingsBtn').click()`);
+    await wait(4000);
+    await js(`document.querySelector('#setTabs [data-tab=partidas]').click()`);
+    await wait(800);
+    await shot('ajustes-partidas.png');
+    await js(`document.querySelector('#setTabs [data-tab=apariencia]').click()`);
+    await wait(800);
+    await shot('ajustes-apariencia.png');
+    await js(`document.querySelector('#settings').close(); window.appearance.apply({ ...state.settings, palette: 'oceano', theme: 'light' }, findGame)`);
+    await wait(1200);
+    await shot('paleta-oceano-claro.png');
+    await js(`window.appearance.apply({ ...state.settings, palette: 'noche', theme: 'dark' }, findGame)`);
+    await wait(1200);
+    await shot('paleta-noche.png');
     app.quit();
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
 function openSafe(url) {
-  if (typeof url === 'string' && ALLOWED.test(url)) shell.openExternal(url);
+  if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
+  shell.openExternal(url);
+  return true;
 }
 
 // Sin bandeja ni procesos residentes: al cerrar la ventana, la app termina
@@ -247,6 +311,7 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 app.on('before-quit', () => {
+  lan?.stop();
   focus.stop('quit');
   if (fpsMeter) fpsMeter.stop();
   tracker.stop();
@@ -279,7 +344,7 @@ app.whenReady().then(() => {
   if (!gotLock) return;
   // Bloquea permisos que la app no necesita (cámara, notificaciones web, etc.)
   session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
-  app.setAppUserModelId('Biblioteca de juegos');
+  app.setAppUserModelId('ViperTeca');
   try {
     focus.recover(); // por si la app se cerró de golpe con el enfoque activo
   } catch {}
@@ -291,6 +356,7 @@ app.whenReady().then(() => {
     setTimeout(() => app.quit(), 1500);
     return;
   }
+  if (store.getSettings().lanAuto && !process.env.BJ_SNAPSHOT) lanServer().start().catch(() => {});
   protocol.handle('bjshot', async (req) => {
     const file = new URL(req.url).searchParams.get('f') || '';
     if (!screens.isAllowed(file, await localCtx())) return new Response('', { status: 403 });
@@ -302,6 +368,8 @@ app.whenReady().then(() => {
     weeklySummary();
     setTimeout(epicReminders, 60000);
     setInterval(epicReminders, 6 * 3600000);
+    setTimeout(priceAlerts, 90000);
+    setInterval(priceAlerts, 6 * 3600000);
     setTimeout(friendAlerts, 20000);
     setInterval(friendAlerts, 5 * 60000);
   }
@@ -530,6 +598,7 @@ async function localCtx() {
     steamId,
     accountId: steamId ? (BigInt(steamId) & 0xffffffffn).toString() : null,
     documents: app.getPath('documents'),
+    backupDir: store.getSettings().backupDir || null,
   };
 }
 const libGame = (id) => (store.read('library.json', null)?.games || []).find((g) => g.id === id);
@@ -547,6 +616,38 @@ ipcMain.handle('news:get', async () => {
     .map((g) => Number(g.id.split(':')[1]));
   return news.news(pick, { read: store.read, write: store.write });
 });
+// Recomendaciones de Steam y Epic según tus gustos (no incluye lo que ya tienes ni tu lista de deseados)
+ipcMain.handle('recs:get', async (_e, force) => {
+  const settings = store.getSettings();
+  steam.setRegion(settings.country);
+  const games = store.read('library.json', null)?.games || [];
+  const names = store.read('tags.json', null)?.names || {};
+  const tagIdByName = Object.fromEntries(Object.entries(names).map(([id, n]) => [n, Number(id)]));
+  const wl = store.read('wishlist.json', null);
+  const exclude = new Set([
+    ...games.filter((g) => g.store === 'steam').map((g) => Number(g.id.split(':')[1])),
+    ...games.map((g) => g.steamAppid).filter(Boolean),
+    ...(wl?.items || []).map((i) => i.appid),
+  ]);
+  return recs.build({ games, user: extras.readUserGames(store.read), tagIdByName, exclude, read: store.read, write: store.write, force: !!force, country: settings.country });
+});
+ipcMain.handle('trailers:get', (_e, appid) => (Number.isInteger(appid) && appid > 0 ? storeinfo.trailers(appid) : []));
+ipcMain.handle('dlc:get', async (_e, force) => {
+  steam.setRegion(store.getSettings().country);
+  return storeinfo.dlcDeals({
+    games: store.read('library.json', null)?.games || [],
+    user: extras.readUserGames(store.read),
+    steamPath: await steam.findSteamPath().catch(() => null),
+    read: store.read,
+    write: store.write,
+    force: !!force,
+  });
+});
+ipcMain.handle('canrun:get', (_e, appids) => {
+  const ids = (Array.isArray(appids) ? appids : []).filter((x) => Number.isInteger(x) && x > 0).slice(0, 150);
+  return storeinfo.canRun(ids, { read: store.read, write: store.write });
+});
+ipcMain.handle('nintendo:get', (_e, force) => news.nintendo({ read: store.read, write: store.write, force: !!force }));
 ipcMain.handle('releases:get', async () => {
   steam.setRegion(store.getSettings().country);
   const wl = store.read('wishlist.json', null);
@@ -665,7 +766,7 @@ ipcMain.handle('saves:restore', async (_e, id, dir) => {
 });
 ipcMain.handle('saves:open', async (_e, id) => {
   const ctx = await localCtx();
-  const root = saves.backupRoot(ctx.documents);
+  const root = saves.backupRoot(ctx);
   const g = id && libGame(id);
   const dir = g ? path.join(root, saves.listBackups(g, ctx).length ? path.basename(path.dirname(saves.listBackups(g, ctx)[0].dir)) : '') : root;
   require('fs').mkdirSync(dir, { recursive: true });
@@ -863,6 +964,37 @@ async function epicReminders() {
   } catch {}
 }
 
+// ---------- Aviso cuando un juego de tu lista de deseados se rebaja ----------
+async function priceAlerts() {
+  const st = store.getSettings();
+  if (st.priceAlerts === false) return;
+  try {
+    let steamId = st.steamId;
+    if (!steamId) {
+      const p = await steam.findSteamPath();
+      steamId = p && steam.detectSteamId(p);
+    }
+    if (!steamId) return;
+    steam.setRegion(st.country);
+    const res = await steam.getWishlistDeals(store.getSteamKey(), steamId);
+    store.write('wishlist.json', { ...res, country: st.country, fetchedAt: Date.now() });
+    const seen = store.read('price-alerts.json', null);
+    const now = {};
+    for (const i of res.items) if (i.price?.discountPct > 0) now[i.appid] = i.price.discountPct;
+    if (seen) {
+      // Solo lo que se acaba de rebajar o baja más que la última vez
+      const fresh = res.items.filter((i) => now[i.appid] && (!seen[i.appid] || now[i.appid] > seen[i.appid]));
+      if (fresh.length === 1) {
+        const i = fresh[0];
+        notify(`${i.name} está rebajado`, `−${i.price.discountPct}%: ahora ${i.price.final}. Haz clic para verlo en Steam.`, `https://store.steampowered.com/app/${i.appid}/`);
+      } else if (fresh.length > 1) {
+        notify(`${fresh.length} juegos de tu lista de deseados están rebajados`, fresh.slice(0, 4).map((i) => `${i.name} (−${i.price.discountPct}%)`).join(', '));
+      }
+    }
+    store.write('price-alerts.json', now);
+  } catch {}
+}
+
 // ---------- Aviso cuando un amigo se pone a jugar a algo que tú tienes ----------
 let friendsPlaying = null;
 async function friendAlerts() {
@@ -982,6 +1114,14 @@ ipcMain.handle('library:refresh', async () => {
       purchaseDates: purchases.dates || {},
       cache: { read: store.read, write: store.write },
     });
+    try {
+      const map = await trainers.catalog({ read: store.read, write: store.write });
+      for (const g of result.games) {
+        const t = g.kind !== 'tool' && trainers.forGame(map, g);
+        if (t) g.trainer = { cheats: t.cheats, play: trainers.playUrl(t), web: trainers.webUrl(t) };
+        else delete g.trainer;
+      }
+    } catch {}
     store.write('library.json', result);
     updateJumpList();
     return { ...result, purchaseInfo: purchases.info || null };
@@ -1001,6 +1141,139 @@ ipcMain.handle('library:clearNew', () => {
 });
 
 ipcMain.handle('game:open', (_e, url) => openSafe(url));
+ipcMain.handle('win:fullscreen', () => {
+  if (win && !win.isDestroyed()) win.setFullScreen(!win.isFullScreen());
+});
+// Juegos de otras tiendas que se abren con su launcher: el programa y sus
+// argumentos salen de la biblioteca guardada (los detectó la app), nunca de la página.
+function launchFromMain(g) {
+  if (!g.launch) {
+    if (!openSafe(g.installed ? g.launchUrl : g.installUrl)) throw new Error('Este juego se abre desde su launcher.');
+    return true;
+  }
+  const l = g.launch;
+  if (!l?.exe || !/\.exe$/i.test(l.exe) || !require('fs').existsSync(l.exe)) throw new Error('No se encuentra el launcher de este juego.');
+  const { spawn } = require('child_process');
+  spawn(l.exe, l.args || [], { cwd: l.cwd || path.dirname(l.exe), detached: true, stdio: 'ignore' }).unref();
+  return true;
+}
+ipcMain.handle('game:launch', (_e, id) => {
+  const g = (store.read('library.json', null)?.games || []).find((x) => x.id === id);
+  if (!g) throw new Error('No se encuentra ese juego.');
+  return launchFromMain(g);
+});
+
+// ---------- Biblioteca en el móvil ----------
+let lan = null;
+function lanServer() {
+  if (!lan) {
+    const s = store.read('settings.json', {});
+    if (!s.lanToken) {
+      s.lanToken = require('crypto').randomBytes(12).toString('hex');
+      store.write('settings.json', s);
+    }
+    lan = new LanServer({ games: () => store.read('library.json', null)?.games || [], launch: async (g) => launchFromMain(g), token: s.lanToken });
+  }
+  return lan;
+}
+ipcMain.handle('lan:status', () => (lan ? lan.info() : { running: false }));
+ipcMain.handle('lan:start', () => lanServer().start());
+ipcMain.handle('lan:stop', () => {
+  lan?.stop();
+  return { running: false };
+});
+ipcMain.handle('lan:newCode', () => {
+  const s = store.read('settings.json', {});
+  s.lanToken = require('crypto').randomBytes(12).toString('hex');
+  store.write('settings.json', s);
+  const wasRunning = lan?.running;
+  lan?.stop();
+  lan = null;
+  return wasRunning ? lanServer().start() : { running: false };
+});
+
+// ---------- Carpeta de las copias de partidas ----------
+ipcMain.handle('saves:dirs', async () => {
+  const ctx = await localCtx();
+  return { current: saves.backupRoot(ctx), custom: !!ctx.backupDir, clouds: saves.cloudDirs() };
+});
+ipcMain.handle('saves:setDir', async (_e, dir) => {
+  let target = dir;
+  if (dir === 'pick') {
+    const r = await dialog.showOpenDialog(win, { title: 'Carpeta para las copias de partidas', properties: ['openDirectory', 'createDirectory'], defaultPath: saves.cloudDirs()[0]?.dir || app.getPath('documents') });
+    if (r.canceled || !r.filePaths[0]) return null;
+    target = r.filePaths[0];
+  }
+  if (target && (!path.isAbsolute(target) || !require('fs').existsSync(target))) throw new Error('Esa carpeta no existe.');
+  const before = await localCtx();
+  const after = { ...before, backupDir: target || null };
+  const moved = saves.moveBackups(before, after);
+  const s = store.read('settings.json', {});
+  if (target) s.backupDir = target;
+  else delete s.backupDir;
+  store.write('settings.json', s);
+  return { current: saves.backupRoot(after), moved };
+});
+
+// ---------- Exportar la biblioteca (CSV para Excel o página para compartir) ----------
+ipcMain.handle('library:export', async (_e, format, opts = {}) => {
+  const games = (store.read('library.json', null)?.games || []).filter((g) => g.kind !== 'tool');
+  const user = extras.readUserGames(store.read);
+  const sessions = store.read('sessions.json', []);
+  const tracked = {};
+  for (const s of sessions) tracked[s.id] = (tracked[s.id] || 0) + Math.max(0, (s.end - s.start) / 60000);
+  const STATUS = { pending: 'Pendiente', playing: 'Jugando', finished: 'Terminado', dropped: 'Abandonado' };
+  const STORES = { steam: 'Steam', epic: 'Epic Games', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA app', ubisoft: 'Ubisoft Connect' };
+  const day = (t) => (t ? new Date(t * 1000).toISOString().slice(0, 10) : '');
+  const rows = games
+    .map((g) => {
+      const u = user[g.id] || {};
+      const min = g.playtimeMin || tracked[g.id] || 0;
+      return {
+        title: g.title,
+        store: STORES[g.store] || g.store,
+        installed: g.installed,
+        hours: min ? Math.round((min / 60) * 10) / 10 : 0,
+        last: day(g.lastPlayed),
+        bought: day(g.purchased),
+        status: STATUS[u.status] || '',
+        rating: u.rating || 0,
+        fav: !!u.fav,
+        cols: (u.cols || []).join(', '),
+        note: opts.notes ? u.note || '' : '',
+        tags: (g.tags || []).join(', '),
+        saga: g.saga || '',
+        cover: g.cover || '',
+        url: g.storeUrl || '',
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title, 'es'));
+  const csv = format === 'csv';
+  const r = await dialog.showSaveDialog(win, {
+    title: csv ? 'Exportar biblioteca a CSV' : 'Crear página de tu biblioteca',
+    defaultPath: path.join(app.getPath('documents'), `Mi biblioteca de juegos ${new Date().toISOString().slice(0, 10)}.${csv ? 'csv' : 'html'}`),
+    filters: [csv ? { name: 'CSV (Excel)', extensions: ['csv'] } : { name: 'Página web', extensions: ['html'] }],
+  });
+  if (r.canceled || !r.filePath) return null;
+  if (csv) {
+    // Punto y coma y BOM: así Excel en español lo abre bien a la primera
+    const q = (v) => {
+      const t = String(v ?? '');
+      return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const head = ['Título', 'Tienda', 'Instalado', 'Horas', 'Última partida', 'Comprado', 'Estado', 'Tu nota', 'Favorito', 'Colecciones', 'Categorías', 'Saga'];
+    if (opts.notes) head.push('Notas');
+    const lines = rows.map((x) => {
+      const cells = [x.title, x.store, x.installed ? 'Sí' : 'No', String(x.hours).replace('.', ','), x.last, x.bought, x.status, x.rating || '', x.fav ? 'Sí' : '', x.cols, x.tags, x.saga];
+      if (opts.notes) cells.push(x.note);
+      return cells.map(q).join(';');
+    });
+    require('fs').writeFileSync(r.filePath, '\ufeff' + [head.join(';'), ...lines].join('\r\n'), 'utf8');
+  } else {
+    require('fs').writeFileSync(r.filePath, require('./src/share-page').render(rows, { notes: !!opts.notes }), 'utf8');
+  }
+  return { file: r.filePath, games: rows.length };
+});
 
 ipcMain.handle('deals:get', async () => {
   const settings = store.getSettings();
@@ -1018,6 +1291,7 @@ ipcMain.handle('deals:get', async () => {
 });
 
 ipcMain.handle('deals:cached', () => store.read('wishlist.json', null));
+ipcMain.handle('wand:installed', () => trainers.installed());
 
 ipcMain.handle('epic:link', async () => {
   const exe = await epic.findLegendary(store.getSettings().legendaryPath);

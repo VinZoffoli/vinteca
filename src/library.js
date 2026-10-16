@@ -2,6 +2,7 @@
 const steam = require('./steam');
 const epic = require('./epic');
 const meta = require('./meta');
+const stores = require('./stores');
 
 // Tipos de la tienda de Steam que no son juegos: 6 software, 13 herramienta,
 // 3 película, 7 vídeo, 8 serie, 9 episodio, 10 hardware, 11 música.
@@ -166,18 +167,47 @@ async function loadEpic({ legendaryPath, warnings, previous }) {
   return { games, source };
 }
 
+/** Juegos instalados de Riot, Rockstar, GOG, EA y Ubisoft. */
+async function loadOthers(previous) {
+  const prevPlayed = new Map((previous?.games || []).map((g) => [g.id, g.lastPlayed]));
+  const list = await stores.installed().catch(() => []);
+  return list.map((x) => ({
+    id: `${x.store}:${x.key}`,
+    store: x.store,
+    kind: 'game',
+    title: x.title,
+    cover: null,
+    coverFallbacks: [],
+    hero: null,
+    installed: true,
+    installPath: x.installPath,
+    updatePending: false,
+    updateText: null,
+    lastPlayed: prevPlayed.get(`${x.store}:${x.key}`) || null,
+    purchased: null,
+    playtimeMin: 0,
+    sizeBytes: null,
+    // Se abre con su launcher (programa + argumentos) o con un enlace de su tienda
+    launch: x.launch || null,
+    launchUrl: x.launchUrl || null,
+    installUrl: x.launchUrl || null,
+    storeUrl: null,
+  }));
+}
+
 async function refresh({ apiKey, settings, previous, purchaseDates, cache }) {
   const warnings = [];
   const [s, e] = await Promise.all([
     loadSteam({ apiKey, steamId: settings.steamId, purchaseDates, warnings }),
     loadEpic({ legendaryPath: settings.legendaryPath, warnings, previous }),
   ]);
-  const games = [...s.games, ...e.games];
+  const others = await loadOthers(previous);
+  const games = [...s.games, ...e.games, ...others];
   await meta.enrich(games, { ...cache, warnings });
 
   // Solo se marcan como nuevos los juegos de una tienda si la lectura anterior
   // usó la misma fuente (si no, al añadir la clave de Steam todo saldría "nuevo").
-  const sources = { steam: s.source, epic: e.source };
+  const sources = { steam: s.source, epic: e.source, riot: 'local', rockstar: 'local', gog: 'local', ea: 'local', ubisoft: 'local' };
   const prevSources = previous?.sources || {};
   const prevKnown = new Set(previous?.knownIds || []);
   const comparable = (g) => previous?.knownIds && prevSources[g.store] === sources[g.store];

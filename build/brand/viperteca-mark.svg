@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="#ec2a30">
+  <title>ViperTeca</title>
+  <!-- Rayos y barra -->
+  <rect x="100" y="25" width="23" height="250"/>
+  <rect x="22" y="139" width="82" height="22"/>
+  <polygon points="28.2,59.8 96.2,127.8 111.8,112.2 43.8,44.2"/>
+  <polygon points="43.8,255.8 111.8,187.8 96.2,172.2 28.2,240.2"/>
+  <!-- V sobre T -->
+  <polygon points="140,25 170,25 205,128 240,25 270,25 220,160 190,160"/>
+  <rect x="140" y="160" width="130" height="24"/>
+  <rect x="192" y="184" width="26" height="91"/>
+</svg>

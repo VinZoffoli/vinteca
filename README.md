@@ -1,6 +1,8 @@
-# Biblioteca de juegos (Steam + Epic)
+<p><img src="build/brand/viperteca-logo.svg" alt="ViperTeca" width="300"></p>
 
-App de escritorio para Windows que reúne en una sola rejilla todos tus juegos de Steam y Epic Games, con sus carátulas, filtros, avisos de actualización y las ofertas de tu lista de deseados de Steam.
+# ViperTeca
+
+Tu biblioteca de juegos de Steam, Epic y otras tiendas en un solo sitio. App de escritorio para Windows que reúne en una sola rejilla todos tus juegos de Steam y Epic Games (y los instalados de Riot, Rockstar, GOG, EA y Ubisoft), con sus carátulas, filtros, avisos de actualización y las ofertas de tu lista de deseados de Steam.
 
 Está hecha con **Electron** y JavaScript sin frameworks: no hace falta instalar Rust ni herramientas de compilación, guarda la clave de Steam cifrada con tu usuario de Windows (DPAPI) y puede abrir las ventanas de inicio de sesión de Steam. Usa unos 180 MB de RAM mientras está abierta (un poco más si activas el panel flotante del modo enfoque) y **se cierra del todo al cerrar la ventana** (no se queda en la bandeja ni en segundo plano).
 
@@ -22,7 +24,7 @@ Al abrirse muestra al momento lo que leyó la última vez y vuelve a leer las bi
 3. En la app: **⚙ Ajustes → Steam**, pega la clave (y el SteamID64 si no se detectó) y pulsa **Guardar**.
 4. Si Steam no devuelve juegos, revisa tu perfil: *Editar perfil → Privacidad → Detalles de juegos* no debe estar en *Privado*. La lista de deseados también tiene que ser visible para que salgan las ofertas.
 
-La clave solo se envía a `api.steampowered.com`. Se guarda cifrada en la carpeta `data` de la app instalada (`%LOCALAPPDATA%\Programs\BibliotecaJuegos\data`), o en `%LOCALAPPDATA%\biblioteca-juegos` si la arrancas con `npm start`. Está fuera del código, así que nunca acabará en un repositorio.
+La clave solo se envía a `api.steampowered.com`. Se guarda cifrada con tu usuario de Windows en `%APPDATA%\biblioteca-juegos`, fuera del código, así que nunca acabará en un repositorio.
 
 ### Fechas de compra (opcional)
 
@@ -141,12 +143,12 @@ Quién de tus amigos de Steam está conectado y a qué juega, y qué juegos mult
 
 ## Novedades
 
-Anuncios y parches oficiales de tus juegos instalados, favoritos y pendientes (de las noticias de Steam), y los próximos lanzamientos de tu lista de deseados.
+Anuncios y parches oficiales de tus juegos instalados, favoritos y pendientes (de las noticias de Steam), los próximos lanzamientos de tu lista de deseados y **noticias de Nintendo** de [Nintenderos](https://www.nintenderos.com/) (en español) y [Nintendo Life](https://www.nintendolife.com/) (en inglés), leídas de sus RSS públicos.
 
 ## Capturas y partidas guardadas
 
 - La ficha de cada juego muestra sus **capturas** de Steam (F12) y de la Barra de juegos de Windows.
-- **Partidas guardadas**: la app sabe dónde guarda cada juego sus partidas gracias a la base de datos abierta de [Ludusavi](https://github.com/mtkennerly/ludusavi-manifest). Desde la ficha (o desde *Espacio*, para todos los instalados) puedes copiarlas a `Documentos\Biblioteca de juegos - partidas guardadas` y restaurarlas; antes de restaurar se guarda una copia de lo que haya.
+- **Partidas guardadas**: la app sabe dónde guarda cada juego sus partidas gracias a la base de datos abierta de [Ludusavi](https://github.com/mtkennerly/ludusavi-manifest). Desde la ficha (o desde *Espacio*, para todos los instalados) puedes copiarlas a `Documentos\Biblioteca de juegos - partidas guardadas` (o a la carpeta que elijas en Ajustes, por ejemplo **OneDrive o Google Drive** para tenerlas en la nube) y restaurarlas; antes de restaurar se guarda una copia de lo que haya.
 
 ## FPS
 
@@ -182,13 +184,31 @@ En Logros: tus logros más raros, los últimos que conseguiste y tu racha de dí
 
 En Espacio, las **cachés** de sombreadores de Steam, DirectX y los drivers de tu gráfica (se borran solo si lo confirmas y se vuelven a crear solas) y los juegos que tienes **instalados dos veces** (en Steam y en Epic).
 
+## Novedades de la 1.4
+
+La app pasa a llamarse **ViperTeca**, con su logo (`build/brand/`).
+
+
+- **Otras tiendas**: los juegos *instalados* de Riot, Rockstar, GOG, EA app y Ubisoft Connect (se leen del registro y de sus archivos locales; esas tiendas no dan la lista completa de lo que tienes). El filtro **Otras** los agrupa.
+- **Modo mando**: con un mando de Xbox o compatible, muévete con la cruceta o el stick. A abre, B vuelve, Y juega, X «¿A qué juego?», LB/RB cambian de sección, Start pone pantalla completa y Select el modo enfoque.
+- **Para ti**: recomendaciones de las tiendas de Steam y Epic según las categorías que más juegas y mejor puntúas, y «más como esto» de tus favoritos. No salen los que ya tienes ni los de tu lista de deseados.
+- **En la ficha**: tráileres de Steam (también en juegos de otras tiendas, a través del mismo juego en Steam), **parecidos a este** en tu biblioteca (marcando los que no has estrenado), **colecciones propias** (luego se filtran en *Estado*) y **¿Lo mueve tu PC?** en los juegos sin instalar.
+- **Ofertas**: cada deseado dice si tu PC lo mueve (requisitos de Steam frente a tu procesador, gráfica y RAM; la comparación es aproximada) y hay una sección de **DLC rebajados** de los juegos que más juegas.
+- **En el móvil** (sección *Tu PC*): enciende una página en tu Wi-Fi, escanea el QR y verás tus juegos en el teléfono; desde ahí puedes abrir en el PC los instalados. El enlace lleva un código secreto, solo deja ver la lista y abrir juegos, y se apaga al cerrar la app.
+- **Apariencia**: modo claro, oscuro o el de Windows; siete paletas de colores para toda la interfaz (ViperTeca, Noche, Océano, Bosque, Sakura, Atardecer, Grafito) o una **a tu gusto** eligiendo el color principal y el tono del fondo; y el arte de un juego de fondo (en Ajustes o con *Usar de fondo* en su ficha).
+- **Trucos con [Wand](https://wand.com/)** (antes WeMod): la app lee el catálogo público de Wand y marca qué juegos tuyos tienen trucos. En la ficha, **Trucos** abre ese juego directamente en Wand (o su página web si no lo tienes instalado), y el filtro *Estado → Con trucos (Wand)* los muestra todos. Los trucos los gestiona Wand; úsalos solo en partidas de un jugador.
+- **Aviso de rebajas**: cada 6 horas mira tu lista de deseados de Steam y te avisa cuando un juego se rebaja o baja más (se puede quitar en *Ajustes → Tiempo y avisos*).
+- **Enlaces útiles en la ficha**: guías en YouTube, mods en Nexus Mods y cuánto dura en HowLongToBeat.
+- **Ficha nueva**: el arte del juego arriba, *Jugar* y las acciones a mano, y la información en dos columnas.
+- **Exportar la biblioteca**: a CSV para Excel (horas, estados, notas, colecciones…) o a una página web con tus carátulas para compartir. Las notas solo se incluyen si lo marcas.
+
 ## Instalador
 
 ```bash
 npm run dist
 ```
 
-Descarga PresentMon (y comprueba su huella) y genera `dist/Biblioteca-de-juegos-Setup-<versión>.exe`. El instalador es solo para tu usuario (no pide administrador), crea el acceso directo en el escritorio y en el menú Inicio, y aparece en *Configuración → Aplicaciones* para desinstalarlo. Tus datos están en `%APPDATA%\biblioteca-juegos` y no se borran al desinstalar ni al actualizar.
+Descarga PresentMon (y comprueba su huella) y genera `dist/ViperTeca-Setup-<versión>.exe`. El instalador es solo para tu usuario (no pide administrador), crea el acceso directo en el escritorio y en el menú Inicio, y aparece en *Configuración → Aplicaciones* para desinstalarlo. Tus datos están en `%APPDATA%\biblioteca-juegos` y no se borran al desinstalar ni al actualizar.
 
 **Actualizaciones automáticas:** necesitan un sitio en internet donde publicar cada versión (por ejemplo, un repositorio de GitHub con *Releases*). Mientras no exista, para actualizar basta con generar el instalador nuevo y ejecutarlo encima: conserva tus datos.
 

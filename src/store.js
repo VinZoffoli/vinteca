@@ -52,6 +52,15 @@ function getSettings() {
     keepTracking: s.keepTracking !== false,
     onboarded: !!s.onboarded,
     hasSteamKey: !!s.steamKeyEnc,
+    backupDir: s.backupDir || '',
+    theme: ['light', 'system'].includes(s.theme) ? s.theme : 'dark',
+    bgGame: s.bgGame || '',
+    lanAuto: !!s.lanAuto,
+    priceAlerts: s.priceAlerts !== false,
+    palette: s.palette || 'viper',
+    customAccent: s.customAccent || '#ef2f34',
+    customHue: Number.isFinite(s.customHue) ? s.customHue : 352,
+    customSat: Number.isFinite(s.customSat) ? s.customSat : 16,
   };
 }
 
@@ -65,7 +74,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});
@@ -77,6 +86,12 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   if (keepTracking !== undefined) s.keepTracking = !!keepTracking;
   for (const k of FLAGS) if (rest[k] !== undefined) s[k] = !!rest[k];
   for (const k of ['dailyLimitMin', 'remindEveryMin', 'keepBackups']) if (rest[k] !== undefined) s[k] = Math.max(0, Math.min(24 * 60, Number(rest[k]) || 0));
+  if (rest.theme !== undefined) s.theme = ['light', 'system'].includes(rest.theme) ? rest.theme : 'dark';
+  if (rest.palette !== undefined) s.palette = /^[a-z]{2,20}$/.test(rest.palette) ? rest.palette : 'viper';
+  if (rest.customAccent !== undefined && /^#[0-9a-f]{6}$/i.test(rest.customAccent)) s.customAccent = rest.customAccent;
+  if (rest.customHue !== undefined) s.customHue = Math.max(0, Math.min(360, Math.round(Number(rest.customHue) || 0)));
+  if (rest.customSat !== undefined) s.customSat = Math.max(0, Math.min(60, Math.round(Number(rest.customSat) || 0)));
+  if (rest.bgGame !== undefined) s.bgGame = String(rest.bgGame || '').slice(0, 200);
   if (clearSteamKey) delete s.steamKeyEnc;
   if (steamKey) {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('El cifrado de Windows (DPAPI) no está disponible.');

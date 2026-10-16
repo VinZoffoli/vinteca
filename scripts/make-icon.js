@@ -1,7 +1,7 @@
 // Genera build/icon.png (256 px) y build/icon.ico (16-256 px) sin dependencias:
-// dibuja el mismo diseño que build/icon.svg (tres cajas de juego en ámbar sobre
-// índigo) píxel a píxel, con suavizado, y lo guarda como PNG con zlib.
-// Uso: node scripts/make-icon.js
+// dibuja el monograma VT de ViperTeca (el mismo de build/brand/viperteca-mark.svg)
+// en rojo sobre una baldosa oscura, píxel a píxel y con suavizado, y lo guarda
+// como PNG con zlib. Uso: node scripts/make-icon.js
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -11,36 +11,51 @@ const SIZES = [256, 128, 64, 48, 32, 24, 16];
 const SS = 4; // submuestras por eje
 
 const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const AMBER = hex('#ffb547');
-const SHELF = hex('#a39cc3');
-const TOP = hex('#2b2450');
-const BOTTOM = hex('#16122a');
-const EDGE = hex('#3a3166');
+const RED = hex('#ec2a30');
+const TOP = hex('#2a1f27');
+const BOTTOM = hex('#140f14');
+const EDGE = hex('#3b2c36');
 
-// Rectángulo redondeado (coordenadas del diseño de 256 px), opcionalmente girado
 function inRoundRect(x, y, r) {
-  let px = x;
-  let py = y;
-  if (r.rot) {
-    const a = (-r.rot * Math.PI) / 180;
-    const dx = x - r.cx;
-    const dy = y - r.cy;
-    px = r.cx + dx * Math.cos(a) - dy * Math.sin(a);
-    py = r.cy + dx * Math.sin(a) + dy * Math.cos(a);
-  }
-  const qx = Math.max(Math.abs(px - (r.x + r.w / 2)) - (r.w / 2 - r.rad), 0);
-  const qy = Math.max(Math.abs(py - (r.y + r.h / 2)) - (r.h / 2 - r.rad), 0);
+  const qx = Math.max(Math.abs(x - (r.x + r.w / 2)) - (r.w / 2 - r.rad), 0);
+  const qy = Math.max(Math.abs(y - (r.y + r.h / 2)) - (r.h / 2 - r.rad), 0);
   return qx * qx + qy * qy <= r.rad * r.rad;
 }
 
+// Polígono cualquiera (regla par-impar)
+function inPoly(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+
+// Monograma en coordenadas de 300 px (igual que el SVG)
+const MARK = [
+  rect(100, 25, 23, 250),
+  rect(22, 139, 82, 22),
+  [[28.2, 59.8], [96.2, 127.8], [111.8, 112.2], [43.8, 44.2]],
+  [[43.8, 255.8], [111.8, 187.8], [96.2, 172.2], [28.2, 240.2]],
+  [[140, 25], [170, 25], [205, 128], [240, 25], [270, 25], [220, 160], [190, 160]],
+  rect(140, 160, 130, 24),
+  rect(192, 184, 26, 91),
+];
+// Del diseño de 300 px a la baldosa de 256 px (centrado y con margen)
+const SCALE = 0.63;
+const OX = 128 - 146 * SCALE;
+const OY = 128 - 150 * SCALE;
+const inMark = (x, y) => {
+  const mx = (x - OX) / SCALE;
+  const my = (y - OY) / SCALE;
+  return MARK.some((p) => inPoly(mx, my, p));
+};
+
 const BG = { x: 8, y: 8, w: 240, h: 240, rad: 56 };
 const BG_IN = { x: 9.5, y: 9.5, w: 237, h: 237, rad: 54.5 };
-const BOXES = [
-  { x: 52, y: 66, w: 40, h: 126, rad: 8 },
-  { x: 104, y: 52, w: 40, h: 140, rad: 8 },
-  { x: 160, y: 72, w: 40, h: 122, rad: 8, rot: 12, cx: 180, cy: 133 },
-];
-const SHELF_R = { x: 44, y: 198, w: 168, h: 10, rad: 5 };
 
 function render(size) {
   const px = Buffer.alloc(size * size * 4);
@@ -54,12 +69,8 @@ function render(size) {
           const y = (j + (sj + 0.5) / SS) * k;
           if (!inRoundRect(x, y, BG)) continue;
           let c;
-          if (BOXES.some((bx) => inRoundRect(x, y, bx))) c = AMBER;
-          else if (inRoundRect(x, y, SHELF_R)) {
-            const t = (y - 8) / 240;
-            const base = TOP.map((v, n) => v + (BOTTOM[n] - v) * t);
-            c = base.map((v, n) => v + (SHELF[n] - v) * 0.55);
-          } else if (!inRoundRect(x, y, BG_IN)) c = EDGE;
+          if (inMark(x, y)) c = RED;
+          else if (!inRoundRect(x, y, BG_IN)) c = EDGE;
           else {
             const t = (y - 8) / 240;
             c = TOP.map((v, n) => v + (BOTTOM[n] - v) * t);

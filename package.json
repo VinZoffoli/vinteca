@@ -1,9 +1,9 @@
 {
   "name": "biblioteca-juegos",
   "repository": "github:VinZoffoli/vinteca",
-  "productName": "Biblioteca de juegos",
-  "version": "1.3.0",
-  "description": "Biblioteca combinada de Steam y Epic Games",
+  "productName": "ViperTeca",
+  "version": "1.4.0",
+  "description": "ViperTeca: tus juegos de Steam, Epic y otras tiendas en una sola biblioteca",
   "author": "Vincenzo",
   "main": "main.js",
   "private": true,
@@ -20,11 +20,12 @@
   },
   "dependencies": {
     "js-yaml": "4.1.0",
-    "koffi": "3.3.1"
+    "koffi": "3.3.1",
+    "qrcode-generator": "2.0.4"
   },
   "build": {
     "appId": "local.biblioteca-juegos",
-    "productName": "Biblioteca de juegos",
+    "productName": "ViperTeca",
     "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "dist",
@@ -40,10 +41,14 @@
       "node_modules/koffi/**",
       "node_modules/@koromix/koffi-win32-x64/**",
       "node_modules/js-yaml/**",
-      "node_modules/argparse/**"
+      "node_modules/argparse/**",
+      "node_modules/qrcode-generator/**"
     ],
     "extraResources": [
-      { "from": "build/tools/PresentMon.exe", "to": "tools/PresentMon.exe" }
+      {
+        "from": "build/tools/PresentMon.exe",
+        "to": "tools/PresentMon.exe"
+      }
     ],
     "asarUnpack": [
       "node_modules/koffi/**",
@@ -67,11 +72,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "Biblioteca de juegos",
+      "shortcutName": "ViperTeca",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "Biblioteca-de-juegos-Setup-${version}.exe"
+      "artifactName": "ViperTeca-Setup-${version}.exe"
     }
   }
 }

@@ -83,6 +83,13 @@ function updateUserGame(read, write, id, patch) {
       if (v === 'finished' && cur.status !== 'finished') cur.finishedAt = Date.now();
       if (v !== 'finished') delete cur.finishedAt;
     }
+    if (k === 'cols') {
+      // Colecciones propias: nombres cortos, sin repetir, como mucho 20
+      const list = [...new Set((Array.isArray(v) ? v : []).map((c) => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 20);
+      if (list.length) cur.cols = list;
+      else delete cur.cols;
+      continue;
+    }
     if (k === 'note') {
       const t = String(v || '').slice(0, 2000);
       if (t) cur.note = t;

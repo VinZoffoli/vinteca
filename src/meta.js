@@ -57,9 +57,12 @@ async function pool(items, n, fn) {
   return { stopped: stop, remaining: Math.max(0, items.length - i) };
 }
 
-/** Busca en la tienda de Steam los juegos de Epic para tomar sus etiquetas y franquicia. */
+/**
+ * Busca en la tienda de Steam los juegos de las demás tiendas (Epic, Riot,
+ * GOG...) para tomar sus etiquetas, franquicia y, si no tienen, la carátula.
+ */
 async function enrichEpic(games, { read, write, warnings }) {
-  const epicGames = games.filter((g) => g.store === 'epic');
+  const epicGames = games.filter((g) => g.store !== 'steam');
   const map = read('epic-steam-map.json', {});
   const now = Date.now();
   const todo = epicGames.filter((g) => {
@@ -86,13 +89,19 @@ async function enrichEpic(games, { read, write, warnings }) {
 
   const ids = [...new Set(epicGames.map((g) => map[g.id]?.appid).filter(Boolean))];
   if (!ids.length) return;
-  const items = await steam.getStoreItems(ids, { assets: false });
+  const items = await steam.getStoreItems(ids, { assets: true });
   for (const g of epicGames) {
     const it = items.get(map[g.id]?.appid);
     if (!it) continue;
     g.franchise = it.franchise || null;
     g.tagIds = it.tagIds || [];
     g.released = it.released || null;
+    g.steamAppid = map[g.id].appid; // mismo juego en Steam: requisitos, tráiler, DLC...
+    if (!g.cover && it.cover) {
+      g.cover = it.cover;
+      g.coverFallbacks = [it.header].filter(Boolean);
+    }
+    if (!g.hero && it.hero) g.hero = it.hero;
   }
 }
 

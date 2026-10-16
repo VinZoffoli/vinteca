@@ -1,6 +1,7 @@
 // Copias de seguridad de partidas guardadas, a partir de las rutas de la base de
 // datos de Ludusavi (ver saves-worker.js). Las copias van a
-// Documentos\Biblioteca de juegos - partidas guardadas\<juego>\<fecha>.
+// Documentos\Biblioteca de juegos - partidas guardadas\<juego>\<fecha>, o a esa misma
+// carpeta dentro de la que elijas (por ejemplo OneDrive o Google Drive, para tenerlas en la nube).
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -9,8 +10,45 @@ const MAX_FILES = 20000;
 const MAX_BYTES = 4 * 1024 ** 3;
 const INDEX_TTL = 7 * 86400000;
 
-function backupRoot(documents) {
-  return path.join(documents, 'Biblioteca de juegos - partidas guardadas');
+const FOLDER = 'Biblioteca de juegos - partidas guardadas';
+function backupRoot(ctx) {
+  return path.join(ctx.backupDir || ctx.documents, FOLDER);
+}
+
+/** Carpetas de nube instaladas en este PC (para elegirlas con un clic). */
+function cloudDirs() {
+  const out = [];
+  const add = (name, dir) => {
+    if (dir && fs.existsSync(dir) && !out.some((o) => o.dir.toLowerCase() === dir.toLowerCase())) out.push({ name, dir });
+  };
+  add('OneDrive', process.env.OneDriveConsumer || process.env.OneDrive);
+  add('OneDrive (trabajo)', process.env.OneDriveCommercial);
+  // Google Drive para escritorio monta una unidad con "Mi unidad" / "My Drive"
+  for (const l of 'DEFGHIJKLMNOPQRSTUVWXYZ') {
+    for (const n of ['Mi unidad', 'My Drive']) add('Google Drive', `${l}:\\${n}`);
+  }
+  add('Google Drive', path.join(os.homedir(), 'Google Drive'));
+  add('Dropbox', path.join(os.homedir(), 'Dropbox'));
+  return out;
+}
+
+/** Cambia la carpeta de copias y mueve allí las que ya había. */
+function moveBackups(fromCtx, toCtx) {
+  const from = backupRoot(fromCtx);
+  const to = backupRoot(toCtx);
+  if (path.resolve(from).toLowerCase() === path.resolve(to).toLowerCase() || !fs.existsSync(from)) return 0;
+  fs.mkdirSync(to, { recursive: true });
+  let moved = 0;
+  for (const d of fs.readdirSync(from, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    fs.cpSync(path.join(from, d.name), path.join(to, d.name), { recursive: true, force: false, errorOnExist: false });
+    fs.rmSync(path.join(from, d.name), { recursive: true, force: true });
+    moved++;
+  }
+  try {
+    fs.rmdirSync(from);
+  } catch {}
+  return moved;
 }
 
 const safeName = (s) => String(s).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Juego';
@@ -120,7 +158,7 @@ function findFiles(game, info, ctx) {
 }
 
 function listBackups(game, ctx) {
-  const dir = path.join(backupRoot(ctx.documents), safeName(game.title));
+  const dir = path.join(backupRoot(ctx), safeName(game.title));
   try {
     return fs
       .readdirSync(dir)
@@ -142,7 +180,7 @@ function listBackups(game, ctx) {
 function backup(game, info, ctx, note) {
   const files = findFiles(game, info, ctx);
   if (!files.length) throw new Error('No se encontraron partidas guardadas de este juego en este PC.');
-  const dir = path.join(backupRoot(ctx.documents), safeName(game.title), stamp());
+  const dir = path.join(backupRoot(ctx), safeName(game.title), stamp());
   const entries = [];
   for (const f of files) {
     const rel = f.file.replace(/^([A-Za-z]):/, '$1');
@@ -157,7 +195,7 @@ function backup(game, info, ctx, note) {
 
 /** Vuelve a poner los archivos de una copia en su sitio (antes guarda una copia de lo actual). */
 function restore(game, info, ctx, dir) {
-  const root = path.resolve(backupRoot(ctx.documents)).toLowerCase();
+  const root = path.resolve(backupRoot(ctx)).toLowerCase();
   if (!path.resolve(dir).toLowerCase().startsWith(root + path.sep)) throw new Error('Esa carpeta no es una copia de la app.');
   const meta = JSON.parse(fs.readFileSync(path.join(dir, 'copia.json'), 'utf8'));
   let safety = null;
@@ -181,4 +219,4 @@ function pruneAuto(game, ctx, keep) {
   }
 }
 
-module.exports = { backupRoot, listBackups, backup, restore, findFiles, pruneAuto, INDEX_TTL };
+module.exports = { backupRoot, cloudDirs, moveBackups, listBackups, backup, restore, findFiles, pruneAuto, INDEX_TTL };

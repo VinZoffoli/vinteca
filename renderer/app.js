@@ -96,6 +96,9 @@ function relTime(unix) {
   if (Math.abs(days) < 365) return rtf.format(Math.round(days / 30), 'month');
   return rtf.format(Math.round(days / 365), 'year');
 }
+const STORE_LABEL = { steam: 'Steam', epic: 'Epic', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA', ubisoft: 'Ubisoft' };
+const STORE_FULL = { ...STORE_LABEL, epic: 'Epic Games', ea: 'EA app', ubisoft: 'Ubisoft Connect' };
+const storeName = (g) => STORE_LABEL[g.store] || g.store;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const games = () => (state.lib?.games || []).filter((g) => g.kind !== 'tool');
 const findGame = (id) => state.lib?.games.find((g) => g.id === id);
@@ -116,7 +119,9 @@ function errMsg(e) {
 
 function launch(g) {
   if (!g) return;
-  window.api.open(g.installed ? g.launchUrl : g.installUrl);
+  if (g.launch) window.api.launchGame(g.id);
+  else if (g.installed ? g.launchUrl : g.installUrl) window.api.open(g.installed ? g.launchUrl : g.installUrl);
+  else return toast(`${g.title} se abre desde ${STORE_FULL[g.store] || 'su launcher'}.`);
   if (g.installed && state.settings?.focus?.autoOnPlay !== false && (!state.focus || state.focus.mode === 'off')) {
     window.api.focusStart().then((s) => {
       state.focus = s;
@@ -133,7 +138,7 @@ function visibleGames() {
   const q = state.q.trim().toLowerCase();
   const list = state.lib.games.filter((g) => {
     if ((g.kind === 'tool') !== state.showTools) return false;
-    if (state.store !== 'all' && g.store !== state.store) return false;
+    if (state.store === 'other' ? ['steam', 'epic'].includes(g.store) : state.store !== 'all' && g.store !== state.store) return false;
     if (state.inst === 'yes' && !g.installed) return false;
     if (state.inst === 'no' && g.installed) return false;
     if (state.onlyUpd && !(g.installed && g.updatePending)) return false;
@@ -152,7 +157,9 @@ function matchesStatus(g, st) {
   const u = state.user[g.id] || {};
   if (st === 'fav') return !!u.fav;
   if (st === 'never') return neverPlayed(g);
+  if (st === 'trainer') return !!g.trainer;
   if (st === 'none') return !u.status;
+  if (st.startsWith('col:')) return (u.cols || []).includes(st.slice(4));
   return u.status === st;
 }
 
@@ -202,7 +209,7 @@ function card(g, isNew, mode) {
   if (g.cover) cover.append(coverImg(g, () => ph()));
   else ph();
   cover.append(
-    h('span', { class: 'store', text: g.store === 'steam' ? 'Steam' : 'Epic' }),
+    h('span', { class: 'store', text: storeName(g) }),
     g.installed && g.updatePending && h('span', { class: 'flag upd', text: 'Actualizar', title: g.updateText || '' }),
     isNew && h('span', { class: 'flag new', text: 'Nuevo' }),
     state.user[g.id]?.fav && h('span', { class: 'fav', text: '★', title: 'Favorito' }),
@@ -215,7 +222,7 @@ function card(g, isNew, mode) {
   );
   return h(
     'article',
-    { class: `card${g.installed ? '' : ' not-installed'}`, 'data-id': g.id, title: (g.tags || []).slice(0, 4).join(', ') },
+    { class: `card${g.installed ? '' : ' not-installed'}`, tabIndex: 0, 'data-id': g.id, title: (g.tags || []).slice(0, 4).join(', ') },
     cover,
     h('div', { class: 'title', text: g.title }),
     h('div', { class: 'meta' }, metaLine(g, mode))
@@ -521,9 +528,70 @@ function renderDeals() {
         'button',
         { class: `deal${sale ? '' : ' nosale'}`, onclick: () => window.api.open(`https://store.steampowered.com/app/${it.appid}/`), title: 'Abrir en la tienda de Steam' },
         h('img', { src: it.cover, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }),
-        h('div', {}, h('h3', { text: it.name }), priceRow, ends)
+        h('div', {}, h('h3', { text: it.name }), priceRow, ends, canRunBadge(it.appid))
       );
     })
+  );
+  // Requisitos de la lista de deseados (una vez; se guardan una semana)
+  const missing = d.items.map((i) => i.appid).filter((id) => !(id in canRunCache));
+  if (missing.length && !state.canRunLoading) {
+    state.canRunLoading = true;
+    ensureCanRun(missing)
+      .catch(() => {})
+      .finally(() => {
+        state.canRunLoading = false;
+        if (Object.keys(canRunCache).length) renderDeals();
+      });
+  }
+}
+
+// ---------- DLC rebajados de tus juegos (idea 4) ----------
+async function loadDlcDeals(force) {
+  const box = $('#dlcDeals');
+  if (state.dlcLoading || (state.dlc && !force)) return renderDlcDeals();
+  state.dlcLoading = true;
+  if (!state.dlc) box.replaceChildren(skeletonDeals(4));
+  try {
+    state.dlc = await window.api.dlcDeals(force);
+  } catch (e) {
+    state.dlc = { error: errMsg(e) };
+  }
+  state.dlcLoading = false;
+  renderDlcDeals();
+}
+
+function renderDlcDeals() {
+  const box = $('#dlcDeals');
+  const d = state.dlc;
+  if (!d) return;
+  if (d.error) return box.replaceChildren(h('p', { class: 'hint bad', text: d.error }));
+  const extras = /soundtrack|\bost\b|banda sonora|artbook|art book|wallpaper/i;
+  if (state.hideOst === undefined) state.hideOst = true;
+  const shownPer = {};
+  const all = d.filter((x) => !(state.hideOst && extras.test(x.name)));
+  const list = state.allDlc ? all : all.filter((x) => (shownPer[x.parentId] = (shownPer[x.parentId] || 0) + 1) <= 3);
+  const hidden = all.length - list.length;
+  const soon = Date.now() / 1000 + 2 * 86400;
+  box.replaceChildren(
+    h('label', { class: 'check dlc-ost' }, h('input', { type: 'checkbox', checked: !!state.hideOst, onchange: (e) => { state.hideOst = e.target.checked; renderDlcDeals(); } }), 'Ocultar bandas sonoras y artbooks'),
+    list.length
+      ? list.map((x) =>
+          h(
+            'button',
+            { class: 'deal', onclick: () => window.api.open(`https://store.steampowered.com/app/${x.appid}/`), title: 'Abrir en la tienda de Steam' },
+            h('img', { src: x.header, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }),
+            h(
+              'div',
+              {},
+              h('p', { class: 'dlc-parent', text: x.parent }),
+              h('h3', { text: x.name }),
+              h('div', { class: 'price' }, h('span', { class: 'pct', text: `−${x.pct}%` }), h('span', { class: 'final', text: x.final || '' }), x.original && h('span', { class: 'orig', text: x.original })),
+              x.endsAt && h('div', { class: `ends${x.endsAt < soon ? ' soon' : ''}`, text: `Termina ${relTime(x.endsAt)}` })
+            )
+          )
+        )
+      : h('p', { class: 'hint', text: 'Ningún DLC de tus juegos está rebajado ahora mismo.' }),
+    hidden > 0 && h('button', { class: 'btn ghost small dlc-more', text: `Ver los ${hidden} DLC rebajados restantes`, onclick: () => { state.allDlc = true; renderDlcDeals(); } })
   );
 }
 
@@ -610,8 +678,208 @@ async function clearNew() {
   renderLibrary();
 }
 
+// ---------- colecciones propias ----------
+function allCollections() {
+  const s = new Set();
+  for (const u of Object.values(state.user || {})) for (const c of u.cols || []) s.add(c);
+  return [...s].sort(collator.compare);
+}
+
+function renderStatusOptions() {
+  const sel = $('#status');
+  sel.querySelector('optgroup')?.remove();
+  const cols = allCollections();
+  if (state.status?.startsWith('col:') && !cols.includes(state.status.slice(4))) state.status = '';
+  if (cols.length) {
+    const count = (c) => Object.values(state.user).filter((u) => (u.cols || []).includes(c)).length;
+    sel.append(h('optgroup', { label: 'Tus colecciones' }, cols.map((c) => h('option', { value: `col:${c}`, text: `${c} (${count(c)})` }))));
+  }
+  sel.value = state.status;
+}
+
+function colsBlock(g) {
+  const cols = state.user[g.id]?.cols || [];
+  const save = (list) => setUser(g.id, { cols: list }).then(() => {
+    renderStatusOptions();
+    renderGame();
+  });
+  const input = h('input', { type: 'text', class: 'col-input', placeholder: 'Añadir a una colección (nueva o existente)…', maxLength: 40, 'aria-label': 'Nombre de la colección' });
+  input.setAttribute('list', 'colList');
+  const add = () => {
+    const v = input.value.trim();
+    if (v && !cols.includes(v)) save([...cols, v]);
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      add();
+    }
+  });
+  return h(
+    'div',
+    { class: 'col-box' },
+    cols.map((c) => h('span', { class: 'chip col-chip' }, c, h('button', { class: 'x', text: '×', title: `Quitar de «${c}»`, 'aria-label': `Quitar de ${c}`, onclick: () => save(cols.filter((x) => x !== c)) }))),
+    h('div', { class: 'col-add' }, input, h('button', { class: 'btn ghost small', text: 'Añadir', onclick: add })),
+    h('datalist', { id: 'colList', hidden: true }, allCollections().filter((c) => !cols.includes(c)).map((c) => h('option', { value: c })))
+  );
+}
+
+// ---------- apariencia (idea 10) ----------
+async function saveAppearance(patch) {
+  state.settings = await window.api.saveSettings(patch);
+  applyAppearance(state.settings);
+  fillAppearance(state.settings);
+}
+const setTheme = (theme) => saveAppearance({ theme });
+const setBackground = (bgGame) => saveAppearance({ bgGame });
+
+function applyAppearance(s) {
+  window.appearance.apply(s, (id) => (id === 'last' ? [...games()].filter((g) => g.hero && g.lastPlayed).sort((a, b) => b.lastPlayed - a.lastPlayed)[0] : findGame(id)));
+}
+
+function fillAppearance(s) {
+  for (const b of $$('#themeSeg button')) b.classList.toggle('on', b.dataset.v === (s.theme || 'dark'));
+  const light = document.documentElement.dataset.theme === 'light';
+  const ids = [...Object.keys(window.appearance.PALETTES), 'custom'];
+  fill(
+    $('#paletteGrid'),
+    ids.map((id) => {
+      const p = window.appearance.preview(id, s, light);
+      const on = (s.palette || 'viper') === id;
+      return h(
+        'button',
+        { type: 'button', class: `swatch${on ? ' on' : ''}`, role: 'radio', 'aria-checked': String(on), onclick: () => saveAppearance({ palette: id }) },
+        h('span', { class: 'swatch-art', style: { background: p.bg, color: p.text } }, h('i', { style: { background: p.surface } }), h('b', { style: { background: p.accent } }), h('em', { style: { background: p.sale } }), h('em', { style: { background: p.fresh } })),
+        h('span', { class: 'swatch-name', text: id === 'custom' ? 'A tu gusto' : window.appearance.PALETTES[id].name })
+      );
+    })
+  );
+  $('#customColors').hidden = s.palette !== 'custom';
+  $('#customAccent').value = s.customAccent || '#ef2f34';
+  $('#customHue').value = String(s.customHue ?? 352);
+  $('#customSat').value = String(s.customSat ?? 16);
+  const withArt = games().filter((g) => g.hero && g.kind !== 'tool').sort((a, b) => collator.compare(a.title, b.title));
+  $('#bgGame').replaceChildren(
+    h('option', { value: '', text: 'Ninguno' }),
+    h('option', { value: 'last', text: 'El último que jugaste' }),
+    h('optgroup', { label: 'Tus juegos' }, withArt.map((g) => h('option', { value: g.id, text: g.title })))
+  );
+  $('#bgGame').value = s.bgGame || '';
+}
+
+// ---------- carpeta de copias (idea 7) ----------
+async function fillBackupDir() {
+  let d;
+  try {
+    d = await window.api.savesDirs();
+  } catch {
+    return;
+  }
+  $('#backupDir').textContent = d.current;
+  const set = async (dir) => {
+    try {
+      const r = await window.api.savesSetDir(dir);
+      if (!r) return;
+      toast(r.moved ? `Copias movidas (${plural(r.moved, 'juego', 'juegos')}). Nueva carpeta: ${r.current}` : `Las copias se guardarán en ${r.current}`);
+      fillBackupDir();
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+  };
+  fill(
+    $('#backupDirBtns'),
+    d.clouds.map((c) => h('button', { type: 'button', class: 'btn ghost small', text: `Usar ${c.name}`, title: c.dir, onclick: () => set(c.dir) })),
+    h('button', { type: 'button', class: 'btn ghost small', text: 'Elegir carpeta…', onclick: () => set('pick') }),
+    d.custom && h('button', { type: 'button', class: 'btn ghost small', text: 'Volver a Documentos', onclick: () => set(null) }),
+    !d.clouds.length && h('span', { class: 'hint', text: 'No se ha encontrado OneDrive ni Google Drive en este PC.' })
+  );
+}
+
+// ---------- exportar biblioteca (idea 11) ----------
+async function exportLibrary(format) {
+  try {
+    const r = await window.api.exportLibrary(format, { notes: $('#exportNotes').checked });
+    if (r) $('#exportState').textContent = `Hecho: ${plural(r.games, 'juego', 'juegos')} en ${r.file}`;
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+}
+
+// ---------- biblioteca en el móvil (idea 8) ----------
+async function loadLan() {
+  try {
+    state.lan = await window.api.lanStatus();
+  } catch {
+    state.lan = { running: false };
+  }
+  renderLan();
+}
+
+async function lanAction(fn) {
+  try {
+    state.lan = await fn();
+  } catch (e) {
+    toast(`No se pudo encender: ${errMsg(e)}`, true);
+  }
+  renderLan();
+}
+
+function renderLan() {
+  const l = state.lan || { running: false };
+  $('#countLan').textContent = l.running ? '•' : '';
+  const box = $('#lanBody');
+  if (!box || $('#lanView').hidden) return;
+  const auto = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!state.settings?.lanAuto, onchange: async (e) => (state.settings = await window.api.saveSettings({ lanAuto: e.target.checked })) }), 'Encenderla cada vez que abro la app');
+  if (!l.running)
+    return fill(
+      box,
+      h(
+        'div',
+        { class: 'lan-off' },
+        h(
+          'ol',
+          { class: 'steps' },
+          h('li', {}, h('b', { text: 'Enciéndela aquí.' }), ' La primera vez Windows te pregunta si la app puede usar la red: elige «Redes privadas».'),
+          h('li', {}, h('b', { text: 'Escanea el QR con el móvil.' }), ' Tiene que estar en la misma Wi-Fi que el PC.'),
+          h('li', {}, h('b', { text: 'Toca un juego instalado.' }), ' Se abre en el PC después de confirmar.')
+        ),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', text: 'Encender', onclick: () => lanAction(window.api.lanStart) }), auto)
+      )
+    );
+  fill(
+    box,
+    h(
+      'div',
+      { class: 'lan-on' },
+      l.qr ? h('img', { class: 'lan-qr', src: l.qr, alt: 'Código QR con la dirección de tu biblioteca' }) : h('div', { class: 'lan-qr empty', text: 'Sin red' }),
+      h(
+        'div',
+        {},
+        h('h2', { class: 'section-h', text: 'Escanéalo con la cámara del móvil' }),
+        l.url ? h('p', { class: 'path', text: l.url }) : h('p', { class: 'hint bad', text: 'Este PC no parece estar conectado a ninguna red local.' }),
+        h(
+          'ul',
+          { class: 'advice' },
+          h('li', { text: 'El móvil tiene que estar en la misma Wi-Fi que el PC.' }),
+          h('li', { text: 'Desde el móvil puedes buscar, ver tus juegos y abrir en el PC los que están instalados (te pide confirmación).' }),
+          h('li', { text: 'El enlace lleva un código secreto: quien no lo tenga no puede entrar. Si lo compartiste sin querer, cámbialo.' }),
+          h('li', { text: 'Se apaga al cerrar la app.' })
+        ),
+        h(
+          'div',
+          { class: 'row' },
+          h('button', { class: 'btn ghost', text: 'Apagar', onclick: () => lanAction(window.api.lanStop) }),
+          h('button', { class: 'btn ghost', text: 'Cambiar el código', onclick: () => lanAction(window.api.lanNewCode) })
+        ),
+        auto
+      )
+    )
+  );
+}
+
 function renderAll() {
   renderTagOptions();
+  renderStatusOptions();
   syncControls();
   renderLibrary();
   renderSagas();
@@ -627,10 +895,15 @@ function showView(view) {
   $('#libraryView').hidden = view !== 'library';
   $('#sagasView').hidden = view !== 'sagas';
   $('#dealsView').hidden = view !== 'deals';
+  if (view === 'deals') loadDlcDeals(false);
   $('#achView').hidden = view !== 'ach';
   $('#statsView').hidden = view !== 'stats';
   $('#newsView').hidden = view !== 'news';
   $('#friendsView').hidden = view !== 'friends';
+  $('#recsView').hidden = view !== 'recs';
+  $('#lanView').hidden = view !== 'lan';
+  if (view === 'lan') loadLan();
+  if (view === 'recs') loadRecs(false);
   if (view === 'news') loadNews(false);
   if (view === 'friends') (fr.list ? renderFriendsView() : loadFriends());
   $('#diskView').hidden = view !== 'disk';
@@ -1569,10 +1842,10 @@ async function loadNews(force) {
   state.newsLoading = true;
   renderNews();
   try {
-    const [items, rel] = await Promise.all([window.api.news(), window.api.releases()]);
-    state.news = { at: Date.now(), items, releases: rel };
+    const [items, rel, nin] = await Promise.all([window.api.news(), window.api.releases(), window.api.nintendo(force).catch(() => [])]);
+    state.news = { at: Date.now(), items, releases: rel, nintendo: nin };
   } catch (e) {
-    state.news = { at: Date.now(), error: errMsg(e), items: [], releases: [] };
+    state.news = { at: Date.now(), error: errMsg(e), items: [], releases: [], nintendo: [] };
   }
   state.newsLoading = false;
   renderNews();
@@ -1636,7 +1909,134 @@ function renderNews() {
         h('p', { class: 'hint', text: 'Juegos de tu lista de deseados que aún no han salido.' }),
         rel.length ? h('div', { class: 'rel-list' }, rel) : h('p', { class: 'hint', text: state.newsLoading ? 'Cargando…' : 'Nada de tu lista de deseados está por salir.' })
       )
+    ),
+    renderNintendo(n.nintendo || [])
+  );
+}
+
+// Noticias de Nintendo: Nintenderos (español) y Nintendo Life (inglés)
+const ninState = { source: 'all' };
+function renderNintendo(items) {
+  const sources = [...new Set(items.map((i) => i.source))];
+  const shown = items.filter((i) => ninState.source === 'all' || i.source === ninState.source).slice(0, 18);
+  const seg = h(
+    'div',
+    { class: 'seg' },
+    ['all', ...sources].map((s) =>
+      h('button', {
+        class: ninState.source === s ? 'on' : '',
+        text: s === 'all' ? 'Todas' : s,
+        onclick: () => {
+          ninState.source = s;
+          renderNews();
+        },
+      })
     )
+  );
+  return h(
+    'section',
+    { class: 'nin' },
+    h('div', { class: 'nin-head' }, h('div', {}, h('h2', { class: 'section-h', text: 'Noticias de Nintendo' }), h('p', { class: 'hint', text: 'De Nintenderos (en español) y Nintendo Life (en inglés). Se abren en el navegador.' })), sources.length > 1 ? seg : null),
+    shown.length
+      ? h(
+          'div',
+          { class: 'nin-grid' },
+          shown.map((it) =>
+            h(
+              'button',
+              { class: 'nin-card', onclick: () => window.api.open(it.url), title: `Abrir en ${it.source}` },
+              h('div', { class: 'nin-art', 'data-source': it.source }, h('span', { class: 'nin-ph', text: it.source }), it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() }) : null),
+              h(
+                'div',
+                { class: 'nin-body' },
+                h('div', { class: 'news-meta' }, h('span', { class: 'kind', text: it.source }), it.lang === 'en' && h('span', { class: 'lang', text: 'EN' }), h('span', { text: relTime(it.date) })),
+                h('h3', { text: it.title }),
+                it.text && h('p', { class: 'hint', text: it.text })
+              )
+            )
+          )
+        )
+      : h('p', { class: 'hint', text: state.newsLoading ? 'Cargando…' : 'No se pudieron leer las noticias de Nintendo. Prueba a recargar.' })
+  );
+}
+
+// Tarjetas vacías con la forma de lo que va a llegar (mejor que un texto de "cargando")
+function skeletonDeals(n) {
+  return h('div', { class: 'deals skel-list', 'aria-busy': 'true', 'aria-label': 'Cargando' }, Array.from({ length: n }, () => h('div', { class: 'deal skel' }, h('i', { class: 'skel-img' }), h('div', {}, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }), h('i', { class: 'skel-line w55' })))));
+}
+
+// ---------- para ti (recomendaciones) ----------
+const rec = { data: null, loading: false, error: null, store: 'all' };
+async function loadRecs(force) {
+  if (rec.loading) return;
+  if (rec.data && !force) return renderRecs();
+  rec.loading = true;
+  renderRecs();
+  try {
+    rec.data = await window.api.recs(force);
+    rec.error = null;
+  } catch (e) {
+    rec.error = errMsg(e);
+  }
+  rec.loading = false;
+  renderRecs();
+}
+
+function recCard(r) {
+  return h(
+    'button',
+    { class: `deal rec${r.discount ? '' : ' nosale'}`, onclick: () => window.api.open(r.url), title: `Ver en la tienda de ${r.store === 'steam' ? 'Steam' : 'Epic Games'}` },
+    r.image ? h('img', { src: r.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : h('div', { class: 'rec-noimg' }),
+    h(
+      'div',
+      {},
+      h('h3', { text: r.name }),
+      r.reason && h('p', { class: 'rec-why', text: r.reason }),
+      h(
+        'div',
+        { class: 'price' },
+        r.discount > 0 && h('span', { class: 'pct', text: `-${r.discount}%` }),
+        h('span', { class: 'final', text: r.price || 'Ver precio' }),
+        r.reviews && h('span', { class: 'rec-rev', text: `${r.reviews}% positivas` })
+      )
+    )
+  );
+}
+
+function renderRecs() {
+  const box = $('#recsBody');
+  if (!box || $('#recsView').hidden) return;
+  if (rec.error) return fill(box, h('p', { class: 'hint bad', text: rec.error }));
+  if (!rec.data) return fill(box, h('p', { class: 'hint', text: 'Mirando tus categorías favoritas en Steam y el escaparate de Epic. Tarda unos segundos.' }), skeletonDeals(6));
+  const d = rec.data;
+  const seg = h(
+    'div',
+    { class: 'seg' },
+    [
+      ['all', 'Las dos'],
+      ['steam', `Steam (${d.steam.length})`],
+      ['epic', `Epic (${d.epic.length})`],
+    ].map(([v, t]) =>
+      h('button', {
+        class: rec.store === v ? 'on' : '',
+        text: t,
+        onclick: () => {
+          rec.store = v;
+          renderRecs();
+        },
+      })
+    )
+  );
+  const block = (title, hint, list) =>
+    h('section', { class: 'rec-sec' }, h('h2', { class: 'section-h', text: title }), h('p', { class: 'hint', text: hint }), list.length ? h('div', { class: 'deals' }, list.map(recCard)) : h('p', { class: 'hint', text: 'Nada que encaje ahora mismo.' }));
+  fill(
+    box,
+    d.profile.length
+      ? h('p', { class: 'rec-taste' }, h('span', { class: 'field-lbl', text: 'Según lo que más juegas:' }), d.profile.map((p) => h('span', { class: 'taste', text: p.tag })))
+      : h('p', { class: 'hint', text: 'Puntúa juegos o juega un poco más para afinar las recomendaciones.' }),
+    h('div', { class: 'toolbar' }, seg, rec.loading && h('span', { class: 'hint', text: 'Actualizando…' })),
+    rec.store !== 'epic' && block('En Steam', 'Por categorías que juegas mucho y por "más como esto" de tus favoritos.', d.steam),
+    rec.store !== 'steam' && block('En Epic Games', 'De lo que Epic tiene ahora en portada, lo que encaja con tus categorías.', d.epic)
   );
 }
 
@@ -1831,7 +2231,7 @@ async function fillGameSaves(g) {
   if (info?.error) parts.push(h('p', { class: 'hint bad', text: info.error }));
   else if (!info?.known) parts.push(h('p', { class: 'hint', text: 'La base de datos de Ludusavi no sabe dónde guarda sus partidas este juego.' }));
   else {
-    if (cloud) parts.push(h('p', { class: 'hint ok', text: `${g.store === 'steam' ? 'Steam' : 'Epic'} ya guarda estas partidas en la nube; la copia local es un extra.` }));
+    if (cloud) parts.push(h('p', { class: 'hint ok', text: `${storeName(g)} ya guarda estas partidas en la nube; la copia local es un extra.` }));
     if (info.found?.error) parts.push(h('p', { class: 'hint bad', text: info.found.error }));
     else if (info.found?.files) parts.push(h('p', { class: 'hint', text: `En este PC: ${plural(info.found.files, 'archivo', 'archivos')}, ${fmtBytes(info.found.bytes)}.` }));
     else parts.push(h('p', { class: 'hint', text: info.registry ? 'Este juego guarda sus datos en el registro de Windows; no se pueden copiar como archivos.' : 'No hay partidas de este juego en este PC.' }));
@@ -1892,7 +2292,169 @@ async function fillGameSaves(g) {
   box.replaceChildren(...parts);
 }
 
+const steamAppidOf = (g) => (g.store === 'steam' ? Number(g.id.split(':')[1]) : g.steamAppid || null);
+
+// ---------- parecidos a este (idea 1) ----------
+function similarGames(g) {
+  const tags = g.tags || [];
+  if (!tags.length) return [];
+  const w = new Map(tags.map((t, i) => [t, 1 / (1 + i * 0.25)]));
+  return games()
+    .filter((o) => o.id !== g.id && o.kind !== 'tool' && (o.tags || []).length && (!g.saga || o.saga !== g.saga))
+    .map((o) => {
+      let s = 0;
+      o.tags.forEach((t, i) => {
+        if (w.has(t)) s += w.get(t) / (1 + i * 0.25);
+      });
+      return { o, s: s / Math.sqrt(o.tags.length) };
+    })
+    .filter((x) => x.s > 0.55)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 8)
+    .map((x) => x.o);
+}
+
+function fillGameSimilar(g) {
+  const box = $('#gameSimilar');
+  if (!box) return;
+  const list = similarGames(g);
+  if (!list.length) return box.replaceChildren();
+  const unplayed = (o) => neverPlayed(o) || (o.store !== 'steam' && !o.lastPlayed);
+  box.replaceChildren(
+    h('h3', { class: 'sheet-h', text: 'Parecidos a este en tu biblioteca' }),
+    h('p', { class: 'hint', text: 'Por categorías en común. Los marcados «Sin estrenar» aún no los has jugado.' }),
+    h(
+      'div',
+      { class: 'sim-row' },
+      list.map((o) =>
+        h(
+          'button',
+          {
+            class: 'sim',
+            title: o.title,
+            onclick: () => {
+              stopTrailer();
+              openGameId = o.id;
+              renderedGameId = null;
+              renderGame();
+              fillGameExtras(o);
+              $('#gameDlg').scrollTo?.({ top: 0 });
+            },
+          },
+          h('div', { class: 'sim-cover' }, o.cover ? coverImg(o) : null, unplayed(o) && h('span', { class: 'flag new', text: 'Sin estrenar' })),
+          h('span', { class: 'sim-title', text: o.title })
+        )
+      )
+    )
+  );
+}
+
+// ---------- tráileres (idea 6) ----------
+function stopTrailer() {
+  window.trailerPlayer.stop($('#gameTrailers video'));
+}
+
+async function fillGameTrailers(g) {
+  const box = $('#gameTrailers');
+  const appid = steamAppidOf(g);
+  if (!box || !appid) return box && box.replaceChildren();
+  let list = [];
+  try {
+    list = await window.api.trailers(appid);
+  } catch {}
+  if (openGameId !== g.id || !list.length) return box.replaceChildren();
+  const video = h('video', { controls: true, preload: 'none', poster: list[0].poster || '', playsInline: true });
+  const label = h('p', { class: 'hint', text: list[0].name });
+  const playIt = async (t, btn) => {
+    for (const b of box.querySelectorAll('.trailer-thumb')) b.classList.toggle('on', b === btn);
+    label.textContent = t.name;
+    video.poster = t.poster || '';
+    let ok = false;
+    try {
+      ok = t.dash ? await window.trailerPlayer.play(video, t.dash) : false;
+    } catch {}
+    if (!ok && t.micro) {
+      // Sin DASH: el avance corto (sin sonido) que Steam muestra al pasar el ratón
+      video.src = t.micro;
+      video.play().catch(() => {});
+      label.textContent = `${t.name} (avance corto)`;
+    }
+  };
+  box.replaceChildren(
+    h('h3', { class: 'sheet-h', text: list.length > 1 ? `Tráileres (${list.length})` : 'Tráiler' }),
+    h('div', { class: 'trailer' }, video),
+    label,
+    list.length > 1 &&
+      h(
+        'div',
+        { class: 'trailer-row' },
+        list.map((t, i) => {
+          const btn = h('button', { class: `trailer-thumb${i === 0 ? ' on' : ''}`, title: t.name }, t.poster ? h('img', { src: t.poster, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : h('span', { text: t.name }));
+          btn.addEventListener('click', () => playIt(t, btn));
+          return btn;
+        })
+      )
+  );
+  // El primero empieza al pulsar play en el vídeo
+  video.addEventListener(
+    'play',
+    function first() {
+      if (video.src) return;
+      video.removeEventListener('play', first);
+      playIt(list[0], box.querySelector('.trailer-thumb'));
+    }
+  );
+}
+
+// ---------- ¿lo mueve mi PC? (idea 5) ----------
+const canRunCache = {};
+let hwInfo = null;
+const CANRUN = {
+  rec: { cls: 'ok', short: 'Lo mueve bien', long: 'Tu PC cumple los requisitos recomendados.' },
+  min: { cls: 'mid', short: 'Lo mueve justo', long: 'Tu PC cumple los mínimos, pero no todos los recomendados: tocará bajar gráficos.' },
+  no: { cls: 'bad', short: 'Le cuesta', long: 'Tu PC no llega a los requisitos mínimos en algo.' },
+};
+async function ensureCanRun(appids) {
+  const todo = [...new Set(appids)].filter((id) => id && !(id in canRunCache));
+  if (!todo.length) return;
+  const r = await window.api.canRun(todo);
+  hwInfo = r.hw;
+  Object.assign(canRunCache, r.games);
+}
+function canRunBadge(appid) {
+  const c = canRunCache[appid];
+  const v = c && CANRUN[c.verdict];
+  if (!v) return null;
+  const detail = (c.rec && c.verdict === 'rec' ? c.rec : c.min || []).map((x) => `${x.ok === true ? '✓' : x.ok === false ? '✗' : '?'} ${x.part}: ${x.need}`).join('\n');
+  return h('span', { class: `canrun ${v.cls}`, text: v.short, 'data-tip': `${v.long}\n${detail}` });
+}
+
+async function fillGameCanRun(g) {
+  const box = $('#gameCanRun');
+  const appid = steamAppidOf(g);
+  if (!box || g.installed || !appid) return box && box.replaceChildren();
+  try {
+    await ensureCanRun([appid]);
+  } catch {
+    return box.replaceChildren();
+  }
+  if (openGameId !== g.id) return;
+  const c = canRunCache[appid];
+  if (!c?.verdict) return box.replaceChildren();
+  const v = CANRUN[c.verdict];
+  const rows = (list) => list.map((x) => h('li', { class: x.ok === true ? 'ok' : x.ok === false ? 'bad' : '' }, h('b', { text: `${x.part}: ` }), x.need, x.ok == null && h('span', { class: 'hint', text: ' (no se pudo comparar)' })));
+  box.replaceChildren(
+    h('h3', { class: 'sheet-h', text: '¿Lo mueve tu PC?' }),
+    h('p', { class: `canrun-line ${v.cls}` }, h('b', { text: v.short }), ` · ${v.long}`),
+    h('p', { class: 'hint', text: `Tu equipo: ${hwInfo.cpu}, ${hwInfo.gpu}${hwInfo.vramGB ? ` (${hwInfo.vramGB} GB)` : ''}, ${hwInfo.ramGB} GB de RAM. La comparación de procesador y gráfica es aproximada.` }),
+    h('details', {}, h('summary', { text: 'Ver requisitos' }), c.min?.length && h('p', { class: 'hint', text: 'Mínimos' }), h('ul', { class: 'req' }, rows(c.min || [])), c.rec?.length && h('p', { class: 'hint', text: 'Recomendados' }), h('ul', { class: 'req' }, rows(c.rec || [])))
+  );
+}
+
 function fillGameExtras(g) {
+  fillGameCanRun(g);
+  fillGameTrailers(g);
+  fillGameSimilar(g);
   fillGameSessions(g);
   fillGameNews(g);
   fillGameShots(g);
@@ -2087,7 +2649,7 @@ function duplicatesPanel() {
                 h(
                   'div',
                   { class: 'stale-row' },
-                  h('button', { class: 'link-title', text: `${g.store === 'steam' ? 'Steam' : 'Epic'}, ${(g.installPath || '').slice(0, 2)}`, onclick: () => openGame(g) }),
+                  h('button', { class: 'link-title', text: `${storeName(g)}, ${(g.installPath || '').slice(0, 2)}`, onclick: () => openGame(g) }),
                   h('span', { class: 'hint', text: `${fmtBytes(g.sizeBytes)}${g.lastPlayed ? `, jugado ${relTime(g.lastPlayed)}` : ''}` }),
                   g.store === 'steam'
                     ? h('button', { class: 'btn ghost small', text: 'Desinstalar', onclick: () => window.api.open(`steam://uninstall/${g.id.split(':')[1]}`) })
@@ -2191,7 +2753,7 @@ function renderWelcome() {
     ];
   }
   $('#welcomeBody').replaceChildren(
-    h('div', { class: 'welcome-head' }, h('div', { class: 'brand' }, h('span', { text: 'Biblioteca de juegos' })), dots),
+    h('div', { class: 'welcome-head' }, h('div', { class: 'brand' }, h('span', { text: 'Bienvenido a ViperTeca' })), dots),
     body,
     h('div', { class: 'actions' }, welcome.step === 0 ? skip : back, next(welcome.step === 2 ? 'Empezar' : 'Siguiente'))
   );
@@ -2219,6 +2781,7 @@ async function saveWelcomeStep() {
 const fmtBytes = (b) => (!b ? '—' : b >= 1e12 ? `${(b / 1e12).toFixed(2).replace('.', ',')} TB` : b >= 1e9 ? `${(b / 1e9).toFixed(1).replace('.', ',')} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
 const fmtHours = (min) => (min >= 60 ? `${(min / 60).toFixed(min >= 600 ? 0 : 1).replace('.', ',')} h` : `${min} min`);
 let openGameId = null;
+let renderedGameId = null;
 
 async function setUser(id, patch) {
   state.user = await window.api.setUserGame(id, patch);
@@ -2227,6 +2790,7 @@ async function setUser(id, patch) {
 
 function openGame(g) {
   openGameId = g.id;
+  renderedGameId = null;
   renderGame();
   fillGameExtras(g);
   $('#gameDlg').showModal();
@@ -2270,55 +2834,96 @@ function renderGame() {
   );
   discord.value = u.focusDiscord || '';
 
+  // Las secciones que se rellenan aparte se conservan al volver a pintar la ficha
+  const same = renderedGameId === g.id;
+  renderedGameId = g.id;
+  const slot = (id) => (same && document.getElementById(id)) || h('div', { id });
+  const close = () => $('#gameDlg').close();
+  const platDone = a && !a.noStats && a.total && a.done === a.total;
+  const isBg = state.settings?.bgGame === g.id;
+
   $('#gameBody').replaceChildren(
     h(
-      'div',
-      { class: 'game-sheet' },
-      h('div', { class: 'ach-head-cover' }, g.cover ? coverImg(g) : null),
+      'header',
+      { class: `sheet-hero${g.hero ? '' : ' no-art'}` },
+      g.hero && h('img', { class: 'sheet-art', src: g.hero, alt: '', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() }),
+      h('button', { class: 'sheet-close', 'aria-label': 'Cerrar la ficha', title: 'Cerrar (Esc)', onclick: close }, h('span', { text: '×', 'aria-hidden': 'true' })),
       h(
         'div',
-        {},
-        h('p', { class: 'hero-kicker', text: g.store === 'steam' ? 'Steam' : 'Epic Games' }),
-        h('h2', { text: g.title }),
-        g.updatePending && h('p', { class: 'hint bad', text: g.updateText }),
-        h('dl', { class: 'facts' }, facts.flatMap(([k, v]) => [h('dt', { text: k }), h('dd', { text: v })])),
-        (g.tags || []).length
-          ? h(
-              'div',
-              { class: 'focus-apps' },
-              g.saga && h('button', { class: 'chip saga-chip', text: `Saga: ${g.saga}`, onclick: () => { $('#gameDlg').close(); showView('sagas'); openSaga(g.saga); } }),
-              g.tags.map((t) => h('button', { class: 'chip', text: t, title: 'Ver los juegos de esta categoría', onclick: () => filterByTag(t) }))
-            )
-          : null
+        { class: 'sheet-hero-in' },
+        h('div', { class: 'sheet-cover' }, g.cover ? coverImg(g) : null),
+        h(
+          'div',
+          { class: 'sheet-title' },
+          h('p', { class: 'hero-kicker', text: STORE_FULL[g.store] || g.store }),
+          h('h2', { text: g.title }),
+          g.updatePending && h('p', { class: 'sheet-upd', text: g.updateText }),
+          h(
+            'div',
+            { class: 'sheet-cta' },
+            h('button', { class: 'btn primary big', onclick: () => { close(); launch(g); } }, h('span', { 'aria-hidden': 'true', text: g.installed ? '▶' : '↓' }), g.installed ? 'Jugar' : 'Instalar'),
+            appid && a && !a.noStats && h('button', { class: 'btn ghost', text: 'Logros', onclick: () => { close(); showView('ach'); openAchDetail(g); } }),
+            g.trainer && h('button', { class: 'btn ghost trainer', title: state.wand ? 'Abrir sus trucos en Wand (solo para partidas de un jugador)' : 'Ver sus trucos en la web de Wand (no está instalado)', onclick: () => window.api.open(state.wand ? g.trainer.play : g.trainer.web) }, h('span', { class: 'wand-dot', 'aria-hidden': 'true' }), `Trucos (${g.trainer.cheats})`),
+            g.storeUrl && h('button', { class: 'btn ghost', text: 'Tienda', onclick: () => window.api.open(g.storeUrl) }),
+            g.hero && h('button', { class: `btn ghost${isBg ? ' on' : ''}`, text: isBg ? 'Quitar de fondo' : 'Usar de fondo', 'aria-pressed': String(isBg), onclick: () => setBackground(isBg ? '' : g.id).then(renderGame) }),
+            g.installed && g.store === 'steam' && h('button', { class: 'btn ghost subtle', text: 'Desinstalar', title: 'Steam te pedirá confirmación', onclick: () => window.api.open(`steam://uninstall/${appid}`) })
+          )
+        )
       )
     ),
-    h('h3', { class: 'sheet-h', text: 'Tu seguimiento' }),
-    statusSeg,
-    starsInput(g),
+    h('dl', { class: 'stat-strip' }, facts.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: v })))),
+    (g.tags || []).length || g.saga
+      ? h(
+          'div',
+          { class: 'sheet-tags' },
+          g.saga && h('button', { class: 'chip saga-chip', text: `Saga: ${g.saga}`, onclick: () => { close(); showView('sagas'); openSaga(g.saga); } }),
+          (g.tags || []).map((t) => h('button', { class: 'chip', text: t, title: 'Ver los juegos de esta categoría', onclick: () => filterByTag(t) }))
+        )
+      : null,
     h(
       'div',
-      { class: 'row toggles' },
-      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!u.fav, onchange: (e) => setUser(g.id, { fav: e.target.checked }) }), 'Favorito'),
-      appid && a && !a.noStats
-        ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!u.pin, onchange: (e) => setUser(g.id, { pin: e.target.checked }) }), 'Voy a por el platino')
-        : null
+      { class: 'sheet-cols' },
+      h(
+        'section',
+        {},
+        h('h3', { class: 'sheet-h', text: 'Tu seguimiento' }),
+        statusSeg,
+        starsInput(g),
+        h(
+          'div',
+          { class: 'row toggles' },
+          h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!u.fav, onchange: (e) => setUser(g.id, { fav: e.target.checked }) }), 'Favorito'),
+          appid && a && !a.noStats && !platDone
+            ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!u.pin, onchange: (e) => setUser(g.id, { pin: e.target.checked }) }), 'Voy a por el platino')
+            : null,
+          platDone && h('span', { class: 'plat-badge', text: 'Platino conseguido' })
+        ),
+        note,
+        h('h3', { class: 'sheet-h', text: 'Colecciones' }),
+        colsBlock(g)
+      ),
+      h(
+        'section',
+        {},
+        slot('gameCanRun'),
+        slot('gameSessions'),
+        h('h3', { class: 'sheet-h', text: 'Modo enfoque en este juego' }),
+        h('label', { class: 'field-stack' }, h('span', { class: 'hint', text: 'Qué hacer con Discord mientras juegas a este' }), discord)
+      )
     ),
-    note,
-    h('div', { id: 'gameSessions' }),
-    h('div', { id: 'gameNews' }),
-    h('div', { id: 'gameShots' }),
-    h('div', { id: 'gameSaves' }),
-    h('h3', { class: 'sheet-h', text: 'Modo enfoque en este juego' }),
-    h('div', { class: 'row' }, discord),
     h(
       'div',
-      { class: 'actions' },
-      g.installed && g.store === 'steam' && h('button', { class: 'btn ghost', text: 'Desinstalar', title: 'Steam te pedirá confirmación', onclick: () => window.api.open(`steam://uninstall/${appid}`) }),
-      appid && a && !a.noStats && h('button', { class: 'btn ghost', text: 'Ver logros', onclick: () => { $('#gameDlg').close(); showView('ach'); openAchDetail(g); } }),
-      g.storeUrl && h('button', { class: 'btn ghost', text: 'Tienda', onclick: () => window.api.open(g.storeUrl) }),
-      h('button', { class: 'btn ghost', text: 'Cerrar', onclick: () => $('#gameDlg').close() }),
-      h('button', { class: 'btn primary', text: g.installed ? 'Jugar' : 'Instalar', onclick: () => { $('#gameDlg').close(); launch(g); } })
-    )
+      { class: 'sheet-links' },
+      h('span', { class: 'hint', text: 'Buscar:' }),
+      h('button', { class: 'link-btn', text: 'Guías en YouTube', onclick: () => window.api.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(g.title + ' guía')}`) }),
+      h('button', { class: 'link-btn', text: 'Mods en Nexus Mods', onclick: () => window.api.open(`https://www.nexusmods.com/search?keyword=${encodeURIComponent(g.title)}`) }),
+      h('button', { class: 'link-btn', text: 'Cuánto dura (HowLongToBeat)', onclick: () => window.api.open(`https://howlongtobeat.com/?q=${encodeURIComponent(g.title)}`) })
+    ),
+    slot('gameTrailers'),
+    slot('gameSimilar'),
+    slot('gameNews'),
+    slot('gameShots'),
+    slot('gameSaves')
   );
 }
 
@@ -2466,7 +3071,7 @@ async function openSettings() {
   $('#legendaryPath').value = s.legendaryPath || '';
   $('#focusPower').checked = s.focus?.powerPlan !== false;
   $('#trackSessions').checked = s.trackSessions !== false;
-  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey']) $(`#set-${k}`).checked = s[k] !== false;
+  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts']) $(`#set-${k}`).checked = s[k] !== false;
   $('#set-dailyLimitMin').value = String(s.dailyLimitMin || 0);
   $('#set-remindEveryMin').value = String(s.remindEveryMin || 0);
   $('#keepTracking').checked = s.keepTracking !== false;
@@ -2478,6 +3083,9 @@ async function openSettings() {
   $('#focusMinimize').checked = s.focus?.minimize !== false;
   $('#focusFree').checked = s.focus?.freeMemory !== false;
   showSettingsTab('cuentas');
+  fillBackupDir();
+  fillAppearance(s);
+  $('#exportState').textContent = '';
   const es = $('#epicState');
   if (!s.legendary) es.replaceChildren(h('span', { class: 'bad', text: 'No se encuentra legendary.' }));
   else if (s.legendaryState?.loggedIn) es.replaceChildren(h('span', { class: 'ok', text: `Vinculado como ${s.legendaryState.account}.` }));
@@ -2499,7 +3107,7 @@ async function saveSettings(ev) {
       steamKey: steamKey || undefined,
       legendaryPath: $('#legendaryPath').value,
       trackSessions: $('#trackSessions').checked,
-      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey'].map((k) => [k, $(`#set-${k}`).checked])),
+      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts'].map((k) => [k, $(`#set-${k}`).checked])),
       dailyLimitMin: Number($('#set-dailyLimitMin').value),
       remindEveryMin: Number($('#set-remindEveryMin').value),
       keepTracking: $('#keepTracking').checked,
@@ -2581,6 +3189,27 @@ function bind() {
   $('#refreshBtn').addEventListener('click', refresh);
   $('#focusBtn').addEventListener('click', onFocusClick);
   $('#pickBtn').addEventListener('click', openPick);
+  $('#recsRefresh').addEventListener('click', () => loadRecs(true));
+  $('#gameDlg').addEventListener('close', stopTrailer);
+  for (const b of $$('#themeSeg button')) b.addEventListener('click', () => setTheme(b.dataset.v));
+  $('#bgGame').addEventListener('change', (e) => setBackground(e.target.value));
+  // Color a tu gusto: se ve al momento y se guarda al soltar
+  for (const id of ['customAccent', 'customHue', 'customSat']) {
+    const el = $(`#${id}`);
+    const val = () => (id === 'customAccent' ? el.value : Number(el.value));
+    el.addEventListener('input', () => applyAppearance({ ...state.settings, palette: 'custom', [id]: val() }));
+    el.addEventListener('change', () => saveAppearance({ palette: 'custom', [id]: val() }));
+  }
+  $('#exportCsv').addEventListener('click', () => exportLibrary('csv'));
+  $('#exportHtml').addEventListener('click', () => exportLibrary('html'));
+  // Enter sobre una carátula abre su ficha (teclado y mando)
+  for (const id of ['#grid', '#sagaGrid']) {
+    $(id).addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || !e.target.classList.contains('card')) return;
+      const g = findGame(e.target.dataset.id);
+      if (g) openGame(g);
+    });
+  }
   $('#setTabs').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-tab]');
     if (b) showSettingsTab(b.dataset.tab);
@@ -2760,6 +3389,8 @@ function bind() {
   state.lib = lib;
   state.country = settings.country || 'CL';
   state.settings = settings;
+  applyAppearance(settings);
+  window.api.wandInstalled().then((v) => (state.wand = v)).catch(() => {});
   if (!settings.onboarded) {
     if (settings.hasSteamKey) window.api.saveSettings({ onboarded: true });
     else setTimeout(openWelcome, 300);
