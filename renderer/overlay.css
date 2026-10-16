@@ -1,0 +1,18 @@
+html, body { margin: 0; background: transparent; overflow: hidden; }
+.ov {
+  margin: 4px; padding: 9px 12px 8px; border-radius: 10px;
+  background: rgba(22, 18, 42, .82); border: 1px solid rgba(255, 181, 71, .35);
+  color: #f1edff; font: 12px/1.3 "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+.top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.fps { margin: 0; flex: none; color: #f1edff; }
+.fps b { font: 700 22px/1 "Bahnschrift", sans-serif; font-variant-numeric: tabular-nums; }
+.fps span { margin-left: 3px; font-size: 10px; color: #a39cc3; }
+.game { min-width: 0; margin: 0 0 6px; font: 700 13px/1.1 "Bahnschrift", sans-serif; color: #ffb547; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row { display: grid; grid-template-columns: 30px 1fr 44px; gap: 6px; align-items: center; margin: 3px 0; }
+.row span { color: #a39cc3; }
+.row em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.track { display: block; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.track b { display: block; height: 100%; width: 0; border-radius: 0 3px 3px 0; background: #c97f1e; transition: width .4s; }
+.track b.hot { background: #ff5c8a; }
+.extra { margin: 5px 0 0; color: #a39cc3; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

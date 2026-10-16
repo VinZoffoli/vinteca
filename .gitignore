@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+# Se descarga con scripts/get-presentmon.js al generar el instalador
+build/tools/
+# Los ajustes, la clave de Steam y tus datos se guardan en %APPDATA%\biblioteca-juegos,
+# fuera del proyecto. Aun así, nunca subas archivos de configuración local:
+*.local.json
+.env

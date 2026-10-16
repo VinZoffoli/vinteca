@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Rendimiento</title>
+  <link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+  <div class="ov">
+    <div class="top-row"><p id="game" class="game">Modo enfoque</p><p class="fps"><b id="fps">—</b><span>FPS</span></p></div>
+    <div class="row"><span>CPU</span><i class="track"><b id="cpuBar"></b></i><em id="cpu">—</em></div>
+    <div class="row"><span>GPU</span><i class="track"><b id="gpuBar"></b></i><em id="gpu">—</em></div>
+    <div class="row"><span>RAM</span><i class="track"><b id="ramBar"></b></i><em id="ram">—</em></div>
+    <p id="extra" class="extra"></p>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>
