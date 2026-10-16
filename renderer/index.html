@@ -237,8 +237,15 @@
   <dialog id="settings">
     <form method="dialog" id="settingsForm">
       <h2>Ajustes</h2>
+      <div class="seg set-tabs" id="setTabs" role="tablist">
+        <button type="button" data-tab="cuentas" class="on">Cuentas</button>
+        <button type="button" data-tab="enfoque">Modo enfoque</button>
+        <button type="button" data-tab="partidas">Partidas y datos</button>
+        <button type="button" data-tab="avisos">Tiempo y avisos</button>
+        <button type="button" data-tab="apariencia">Apariencia</button>
+      </div>
 
-      <fieldset>
+      <fieldset data-tab="cuentas">
         <legend>Steam</legend>
         <label>SteamID64
           <input id="steamId" inputmode="numeric" pattern="\d{17}" placeholder="7656119…">
@@ -260,7 +267,7 @@
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="cuentas">
         <legend>Epic Games</legend>
         <p class="hint">Sin vincular nada se lee la caché del Epic Games Launcher. Para la biblioteca completa y los avisos de actualización se usa <a href="https://github.com/legendary-gl/legendary/releases" target="_blank">legendary</a>.</p>
         <label>Ruta de legendary.exe
@@ -272,7 +279,7 @@
         </div>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="enfoque">
         <legend>Modo enfoque</legend>
         <p class="hint">Mientras juegas, el juego va en prioridad alta y los programas pesados en segundo plano (navegadores, otros launchers, Spotify, OneDrive…) pasan a modo eficiencia. No se cierra nada y todo vuelve a como estaba al cerrar el juego.</p>
         <label class="check"><input type="checkbox" id="focusPower"> Cambiar al plan de energía de alto rendimiento mientras juegas</label>
@@ -287,16 +294,17 @@
           </select>
         </label>
         <p class="hint">Cada juego puede tener su propio ajuste de Discord en su ficha.</p>
-        <label class="check"><input type="checkbox" id="focusMinimize"> Minimizar esta app al activar el enfoque</label>
+        <label class="check"><input type="checkbox" id="focusFree"> Cerrar la ventana de la biblioteca mientras juegas para liberar memoria (se vuelve a abrir al terminar)</label>
+        <label class="check"><input type="checkbox" id="focusMinimize"> Si no se cierra, minimizarla al activar el enfoque</label>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="partidas">
         <legend>Al terminar cada partida</legend>
         <label class="check"><input type="checkbox" id="set-sessionSummary"> Enseñar un resumen (tiempo, FPS medio y logros conseguidos)</label>
         <label class="check"><input type="checkbox" id="set-autoBackup"> Copiar sus partidas guardadas automáticamente (se guardan las 5 últimas copias de cada juego)</label>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="avisos">
         <legend>Tiempo de juego y avisos</legend>
         <label>Límite diario
           <select id="set-dailyLimitMin">
@@ -324,7 +332,7 @@
         <p class="hint">Los avisos y el atajo funcionan mientras la app está abierta o minimizada.</p>
       </fieldset>
 
-      <fieldset>
+      <fieldset data-tab="partidas">
         <legend>Registro de partidas y tus datos</legend>
         <label class="check"><input type="checkbox" id="trackSessions"> Registrar el tiempo que juegas (también en Epic) mientras la app está abierta</label>
         <label class="check"><input type="checkbox" id="keepTracking"> Si cierras la ventana con un juego abierto, seguir contando sin ventana hasta que lo cierres</label>
@@ -345,6 +353,10 @@
 
   <dialog id="gameDlg" class="wide">
     <div id="gameBody" class="focus-panel"></div>
+  </dialog>
+
+  <dialog id="welcomeDlg" class="wide">
+    <div id="welcomeBody" class="focus-panel"></div>
   </dialog>
 
   <dialog id="pickDlg" class="wide">

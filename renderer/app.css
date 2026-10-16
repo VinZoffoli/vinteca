@@ -581,6 +581,21 @@ button.bar-row:hover .bar-label { color: var(--text); text-decoration: underline
 .dup > b { display: block; margin: 6px 0 2px; }
 .dup .stale-row { border-bottom: 0; padding: 3px 0; }
 
+/* ---------- ajustes en pestañas y bienvenida ---------- */
+.set-tabs { margin: 0 0 14px; flex-wrap: wrap; }
+dialog form { min-height: 420px; }
+.welcome-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.welcome-head .brand span { font: 700 17px/1 var(--display); color: var(--amber); }
+.wsteps { display: flex; gap: 6px; }
+.wsteps i { width: 26px; height: 4px; border-radius: 2px; background: var(--line); }
+.wsteps i.on { background: var(--amber); }
+.wsteps i.done { background: var(--muted); }
+.wlist { color: var(--muted); padding-left: 20px; margin: 10px 0 14px; }
+.wlist li { margin: 5px 0; }
+.wfield { display: grid; gap: 5px; margin: 10px 0; color: var(--muted); font-size: 13px; }
+.wfield input { background: var(--night); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+#welcomeBody .check { display: flex; gap: 8px; align-items: center; margin: 8px 0; color: var(--text); }
+
 /* ---------- ficha de juego ---------- */
 dialog.wide { width: min(780px, 94vw); }
 .game-sheet { display: grid; grid-template-columns: 150px 1fr; gap: 22px; align-items: start; }

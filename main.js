@@ -23,6 +23,15 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'bjshot', privileges: { secure: 
 
 // Menos memoria: sin caché de disco para GPU shaders y sin corrector ortográfico.
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+// Solo para medir: BJ_NOGPU=1 arranca sin aceleración gráfica
+if (process.env.BJ_NOGPU) app.disableHardwareAcceleration();
+// En las pruebas con capturas, la ventana se sigue dibujando aunque otra la tape
+// (si no, Chromium deja de pintarla y la captura espera para siempre).
+if (process.env.BJ_SNAPSHOT) {
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-background-timer-throttling');
+}
 
 // Carpeta de datos: %APPDATA%\biblioteca-juegos (fuera de la carpeta del
 // programa, para que desinstalar o actualizar no borre nada).
@@ -117,7 +126,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
-      backgroundThrottling: true,
+      backgroundThrottling: !process.env.BJ_SNAPSHOT,
     },
   });
   win.removeMenu();
@@ -131,7 +140,7 @@ function createWindow() {
   win.on('closed', () => {
     win = null;
     // El panel flotante no mantiene viva la app por sí solo
-    if (!tracker.current || store.getSettings().keepTracking === false) app.quit();
+    if (!keepAlive()) app.quit();
   });
   if (process.env.BJ_SNAPSHOT) snapshot(process.env.BJ_SNAPSHOT);
 }
@@ -234,7 +243,7 @@ function openSafe(url) {
 // Sin bandeja ni procesos residentes: al cerrar la ventana, la app termina
 // (y si el modo enfoque estaba activo, antes lo deja todo como estaba).
 app.on('window-all-closed', () => {
-  if (tracker.current && store.getSettings().keepTracking !== false) return;
+  if (keepAlive()) return;
   app.quit();
 });
 app.on('before-quit', () => {
@@ -255,6 +264,9 @@ const focus = new Focus({
     // El panel flotante aparece con el enfoque activo (si está activado en Ajustes) y se va al terminar
     if (status.mode === 'on' && store.getSettings().focus.overlay) showOverlay(true);
     if (status.mode === 'off') showOverlay(false);
+    if (status.mode === 'on' && lastFocusMode !== 'on') onFocusOn();
+    if (status.mode === 'off' && lastFocusMode === 'on') onFocusOff();
+    lastFocusMode = status.mode;
     watchUnlocks(status.mode === 'on' ? focus.game : null);
     updateFps(status.mode === 'on');
   },
@@ -467,6 +479,31 @@ ipcMain.handle('overlay:set', (_e, on) => {
   return !!on;
 });
 
+// ---------- Memoria mientras juegas ----------
+// Con el modo enfoque activo, la ventana de la biblioteca (lo que más memoria
+// gasta) se cierra del todo; la app sigue en marcha sin ventana y la vuelve a
+// abrir al terminar la partida.
+let lastFocusMode = 'off';
+let reopenAfterGame = false;
+function keepAlive() {
+  return focus.mode !== 'off' || reopenAfterGame || (!!tracker.current && store.getSettings().keepTracking !== false);
+}
+function onFocusOn() {
+  const f = store.getSettings().focus;
+  if (!win || win.isDestroyed()) return;
+  if (f.freeMemory !== false) {
+    reopenAfterGame = true;
+    win.destroy();
+  } else if (f.minimize) {
+    win.minimize();
+  }
+}
+function onFocusOff() {
+  if (!reopenAfterGame) return;
+  reopenAfterGame = false;
+  if (!win || win.isDestroyed()) createWindow();
+}
+
 // ---------- Sesiones de juego ----------
 const tracker = new SessionTracker({
   read: store.read,
@@ -479,7 +516,7 @@ const tracker = new SessionTracker({
 });
 // Sin ventana y sin partida en marcha, la app termina
 function maybeQuit() {
-  if ((!win || win.isDestroyed()) && !tracker.current) app.quit();
+  if ((!win || win.isDestroyed()) && !keepAlive()) app.quit();
 }
 ipcMain.handle('sessions:get', () => ({ list: store.read('sessions.json', []), current: tracker.current }));
 
@@ -901,7 +938,6 @@ ipcMain.handle('ach:showcase', async () => {
 ipcMain.handle('focus:status', () => focus.status());
 ipcMain.handle('focus:start', async () => {
   const s = await focus.start();
-  if (s.mode === 'on' && store.getSettings().focus.minimize && win) win.minimize();
   return s;
 });
 ipcMain.handle('focus:stop', () => focus.stop('user'));

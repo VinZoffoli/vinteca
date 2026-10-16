@@ -13,9 +13,19 @@ function h(tag, attrs, ...kids) {
     else if (k.startsWith('data-') || k.startsWith('aria-')) el.setAttribute(k, v);
     else el[k] = v;
   }
-  for (const c of kids.flat()) if (c != null && c !== false) el.append(c);
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false && c !== "") el.append(c);
   return el;
 }
+// replaceChildren() convierte en texto lo que no es un nodo: una lista sale como
+// "[object HTMLButtonElement],…" y un hueco vacío como "null". En esta página
+// siempre se aplanan las listas y se descartan los huecos vacíos.
+{
+  const original = Element.prototype.replaceChildren;
+  Element.prototype.replaceChildren = function (...kids) {
+    return original.apply(this, kids.flat(Infinity).filter((k) => k != null && k !== false && k !== ''));
+  };
+}
+
 /** Como el.replaceChildren(), pero sin escribir "null" en los huecos vacíos. */
 function fill(el, ...kids) {
   el.replaceChildren(...kids.flat().filter((k) => k != null && k !== false && k !== ''));
@@ -2091,6 +2101,120 @@ function duplicatesPanel() {
   );
 }
 
+// ---------- pestañas de Ajustes ----------
+function showSettingsTab(tab) {
+  for (const b of $$('#setTabs button')) b.classList.toggle('on', b.dataset.tab === tab);
+  for (const f of $$('#settingsForm fieldset[data-tab]')) f.hidden = f.dataset.tab !== tab;
+}
+
+// ---------- bienvenida (primera vez) ----------
+const welcome = { step: 0 };
+
+async function openWelcome() {
+  welcome.step = 0;
+  welcome.settings = await window.api.getSettings();
+  renderWelcome();
+  $('#welcomeDlg').showModal();
+}
+
+async function finishWelcome() {
+  await window.api.saveSettings({ onboarded: true });
+  $('#welcomeDlg').close();
+  state.settings = await window.api.basicSettings();
+  refresh();
+}
+
+function renderWelcome() {
+  const s = welcome.settings || {};
+  const dots = h('div', { class: 'wsteps' }, [0, 1, 2].map((i) => h('i', { class: i === welcome.step ? 'on' : i < welcome.step ? 'done' : '' })));
+  const next = (label = 'Siguiente') =>
+    h('button', {
+      class: 'btn primary',
+      text: label,
+      onclick: async () => {
+        await saveWelcomeStep();
+        if (welcome.step < 2) {
+          welcome.step++;
+          welcome.settings = await window.api.getSettings();
+          renderWelcome();
+        } else finishWelcome();
+      },
+    });
+  const back = welcome.step > 0 && h('button', { class: 'btn ghost', text: 'Atrás', onclick: () => { welcome.step--; renderWelcome(); } });
+  const skip = h('button', { class: 'btn ghost', text: 'Saltar la bienvenida', onclick: finishWelcome });
+
+  let body;
+  if (welcome.step === 0) {
+    body = [
+      h('p', { class: 'hero-kicker', text: 'Paso 1 de 3' }),
+      h('h2', { text: 'Tu biblioteca de Steam' }),
+      h('p', { class: 'hint', text: 'Sin configurar nada ya verás tus juegos instalados. Con tu clave de la API de Steam verás todos tus juegos, tus logros, tus horas y a tus amigos.' }),
+      h('ol', { class: 'wlist' },
+        h('li', {}, 'Entra en ', h('a', { href: 'https://steamcommunity.com/dev/apikey', target: '_blank', text: 'steamcommunity.com/dev/apikey' }), ' con tu cuenta.'),
+        h('li', { text: 'En «Nombre de dominio» escribe localhost, acepta y copia la clave.' }),
+        h('li', { text: 'Pégala aquí. Se guarda cifrada con tu usuario de Windows.' })
+      ),
+      h('label', { class: 'wfield' }, 'Clave de la API web de Steam', h('input', { id: 'wKey', type: 'password', autocomplete: 'off', spellcheck: false, placeholder: s.hasSteamKey ? 'Ya hay una clave guardada' : 'Pega aquí tu clave' })),
+      h('label', { class: 'wfield' }, 'SteamID64', h('input', { id: 'wId', inputmode: 'numeric', value: s.steamId || '', placeholder: s.detectedSteamId ? `Detectado: ${s.detectedSteamId}` : '7656119…' })),
+      h('p', { id: 'wErr', class: 'hint bad' }),
+    ];
+  } else if (welcome.step === 1) {
+    const st = s.legendaryState?.loggedIn ? `Vinculado como ${s.legendaryState.account}.` : s.legendary ? 'legendary está listo; falta vincular tu cuenta.' : 'No se encuentra legendary.';
+    body = [
+      h('p', { class: 'hero-kicker', text: 'Paso 2 de 3' }),
+      h('h2', { text: 'Epic Games (opcional)' }),
+      h('p', { class: 'hint', text: 'Sin hacer nada se leen los juegos de Epic que conoce el Epic Games Launcher. Para tenerlos todos y saber cuándo hay actualizaciones, se usa legendary, un programa libre: tú inicias sesión en Epic y la app nunca ve tu contraseña.' }),
+      h('ol', { class: 'wlist' },
+        h('li', {}, 'Descarga legendary_windows_x64.exe de ', h('a', { href: 'https://github.com/legendary-gl/legendary/releases', target: '_blank', text: 'su página oficial' }), '.'),
+        h('li', { text: 'Elige el archivo con el botón de abajo.' }),
+        h('li', { text: 'Pulsa «Vincular Epic», inicia sesión y pega el código en la ventana negra que se abre.' })
+      ),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { class: 'btn ghost small', text: 'Elegir legendary.exe', onclick: async () => { await window.api.pickLegendary(); welcome.settings = await window.api.getSettings(); renderWelcome(); } }),
+        h('button', { class: 'btn ghost small', text: 'Vincular Epic', onclick: async () => { try { await window.api.linkEpic(); } catch (e) { toast(errMsg(e), true); } } }),
+        h('button', { class: 'btn ghost small', text: 'Comprobar', onclick: async () => { welcome.settings = await window.api.getSettings(); renderWelcome(); } })
+      ),
+      h('p', { class: `hint ${s.legendaryState?.loggedIn ? 'ok' : ''}`, text: st }),
+    ];
+  } else {
+    const f = s.focus || {};
+    body = [
+      h('p', { class: 'hero-kicker', text: 'Paso 3 de 3' }),
+      h('h2', { text: 'Modo enfoque' }),
+      h('p', { class: 'hint', text: 'Mientras juegas, el juego va en prioridad alta y los programas pesados en segundo plano pasan a modo eficiencia. No se cierra nada y todo vuelve a como estaba al terminar.' }),
+      h('label', { class: 'check' }, h('input', { id: 'wAuto', type: 'checkbox', checked: f.autoOnPlay !== false }), 'Activarlo al pulsar «Jugar» en la app'),
+      h('label', { class: 'check' }, h('input', { id: 'wFree', type: 'checkbox', checked: f.freeMemory !== false }), 'Cerrar la ventana de la biblioteca mientras juegas para liberar memoria (vuelve a abrirse al terminar)'),
+      h('label', { class: 'check' }, h('input', { id: 'wOverlay', type: 'checkbox', checked: !!f.overlay }), 'Panel flotante con FPS, CPU, GPU y RAM encima del juego'),
+      h('p', { class: 'hint', text: 'Atajo: Ctrl+Alt+F activa o quita el modo enfoque desde cualquier sitio. Todo esto se puede cambiar luego en Ajustes.' }),
+    ];
+  }
+  $('#welcomeBody').replaceChildren(
+    h('div', { class: 'welcome-head' }, h('div', { class: 'brand' }, h('span', { text: 'Biblioteca de juegos' })), dots),
+    body,
+    h('div', { class: 'actions' }, welcome.step === 0 ? skip : back, next(welcome.step === 2 ? 'Empezar' : 'Siguiente'))
+  );
+}
+
+async function saveWelcomeStep() {
+  if (welcome.step === 0) {
+    const key = $('#wKey').value.trim();
+    const id = $('#wId').value.trim();
+    if (key && !/^[0-9A-Fa-f]{32}$/.test(key)) {
+      $('#wErr').textContent = 'La clave tiene 32 caracteres (números y letras de la A a la F).';
+      throw new Error('clave');
+    }
+    if (id && !/^\d{17}$/.test(id)) {
+      $('#wErr').textContent = 'El SteamID64 tiene 17 cifras y empieza por 7656119.';
+      throw new Error('id');
+    }
+    await window.api.saveSettings({ steamKey: key || undefined, steamId: id || undefined });
+  } else if (welcome.step === 2) {
+    await window.api.saveSettings({ focus: { autoOnPlay: $('#wAuto').checked, freeMemory: $('#wFree').checked, overlay: $('#wOverlay').checked } });
+  }
+}
+
 // ---------- ficha de juego ----------
 const fmtBytes = (b) => (!b ? '—' : b >= 1e12 ? `${(b / 1e12).toFixed(2).replace('.', ',')} TB` : b >= 1e9 ? `${(b / 1e9).toFixed(1).replace('.', ',')} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
 const fmtHours = (min) => (min >= 60 ? `${(min / 60).toFixed(min >= 600 ? 0 : 1).replace('.', ',')} h` : `${min} min`);
@@ -2352,6 +2476,8 @@ async function openSettings() {
   $('#focusOverlay').checked = !!s.focus?.overlay;
   $('#focusFps').checked = s.focus?.fps !== false;
   $('#focusMinimize').checked = s.focus?.minimize !== false;
+  $('#focusFree').checked = s.focus?.freeMemory !== false;
+  showSettingsTab('cuentas');
   const es = $('#epicState');
   if (!s.legendary) es.replaceChildren(h('span', { class: 'bad', text: 'No se encuentra legendary.' }));
   else if (s.legendaryState?.loggedIn) es.replaceChildren(h('span', { class: 'ok', text: `Vinculado como ${s.legendaryState.account}.` }));
@@ -2381,6 +2507,7 @@ async function saveSettings(ev) {
         powerPlan: $('#focusPower').checked,
         discord: $('#focusDiscord').value,
         minimize: $('#focusMinimize').checked,
+        freeMemory: $('#focusFree').checked,
         autoOnPlay: $('#focusAuto').checked,
         overlay: $('#focusOverlay').checked,
         fps: $('#focusFps').checked,
@@ -2454,6 +2581,11 @@ function bind() {
   $('#refreshBtn').addEventListener('click', refresh);
   $('#focusBtn').addEventListener('click', onFocusClick);
   $('#pickBtn').addEventListener('click', openPick);
+  $('#setTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (b) showSettingsTab(b.dataset.tab);
+  });
+  $('#welcomeDlg').addEventListener('cancel', (e) => e.preventDefault());
   $('#newsRefresh').addEventListener('click', () => loadNews(true));
   $('#friendsRefresh').addEventListener('click', loadFriends);
   // Búsqueda rápida: Ctrl+K desde cualquier sitio
@@ -2628,6 +2760,10 @@ function bind() {
   state.lib = lib;
   state.country = settings.country || 'CL';
   state.settings = settings;
+  if (!settings.onboarded) {
+    if (settings.hasSteamKey) window.api.saveSettings({ onboarded: true });
+    else setTimeout(openWelcome, 300);
+  }
   state.user = (await window.api.userGames()) || {};
   await loadSessions();
   state.focus = await window.api.focusStatus();

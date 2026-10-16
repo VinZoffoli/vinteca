@@ -37,6 +37,7 @@ function getSettings() {
       overlay: s.focus?.overlay === true,
       fps: s.focus?.fps !== false,
       minimize: s.focus?.minimize !== false,
+      freeMemory: s.focus?.freeMemory !== false,
     },
     trackSessions: s.trackSessions !== false,
     autoBackup: s.autoBackup !== false,
@@ -49,6 +50,7 @@ function getSettings() {
     friendAlerts: s.friendAlerts !== false,
     hotkey: s.hotkey !== false,
     keepTracking: s.keepTracking !== false,
+    onboarded: !!s.onboarded,
     hasSteamKey: !!s.steamKeyEnc,
   };
 }
@@ -63,7 +65,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});
