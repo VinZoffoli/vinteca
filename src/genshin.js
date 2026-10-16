@@ -194,7 +194,7 @@ async function profile(uid, { read, write, force }) {
       signature: p.signature || '',
       achievements: p.finishAchievementNum || 0,
       abyss: p.towerFloorIndex ? `${p.towerFloorIndex}-${p.towerLevelIndex}` : null,
-      abyssStars: p.towerStarIndex ?? null,
+      abyssStars: p.towerStarIndex ?? p.towerStar ?? null,
       theater: p.theaterActIndex ? { act: p.theaterActIndex, stars: p.theaterStarIndex ?? null } : null,
       maxFriendship: p.fetterCount ?? null,
       namecard: card ? ui(card) : null,
@@ -202,6 +202,12 @@ async function profile(uid, { read, write, force }) {
       showcase: (p.showAvatarInfoList || []).length,
     },
     characters: (j.avatarInfoList || []).map((a) => character(a, st)),
+    showcase: (p.showAvatarInfoList || []).map((s) => {
+      const meta = st.avatars[s.avatarId] || {};
+      const side = (s.costumeId && meta.Costumes?.[s.costumeId]?.SideIcon) || meta.SideIconName || '';
+      const el = ELEMENTS[meta.Element] || { name: '', color: '#a39cc3' };
+      return { id: s.avatarId, name: st.loc[meta.NameTextMapHash] || `Personaje ${s.avatarId}`, level: s.level || 1, element: el.name, color: el.color, rarity: /ORANGE/.test(meta.QualityType || '') ? 5 : 4, icon: ui(side.replace('_Side', '')) };
+    }),
     detailsHidden: (p.showAvatarInfoList || []).length > 0 && !(j.avatarInfoList || []).length,
     region: j.region || null,
   };

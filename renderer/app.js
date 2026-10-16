@@ -2091,7 +2091,23 @@ function renderGenshin() {
           ),
           c && genshinCharacter(c),
         ]
-      : !d.detailsHidden && h('p', { class: 'hint', text: 'Tu vitrina está vacía. Añade personajes en el juego (menú de Paimon → tu perfil) para verlos aquí.' }),
+      : (d.showcase || []).length
+        ? [
+            h('h2', { class: 'section-h', text: `Tu vitrina (${d.showcase.length})` }),
+            h(
+              'div',
+              { class: 'gi-roster' },
+              d.showcase.map((ch) =>
+                h(
+                  'div',
+                  { class: 'gi-chip static', style: { '--el': ch.color } },
+                  h('span', { class: `gi-face r${ch.rarity}` }, ch.icon && h('img', { src: ch.icon, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' })),
+                  h('span', { class: 'gi-chip-txt' }, h('b', { text: ch.name }), h('span', { text: `Nv. ${ch.level}, ${ch.element}` }))
+                )
+              )
+            ),
+          ]
+        : h('p', { class: 'hint', text: 'Tu vitrina está vacía. Añade personajes en el juego (menú de Paimon → tu perfil) para verlos aquí.' }),
     h('p', { class: 'hint gi-src', text: `Datos de Enka.Network, leídos ${relTime(d.fetchedAt / 1000)}. El inventario y los personajes fuera de la vitrina no son públicos, así que no se pueden ver.` })
   );
 }

@@ -525,6 +525,7 @@ body.has-bg .side { background: rgba(var(--night-rgb), .62); }
 .gi-roster { display: flex; gap: 10px; flex-wrap: wrap; }
 .gi-chip { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 6px; border-radius: 999px; background: var(--night-2); border: 1px solid var(--line); color: inherit; text-align: left; }
 .gi-chip:hover { border-color: var(--el); }
+.gi-chip.static { cursor: default; border-left: 3px solid var(--el); }
 .gi-chip.on { border-color: var(--el); background: color-mix(in srgb, var(--el) 16%, var(--night-2)); }
 .gi-face { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex: none; background: linear-gradient(160deg, #5a4a8a, #2c2550); }
 .gi-face.r5, .gi-portrait.r5, .gi-item.r5 { background: linear-gradient(160deg, #b8773a, #6e4320); }
