@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   dlcDeals: (force) => ipcRenderer.invoke('dlc:get', force),
   canRun: (appids) => ipcRenderer.invoke('canrun:get', appids),
   wandInstalled: () => ipcRenderer.invoke('wand:installed'),
+  genshin: (force, uid) => ipcRenderer.invoke('genshin:get', force, uid),
   lanStatus: () => ipcRenderer.invoke('lan:status'),
   lanStart: () => ipcRenderer.invoke('lan:start'),
   lanStop: () => ipcRenderer.invoke('lan:stop'),

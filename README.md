@@ -202,6 +202,15 @@ La app pasa a llamarse **ViperTeca**, con su logo (`build/brand/`).
 - **Ficha nueva**: el arte del juego arriba, *Jugar* y las acciones a mano, y la información en dos columnas.
 - **Exportar la biblioteca**: a CSV para Excel (horas, estados, notas, colecciones…) o a una página web con tus carátulas para compartir. Las notas solo se incluyen si lo marcas.
 
+## Tu perfil de Genshin Impact
+
+Si tienes Genshin, en el menú aparece **Genshin**. Pega tu **UID** (9 o 10 cifras; sale abajo a la derecha en el juego) y verás, desde [Enka.Network](https://enka.network/):
+
+- Rango de aventura, nivel de mundo, logros, piso del Abismo y personajes con amistad 10.
+- Los personajes de tu **vitrina**: nivel, constelación, talentos, estadísticas, arma y artefactos (con sus conjuntos y el valor crítico).
+
+El UID no es una contraseña: no se inicia sesión en ningún sitio. Para que se vean armas y artefactos, en el juego activa *Menú de Paimon → tu perfil → Editar vitrina → Mostrar detalles de personajes*. El inventario y los personajes que no están en la vitrina no son públicos, así que no se pueden mostrar.
+
 ## Instalador
 
 ```bash

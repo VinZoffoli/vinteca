@@ -878,6 +878,7 @@ function renderLan() {
 }
 
 function renderAll() {
+  $('#genshinTab').hidden = !(state.settings?.genshinUid || games().some((g) => /genshin impact/i.test(g.title)));
   renderTagOptions();
   renderStatusOptions();
   syncControls();
@@ -902,6 +903,8 @@ function showView(view) {
   $('#friendsView').hidden = view !== 'friends';
   $('#recsView').hidden = view !== 'recs';
   $('#lanView').hidden = view !== 'lan';
+  $('#genshinView').hidden = view !== 'genshin';
+  if (view === 'genshin') loadGenshin(false);
   if (view === 'lan') loadLan();
   if (view === 'recs') loadRecs(false);
   if (view === 'news') loadNews(false);
@@ -1965,6 +1968,213 @@ function skeletonDeals(n) {
   return h('div', { class: 'deals skel-list', 'aria-busy': 'true', 'aria-label': 'Cargando' }, Array.from({ length: n }, () => h('div', { class: 'deal skel' }, h('i', { class: 'skel-img' }), h('div', {}, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }), h('i', { class: 'skel-line w55' })))));
 }
 
+// ---------- Genshin Impact (Enka.Network) ----------
+const gi = { data: null, loading: false, error: null, pick: 0, preview: null };
+
+async function loadGenshin(force, previewUid) {
+  if (previewUid) gi.preview = previewUid;
+  const uid = gi.preview || state.settings?.genshinUid;
+  if (!uid) return renderGenshin();
+  if (gi.loading || (gi.data && !force && gi.data.uid === uid)) return renderGenshin();
+  gi.loading = true;
+  renderGenshin();
+  try {
+    gi.data = await window.api.genshin(force, gi.preview || undefined);
+    gi.error = null;
+  } catch (e) {
+    gi.error = errMsg(e);
+  }
+  gi.loading = false;
+  renderGenshin();
+}
+
+async function saveGenshinUid(uid) {
+  try {
+    state.settings = await window.api.saveSettings({ genshinUid: uid });
+    gi.data = null;
+    gi.error = null;
+    gi.pick = 0;
+    $('#genshinTab').hidden = false;
+    loadGenshin(true);
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+}
+
+function genshinForm(current) {
+  const input = h('input', { type: 'text', inputMode: 'numeric', maxLength: 10, placeholder: 'Por ejemplo 812345678', value: current || '', 'aria-label': 'Tu UID de Genshin Impact', class: 'gi-uid' });
+  const go = () => saveGenshinUid(input.value.trim());
+  input.addEventListener('keydown', (e) => e.key === 'Enter' && go());
+  return h(
+    'div',
+    { class: 'gi-setup' },
+    h('div', { class: 'row' }, input, h('button', { class: 'btn primary', text: 'Ver mi perfil', onclick: go })),
+    h(
+      'ol',
+      { class: 'steps' },
+      h('li', {}, h('b', { text: 'Copia tu UID.' }), ' Son 9 o 10 cifras; salen abajo a la derecha mientras juegas y en el menú de Paimon. No es una contraseña: es tu número público de jugador.'),
+      h('li', {}, h('b', { text: 'Enseña los detalles en el juego.' }), ' Menú de Paimon → tu perfil → Editar la vitrina de personajes, y activa «Mostrar detalles de personajes». Si no, solo se ve el nivel.'),
+      h('li', {}, h('b', { text: 'Pon en la vitrina a quien quieras ver aquí.' }), ' La app ve los personajes de tu vitrina (como Enka.Network); el inventario y el resto de personajes no son públicos.')
+    )
+  );
+}
+
+function renderGenshin() {
+  const box = $('#genshinBody');
+  if (!box || $('#genshinView').hidden) return;
+  const uid = gi.preview || state.settings?.genshinUid;
+  if (!uid)
+    return fill(
+      box,
+      h('div', { class: 'view-head' }, h('h1', { text: 'Tu perfil de Genshin' }), h('p', { class: 'sub', text: 'Tu rango de aventura, logros, Abismo y los personajes de tu vitrina con su arma, artefactos y estadísticas, leídos de Enka.Network con tu UID.' })),
+      genshinForm('')
+    );
+  if (gi.error && !gi.data)
+    return fill(box, h('div', { class: 'view-head' }, h('h1', { text: 'Tu perfil de Genshin' })), h('p', { class: 'hint bad', text: gi.error }), genshinForm(uid));
+  if (!gi.data) return fill(box, h('div', { class: 'view-head' }, h('h1', { text: 'Tu perfil de Genshin' }), h('p', { class: 'sub', text: `Leyendo el perfil ${uid} de Enka.Network…` })), skeletonDeals(4));
+  const d = gi.data;
+  const p = d.player;
+  const facts = [
+    ['Rango de aventura', p.level],
+    p.worldLevel != null && ['Nivel de mundo', p.worldLevel],
+    ['Logros', p.achievements.toLocaleString('es')],
+    p.abyss && ['Abismo de Espiral', `Piso ${p.abyss}${p.abyssStars != null ? ` (${p.abyssStars} ★)` : ''}`],
+    p.theater && ['Teatro Imaginario', `Acto ${p.theater.act}${p.theater.stars != null ? ` (${p.theater.stars} ★)` : ''}`],
+    p.maxFriendship != null && ['Personajes con amistad 10', p.maxFriendship],
+  ].filter(Boolean);
+  const chars = d.characters;
+  const c = chars[Math.min(gi.pick, chars.length - 1)];
+  fill(
+    box,
+    h(
+      'header',
+      { class: 'gi-head' },
+      p.namecard && h('img', { class: 'gi-card-art', src: p.namecard, alt: '', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() }),
+      h(
+        'div',
+        { class: 'gi-head-in' },
+        h('div', { class: 'gi-avatar' }, p.avatar && h('img', { src: p.avatar, alt: '', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() })),
+        h(
+          'div',
+          { class: 'gi-who' },
+          h('p', { class: 'hero-kicker', text: `Genshin Impact, UID ${d.uid}` }),
+          h('h1', { text: p.nickname }),
+          p.signature && h('p', { class: 'gi-sign', text: p.signature })
+        ),
+        h(
+          'div',
+          { class: 'gi-actions' },
+          h('button', { class: 'btn ghost small', text: gi.loading ? 'Actualizando…' : 'Actualizar', disabled: gi.loading, onclick: () => loadGenshin(true) }),
+          h('button', { class: 'btn ghost small', text: 'Ver en Enka.Network', onclick: () => window.api.open(`https://enka.network/u/${d.uid}/`) }),
+          !gi.preview && h('button', { class: 'btn ghost small subtle', text: 'Cambiar UID', onclick: () => saveGenshinUid('') })
+        )
+      )
+    ),
+    h('dl', { class: 'stat-strip gi-strip' }, facts.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: String(v) })))),
+    d.stale && h('p', { class: 'hint bad', text: `Se muestran los datos guardados: ${d.stale}` }),
+    d.detailsHidden &&
+      h('div', { class: 'notice' }, h('span', { text: 'Tus personajes están ocultos. En el juego: menú de Paimon → tu perfil → Editar la vitrina, y activa «Mostrar detalles de personajes». Luego pulsa Actualizar (Enka tarda un par de minutos en verlo).' })),
+    chars.length
+      ? [
+          h('h2', { class: 'section-h', text: `Tu vitrina (${chars.length})` }),
+          h(
+            'div',
+            { class: 'gi-roster', role: 'tablist', 'aria-label': 'Personajes' },
+            chars.map((ch, i) =>
+              h(
+                'button',
+                { class: `gi-chip${ch === c ? ' on' : ''}`, role: 'tab', 'aria-selected': String(ch === c), style: { '--el': ch.color }, onclick: () => { gi.pick = i; renderGenshin(); } },
+                h('span', { class: `gi-face r${ch.rarity}` }, ch.icon && h('img', { src: ch.icon, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' })),
+                h('span', { class: 'gi-chip-txt' }, h('b', { text: ch.name }), h('span', { text: `Nv. ${ch.level}, C${ch.constellation}` }))
+              )
+            )
+          ),
+          c && genshinCharacter(c),
+        ]
+      : !d.detailsHidden && h('p', { class: 'hint', text: 'Tu vitrina está vacía. Añade personajes en el juego (menú de Paimon → tu perfil) para verlos aquí.' }),
+    h('p', { class: 'hint gi-src', text: `Datos de Enka.Network, leídos ${relTime(d.fetchedAt / 1000)}. El inventario y los personajes fuera de la vitrina no son públicos, así que no se pueden ver.` })
+  );
+}
+
+function genshinCharacter(c) {
+  const rarityStars = (n) => '★'.repeat(n);
+  return h(
+    'section',
+    { class: 'gi-char', style: { '--el': c.color } },
+    h(
+      'div',
+      { class: 'gi-char-head' },
+      h('div', { class: `gi-portrait r${c.rarity}` }, c.icon && h('img', { src: c.icon, alt: '', referrerPolicy: 'no-referrer' })),
+      h(
+        'div',
+        {},
+        h('p', { class: 'gi-el', text: `${c.element} ${rarityStars(c.rarity)}` }),
+        h('h2', { text: c.name }),
+        h('p', { class: 'gi-meta', text: `Nivel ${c.level}, constelación ${c.constellation}, amistad ${c.friendship}` }),
+        h(
+          'div',
+          { class: 'gi-talents', 'aria-label': 'Niveles de talento' },
+          c.talents.map((t, i) => h('span', { class: `gi-talent${t.boosted ? ' up' : ''}`, title: [ 'Ataque normal', 'Habilidad elemental', 'Habilidad definitiva' ][i] + (t.boosted ? ' (sube por constelación)' : '') }, t.icon && h('img', { src: t.icon, alt: '', referrerPolicy: 'no-referrer' }), h('b', { text: String(t.level) })))
+        )
+      )
+    ),
+    h(
+      'div',
+      { class: 'gi-char-cols' },
+      h(
+        'div',
+        {},
+        h('h3', { class: 'sheet-h', text: 'Estadísticas' }),
+        h('dl', { class: 'gi-stats' }, c.stats.map((s) => [h('dt', { text: s.name }), h('dd', { text: s.value })])),
+        c.weapon &&
+          h(
+            'div',
+            { class: 'gi-weapon' },
+            h('div', { class: `gi-item r${c.weapon.rarity}` }, c.weapon.icon && h('img', { src: c.weapon.icon, alt: '', referrerPolicy: 'no-referrer' })),
+            h(
+              'div',
+              {},
+              h('b', { text: c.weapon.name }),
+              h('p', { class: 'hint', text: `Nivel ${c.weapon.level}, refinamiento ${c.weapon.refine}` }),
+              h('p', { class: 'gi-wstat', text: [c.weapon.main && `${c.weapon.main.name} ${c.weapon.main.value}`, c.weapon.sub && `${c.weapon.sub.name} ${c.weapon.sub.value}`].filter(Boolean).join(', ') })
+            )
+          )
+      ),
+      h(
+        'div',
+        {},
+        h('h3', { class: 'sheet-h', text: 'Artefactos' }),
+        h(
+          'p',
+          { class: 'gi-sets' },
+          c.sets.length ? c.sets.map((s) => h('span', { text: `${s.name} (${s.pieces} piezas)` })) : h('span', { class: 'hint', text: 'Sin bonificación de conjunto' }),
+          c.artifacts.length > 0 && h('span', { class: 'gi-cv', title: 'Prob. CRIT ×2 + Daño CRIT de los artefactos', text: `Valor crítico ${c.critValue}` })
+        ),
+        c.artifacts.length
+          ? h(
+              'div',
+              { class: 'gi-arts' },
+              c.artifacts.map((a) =>
+                h(
+                  'div',
+                  { class: 'gi-art' },
+                  h('div', { class: `gi-item r${a.rarity}` }, a.icon && h('img', { src: a.icon, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }), h('span', { class: 'gi-lv', text: `+${a.level}` })),
+                  h(
+                    'div',
+                    {},
+                    h('p', { class: 'gi-slot', text: a.slot }),
+                    a.main && h('b', { text: `${a.main.name} ${a.main.value}` }),
+                    h('ul', {}, a.subs.map((s) => h('li', { class: /CRIT/.test(s.name) ? 'crit' : '', text: `${s.name} +${s.value}` })))
+                  )
+                )
+              )
+            )
+          : h('p', { class: 'hint', text: 'No lleva artefactos.' })
+      )
+    )
+  );
+}
+
 // ---------- para ti (recomendaciones) ----------
 const rec = { data: null, loading: false, error: null, store: 'all' };
 async function loadRecs(force) {
@@ -2863,6 +3073,7 @@ function renderGame() {
             { class: 'sheet-cta' },
             h('button', { class: 'btn primary big', onclick: () => { close(); launch(g); } }, h('span', { 'aria-hidden': 'true', text: g.installed ? '▶' : '↓' }), g.installed ? 'Jugar' : 'Instalar'),
             appid && a && !a.noStats && h('button', { class: 'btn ghost', text: 'Logros', onclick: () => { close(); showView('ach'); openAchDetail(g); } }),
+            /genshin impact/i.test(g.title) && h('button', { class: 'btn ghost', text: 'Tu perfil', onclick: () => { close(); showView('genshin'); } }),
             g.trainer && h('button', { class: 'btn ghost trainer', title: state.wand ? 'Abrir sus trucos en Wand (solo para partidas de un jugador)' : 'Ver sus trucos en la web de Wand (no está instalado)', onclick: () => window.api.open(state.wand ? g.trainer.play : g.trainer.web) }, h('span', { class: 'wand-dot', 'aria-hidden': 'true' }), `Trucos (${g.trainer.cheats})`),
             g.storeUrl && h('button', { class: 'btn ghost', text: 'Tienda', onclick: () => window.api.open(g.storeUrl) }),
             g.hero && h('button', { class: `btn ghost${isBg ? ' on' : ''}`, text: isBg ? 'Quitar de fondo' : 'Usar de fondo', 'aria-pressed': String(isBg), onclick: () => setBackground(isBg ? '' : g.id).then(renderGame) }),

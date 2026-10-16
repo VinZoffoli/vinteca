@@ -18,6 +18,7 @@ const saves = require('./src/saves');
 const { FpsMeter, presentMonPath } = require('./src/fps');
 const caches = require('./src/caches');
 const trainers = require('./src/trainers');
+const genshin = require('./src/genshin');
 const recs = require('./src/recs');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
@@ -172,6 +173,22 @@ function snapshot(dir) {
       await wait(1200);
     }
     await shot('biblioteca.png');
+    if (process.env.BJ_SNAPSHOT_ONLY === 'genshin') {
+      await js(`showView('genshin')`);
+      await wait(1500);
+      await shot('genshin-uid.png');
+      await js(`loadGenshin(false, '618285856')`);
+      for (let i = 0; i < 40 && !(await js(`!!document.querySelector('.gi-char')`)); i++) await wait(1000);
+      await wait(3000);
+      await shot('genshin.png');
+      await js(`document.querySelector('.gi-char').scrollIntoView()`);
+      await wait(1500);
+      await shot('genshin-personaje.png');
+      await js(`document.querySelectorAll('.gi-chip')[2]?.click()`);
+      await wait(2500);
+      await shot('genshin-personaje-2.png');
+      return app.quit();
+    }
     await js(`document.querySelector('#scroller').scrollTo({top: 560, behavior: 'instant'})`);
     await wait(1500);
     await shot('biblioteca-rejilla.png');
@@ -297,7 +314,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -1292,6 +1309,12 @@ ipcMain.handle('deals:get', async () => {
 
 ipcMain.handle('deals:cached', () => store.read('wishlist.json', null));
 ipcMain.handle('wand:installed', () => trainers.installed());
+// Perfil de Genshin: con el UID guardado (o uno para probar sin guardarlo)
+ipcMain.handle('genshin:get', (_e, force, uid) => {
+  const id = uid || store.getSettings().genshinUid;
+  if (!id) return null;
+  return genshin.profile(String(id), { read: store.read, write: store.write, force: !!force });
+});
 
 ipcMain.handle('epic:link', async () => {
   const exe = await epic.findLegendary(store.getSettings().legendaryPath);

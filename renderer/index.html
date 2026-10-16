@@ -42,6 +42,7 @@
       <button class="tab" data-view="sagas" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3.5" width="10" height="14" rx="1.5"/><path d="M4.5 7v11.5a2 2 0 0 0 2 2H15"/></svg><span class="tab-lbl">Sagas</span><span id="countSagas" class="count"></span></button>
       <button class="tab" data-view="ach" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7"/></svg><span class="tab-lbl">Logros</span><span id="countPlat" class="count plat"></span></button>
       <button class="tab" data-view="stats" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg><span class="tab-lbl">Estadísticas</span></button>
+      <button class="tab" data-view="genshin" id="genshinTab" role="tab" aria-selected="undefined" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.2 6.3 6.3 2.2-6.3 2.2L12 20.5l-2.2-6.3L3.5 12l6.3-2.2z"/></svg><span class="tab-lbl">Genshin</span></button>
       <p class="side-h">Comunidad y tiendas</p>
       <button class="tab" data-view="news" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h11v14H6.5A1.5 1.5 0 0 1 5 17.5zM16 9h3v8.5a1.5 1.5 0 0 1-3 0M8 9h5M8 12.5h5M8 16h3"/></svg><span class="tab-lbl">Novedades</span><span id="countNews" class="count"></span></button>
       <button class="tab" data-view="recs" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg><span class="tab-lbl">Para ti</span></button>
@@ -183,6 +184,11 @@
         <button id="newsRefresh" class="btn ghost small">Recargar</button>
       </div>
       <div id="newsBody"></div>
+    </section>
+
+    <!-- Genshin -->
+    <section id="genshinView" class="view" hidden>
+      <div id="genshinBody"></div>
     </section>
 
     <!-- Para ti -->

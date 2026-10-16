@@ -57,6 +57,7 @@ function getSettings() {
     bgGame: s.bgGame || '',
     lanAuto: !!s.lanAuto,
     priceAlerts: s.priceAlerts !== false,
+    genshinUid: s.genshinUid || '',
     palette: s.palette || 'viper',
     customAccent: s.customAccent || '#ef2f34',
     customHue: Number.isFinite(s.customHue) ? s.customHue : 352,
@@ -87,6 +88,11 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   for (const k of FLAGS) if (rest[k] !== undefined) s[k] = !!rest[k];
   for (const k of ['dailyLimitMin', 'remindEveryMin', 'keepBackups']) if (rest[k] !== undefined) s[k] = Math.max(0, Math.min(24 * 60, Number(rest[k]) || 0));
   if (rest.theme !== undefined) s.theme = ['light', 'system'].includes(rest.theme) ? rest.theme : 'dark';
+  if (rest.genshinUid !== undefined) {
+    const u = String(rest.genshinUid || '').trim();
+    if (u && !/^\d{9,10}$/.test(u)) throw new Error('El UID de Genshin tiene 9 o 10 cifras.');
+    s.genshinUid = u;
+  }
   if (rest.palette !== undefined) s.palette = /^[a-z]{2,20}$/.test(rest.palette) ? rest.palette : 'viper';
   if (rest.customAccent !== undefined && /^#[0-9a-f]{6}$/i.test(rest.customAccent)) s.customAccent = rest.customAccent;
   if (rest.customHue !== undefined) s.customHue = Math.max(0, Math.min(360, Math.round(Number(rest.customHue) || 0)));
