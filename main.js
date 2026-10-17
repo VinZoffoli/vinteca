@@ -41,6 +41,8 @@ const webhealth = require('./src/webhealth');
 const casa = require('./src/casa');
 const anime = require('./src/anime');
 const linkedin = require('./src/linkedin');
+const codeedit = require('./src/codeedit');
+const claudeChat = require('./src/claude-chat');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -214,6 +216,26 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'editor') {
+      const dir = require('path').join(repos.DEFAULT_DIR, 'website-c-smallcakes');
+      await js(`window.editorUI.open({ dir: ${JSON.stringify(dir)}, name: 'website-c-smallcakes' })`);
+      for (let i = 0; i < 30 && !(await js(`!!document.querySelector('.monaco-editor')`)); i++) await wait(1000);
+      await wait(1500);
+      await js(`[...document.querySelectorAll('.ed-node.dir')].find((n) => n.textContent.includes('app') || n.textContent.includes('src'))?.click()`);
+      await wait(1000);
+      await js(`[...document.querySelectorAll('.ed-node.file')].find((n) => /page\\.(tsx|jsx|js)|layout/.test(n.textContent))?.click()`);
+      await wait(2000);
+      await shot('editor.png');
+      if (process.env.BJ_EDITOR_ASK) {
+        await js(`(() => { const s = [...document.querySelectorAll('.cl-opts select')]; s[0].value = 'haiku'; s[0].dispatchEvent(new Event('change')); s[2].value = 'read'; s[2].dispatchEvent(new Event('change')); document.querySelector('#clInput').value = '¿Qué framework y versión usa este proyecto? Responde en una sola línea.'; document.querySelector('#clSend').click(); })()`);
+        for (let i = 0; i < 90 && !(await js(`!!document.querySelector('.cl-meta')`)); i++) await wait(1000);
+        await wait(1000);
+        log(`CLAUDE ${await js(`[...document.querySelectorAll('.cl-msg.assistant, .cl-msg.error')].map((m) => m.innerText).join(' | ').slice(0, 300)`)}`);
+        log(`STATUS ${await js(`document.querySelector('#edStatus').innerText`)}`);
+        await shot('editor-claude.png');
+      }
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'linkedin') {
@@ -2238,6 +2260,58 @@ ipcMain.handle('li:track', (_e, job, status) => {
   return linkedin.track(ctxRW, job, ['saved', 'applied', 'viewed', 'interview', 'offer', 'rejected'].includes(status) ? status : null);
 });
 ipcMain.handle('li:prefs', (_e, p) => linkedin.savePrefs(ctxRW, p || {}));
+// ---------- Editor de código y chat con Claude (Websites) ----------
+let edRoot = null;
+const edCheck = () => {
+  if (!edRoot) throw new Error('Abre primero una web en el editor.');
+  return edRoot;
+};
+ipcMain.handle('ed:open', (e, dir) => {
+  if (!inWebRoot(dir)) throw new Error('Esa carpeta no está dentro de tus webs.');
+  edRoot = require('path').resolve(dir);
+  codeedit.watch(edRoot, (files) => !e.sender.isDestroyed() && e.sender.send('ed:fs', files));
+  return { root: edRoot, name: require('path').basename(edRoot) };
+});
+ipcMain.handle('ed:close', () => {
+  codeedit.unwatch();
+  edRoot = null;
+  return true;
+});
+ipcMain.handle('ed:list', (_e, rel) => codeedit.list(edCheck(), rel || ''));
+ipcMain.handle('ed:read', (_e, rel) => codeedit.read(edCheck(), String(rel || '')));
+ipcMain.handle('ed:write', (_e, rel, text, eol) => codeedit.write(edCheck(), String(rel || ''), text, eol));
+ipcMain.handle('ed:create', (_e, rel, isDir) => codeedit.create(edCheck(), String(rel || ''), !!isDir));
+ipcMain.handle('ed:rename', (_e, from, to) => codeedit.rename(edCheck(), String(from || ''), String(to || '')));
+ipcMain.handle('ed:trash', (_e, rel) => codeedit.trash(edCheck(), String(rel || '')));
+ipcMain.handle('ed:git', async () => {
+  const r = await repos.inspect(edCheck(), { fetch: false }).catch(() => null);
+  return r && { branch: r.branch, changes: r.changes?.total || 0, ahead: r.ahead || 0, behind: r.behind || 0 };
+});
+ipcMain.handle('claude:status', () => claudeChat.available());
+ipcMain.handle('claude:send', (e, o) => {
+  const cwd = edCheck();
+  const chatId = String(o?.chatId || 'main').slice(0, 40);
+  const ok = ['opus', 'sonnet', 'haiku', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1'];
+  return claudeChat.send({
+    cwd,
+    chatId,
+    text: String(o?.text || '').slice(0, 100000),
+    session: /^[0-9a-f-]{36}$/i.test(o?.session || '') ? o.session : null,
+    model: ok.includes(o?.model) ? o.model : null,
+    effort: ['low', 'medium', 'high', 'xhigh', 'max'].includes(o?.effort) ? o.effort : null,
+    access: ['read', 'edit', 'run'].includes(o?.access) ? o.access : 'edit',
+  }, (ev) => !e.sender.isDestroyed() && e.sender.send('claude:event', { chatId, ev }));
+});
+ipcMain.handle('claude:stop', (_e, chatId) => claudeChat.stop(String(chatId || 'main')));
+ipcMain.handle('claude:history', (_e, dir) => (store.read('claude-chats.json', {})[String(dir)] || null));
+ipcMain.handle('claude:saveHistory', (_e, dir, h) => {
+  if (!inWebRoot(dir)) return false;
+  const all = store.read('claude-chats.json', {});
+  all[String(dir)] = { session: h?.session || null, model: h?.model || null, messages: (h?.messages || []).slice(-150), usage: h?.usage || null, at: Date.now() };
+  store.write('claude-chats.json', all);
+  return true;
+});
+
 function casaTick() {
   for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
 }

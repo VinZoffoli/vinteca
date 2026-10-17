@@ -732,6 +732,7 @@
         r.changes?.sample?.length ? h('details', { class: 'notes' }, h('summary', { text: 'Archivos con cambios' }), h('ul', { class: 'rx-files' }, r.changes.sample.map((f) => h('li', { text: f })), r.changes.total > r.changes.sample.length && h('li', { text: `y ${r.changes.total - r.changes.sample.length} más` }))) : null,
         h('div', { class: 'rx-row' },
           canPull && h('button', { class: 'btn primary small', text: W.pulling[r.dir] ? 'Actualizando…' : `Hacer git pull (${r.behind})`, disabled: !!W.pulling[r.dir], onclick: () => pull(r) }),
+          h('button', { class: 'btn primary small', text: 'Abrir en el editor', onclick: () => window.editorUI?.open({ dir: r.dir, name: r.name }) }),
           h('button', { class: 'btn ghost small', text: 'Abrir carpeta', onclick: () => re.openDir(r.dir, 'folder') }),
           h('button', { class: 'btn ghost small', text: 'Abrir en VS Code', onclick: () => re.openDir(r.dir, 'code') }),
           r.github && h('button', { class: 'btn ghost small', text: 'Ver en GitHub', onclick: () => window.api.open(r.github) }),

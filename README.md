@@ -240,6 +240,12 @@ Tres apartados para el trabajo, en la sección **Resto Experience** del menú.
 
 **Websites**: revisa cada carpeta de `Escritorio\Vincenzo\Resto Experience\Webs` (se puede cambiar). *Revisar con GitHub* hace `git fetch` en cada repo con tus credenciales de git y te dice cuáles necesitan `git pull`, cuáles tienen cambios sin commit o commits sin subir, si tu rama va por detrás de main y cuál fue el último commit en GitHub. *Hacer git pull* solo aparece cuando la carpeta está limpia (usa `--ff-only`, así nunca pisa tu trabajo), y avisa si cambiaron las dependencias.
 
+## Editor de código con Claude (Websites)
+
+En **Websites**, cada web tiene **Abrir en el editor**: se abre su carpeta con un árbol de archivos (crear, renombrar y mandar a la papelera), pestañas y el mismo editor de VS Code (Monaco: colores, minimapa, autocompletado básico). Ctrl+S guarda.
+
+A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes instalado, con tu sesión y tu plan, sobre la carpeta de esa web. Eliges el modelo (Opus, Sonnet o Haiku), el esfuerzo y los permisos (solo leer, leer y editar archivos, o también ejecutar comandos como npm o git). Ves en vivo qué archivos lee o edita y, si cambia uno abierto, el editor lo recarga solo. Con «Incluir el archivo abierto» le pasa el archivo y lo que tengas seleccionado. La conversación de cada web se guarda y sigue donde la dejaste. En la barra de abajo: la rama de git, la posición del cursor y, en la esquina, el **% de contexto** que lleva la conversación con Claude y el estado de tu límite de 5 horas.
+
 ## LinkedIn
 
 **ViperTech → LinkedIn** tiene tres pestañas. *Buscar ofertas*: busca con tus preferencias (puestos o tecnologías, lugares, modalidad y si son del último día, semana o mes) en el buscador público de empleos de LinkedIn, sin usar tu cuenta; marca las nuevas desde la última búsqueda y, al abrir una, muestra la descripción, el tipo de empleo, el nivel y cuántos se postularon. *Recomendadas para ti* y *Mis postulaciones* leen esas páginas de tu cuenta: la primera vez se abre LinkedIn en una ventana de la app y entras tú, y desde ahí la app solo las lee cuando pulsas «Leer de LinkedIn» (dónde te postulaste, cuándo y si vieron tu solicitud o descargaron tu CV). También puedes llevar el seguimiento de cada oferta (guardada, postulé, entrevista, oferta…). ViperTeca no postula ni escribe en LinkedIn. LinkedIn limita las búsquedas seguidas: si corta, espera unos minutos.
