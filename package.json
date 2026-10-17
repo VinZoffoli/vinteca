@@ -2,7 +2,7 @@
   "name": "biblioteca-juegos",
   "repository": "github:VinZoffoli/vinteca",
   "productName": "ViperTeca",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "ViperTeca: tus juegos de Steam, Epic y otras tiendas en una sola biblioteca",
   "author": "Vincenzo",
   "main": "main.js",
@@ -21,6 +21,7 @@
   "dependencies": {
     "js-yaml": "4.1.0",
     "koffi": "3.3.1",
+    "openrgb-sdk": "0.6.0",
     "qrcode-generator": "2.0.4"
   },
   "build": {
@@ -42,7 +43,9 @@
       "node_modules/@koromix/koffi-win32-x64/**",
       "node_modules/js-yaml/**",
       "node_modules/argparse/**",
-      "node_modules/qrcode-generator/**"
+      "node_modules/qrcode-generator/**",
+      "node_modules/openrgb-sdk/**",
+      "node_modules/bufferpack/**"
     ],
     "extraResources": [
       {

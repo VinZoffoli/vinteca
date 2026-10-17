@@ -24,6 +24,8 @@ const hoyolab = require('./src/hoyolab');
 const ocr = require('./src/ocr');
 const wallets = require('./src/wallets');
 const genshinNews = require('./src/genshin-news');
+const rgb = require('./src/rgb');
+const trainer = require('./src/trainer');
 const spotify = require('./src/spotify');
 const recs = require('./src/recs');
 const storeinfo = require('./src/storeinfo');
@@ -226,6 +228,17 @@ function snapshot(dir) {
       await js(`showView('sagas')`);
       await wait(3000);
       await shot('sagas-banner.png');
+      await js(`showView('cheats')`);
+      await wait(5000);
+      await shot('trucos.png');
+      await js(`showView('rgb')`);
+      await wait(4000);
+      await shot('iluminacion.png');
+      await js(`window.api.rgb.start(false).then(() => loadRgb())`);
+      await wait(15000);
+      await js(`lux.open = 0; renderRgb()`);
+      await wait(1000);
+      await shot('iluminacion-conectado.png');
       await js(`setGenshinTab('prioridades')`);
       await wait(1200);
       await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
@@ -358,7 +371,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -1445,6 +1458,111 @@ ipcMain.handle('wallet:logout', async (_e, key) => {
   delete all[key];
   store.write('wallets.json', all);
   return all;
+});
+
+// ---------- Motor de trucos ----------
+let cheatTarget = null; // { pid, name }
+const cheatKeys = new Map(); // atajo -> { key, entry, value }
+const cheatFrozen = new Set();
+trainer.setListener((m) => {
+  if (m.event === 'exited') {
+    cheatTarget = null;
+    cheatFrozen.clear();
+    for (const accel of cheatKeys.keys()) globalShortcut.unregister(accel);
+    cheatKeys.clear();
+  }
+  if (win && !win.isDestroyed()) win.webContents.send('trainer:event', m);
+});
+const tables = () => store.read('trainer-tables.json', {});
+ipcMain.handle('trainer:procs', async () => {
+  let exes = [];
+  try {
+    exes = [...(focus.gameProcessNames?.() || [])];
+  } catch {}
+  return trainer.processes(exes);
+});
+ipcMain.handle('trainer:attach', async (_e, p) => {
+  const r = await trainer.attach({ pid: Number(p.pid), name: String(p.name || '') });
+  cheatTarget = { pid: Number(p.pid), name: String(p.name || '') };
+  return { ...r, table: tables()[cheatTarget.name.toLowerCase()] || [] };
+});
+ipcMain.handle('trainer:detach', async () => {
+  for (const accel of cheatKeys.keys()) globalShortcut.unregister(accel);
+  cheatKeys.clear();
+  cheatFrozen.clear();
+  cheatTarget = null;
+  return trainer.call('detach');
+});
+ipcMain.handle('trainer:call', (_e, cmd, args) => {
+  if (!['firstScan', 'nextScan', 'results', 'read', 'set', 'where', 'status'].includes(cmd)) throw new Error('Orden no válida.');
+  return trainer.call(cmd, args);
+});
+ipcMain.handle('trainer:freeze', async (_e, key, entry, value, on) => {
+  const r = await trainer.call('freeze', { key, entry, value, on: !!on });
+  on ? cheatFrozen.add(key) : cheatFrozen.delete(key);
+  return r;
+});
+ipcMain.handle('trainer:saveTable', (_e, list) => {
+  if (!cheatTarget) throw new Error('Elige primero un juego.');
+  const all = tables();
+  all[cheatTarget.name.toLowerCase()] = (Array.isArray(list) ? list : []).slice(0, 300);
+  store.write('trainer-tables.json', all);
+  return true;
+});
+// Atajos de teclado globales (funcionan dentro del juego): activan o quitan el congelado
+ipcMain.handle('trainer:hotkeys', (_e, list) => {
+  for (const accel of cheatKeys.keys()) globalShortcut.unregister(accel);
+  cheatKeys.clear();
+  const failed = [];
+  for (const h of Array.isArray(list) ? list : []) {
+    if (!h.accel || !/^(Alt\+|Ctrl\+|Shift\+)*(F([1-9]|1[0-2])|[0-9]|Num[0-9])$/.test(h.accel)) continue;
+    const accel = h.accel.replace(/^Ctrl\+/, 'CommandOrControl+').replace(/Num(\d)/, 'num$1');
+    const ok = globalShortcut.register(accel, async () => {
+      const on = !cheatFrozen.has(h.key);
+      try {
+        await trainer.call('freeze', { key: h.key, entry: h.entry, value: h.value, on });
+        on ? cheatFrozen.add(h.key) : cheatFrozen.delete(h.key);
+        if (win && !win.isDestroyed()) win.webContents.send('trainer:event', { event: 'hotkey', key: h.key, on });
+      } catch {}
+    });
+    if (ok) cheatKeys.set(accel, h);
+    else failed.push(h.accel);
+  }
+  return { failed };
+});
+ipcMain.handle('trainer:importCT', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Tabla de Cheat Engine', filters: [{ name: 'Tablas de Cheat Engine', extensions: ['ct', 'CT'] }], properties: ['openFile'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const xml = require('fs').readFileSync(r.filePaths[0], 'utf8');
+  if (!/<CheatTable/i.test(xml)) throw new Error('Ese archivo no es una tabla de Cheat Engine.');
+  return trainer.parseCT(xml);
+});
+
+// ---------- Iluminación RGB (OpenRGB) ----------
+const rgbExe = () => rgb.findExe(store.read('settings.json', {}).openrgbPath);
+ipcMain.handle('rgb:status', () => rgb.status(store.read('settings.json', {}).openrgbPath));
+ipcMain.handle('rgb:start', async (_e, admin) => {
+  await rgb.start(rgbExe(), !!admin);
+  return rgb.status(store.read('settings.json', {}).openrgbPath);
+});
+ipcMain.handle('rgb:apply', (_e, id, opts) => rgb.apply(Number(id), opts || {}));
+ipcMain.handle('rgb:applyAll', async (_e, opts) => {
+  const r = await rgb.applyAll(opts || {});
+  const s = store.read('settings.json', {});
+  s.rgbLast = opts;
+  store.write('settings.json', s);
+  return r;
+});
+ipcMain.handle('rgb:resize', (_e, id, zone, leds) => rgb.resize(Number(id), Number(zone), Number(leds)));
+ipcMain.handle('rgb:rescan', () => rgb.rescan());
+ipcMain.handle('rgb:last', () => store.read('settings.json', {}).rgbLast || null);
+ipcMain.handle('rgb:pickExe', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Dónde está OpenRGB.exe', filters: [{ name: 'OpenRGB', extensions: ['exe'] }], properties: ['openFile'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const s = store.read('settings.json', {});
+  s.openrgbPath = r.filePaths[0];
+  store.write('settings.json', s);
+  return s.openrgbPath;
 });
 
 // ---------- Spotify ----------

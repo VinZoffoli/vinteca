@@ -222,6 +222,22 @@ La sección Genshin tiene además estas pestañas:
 
 En **Música → Spotify** vinculas tu cuenta con el inicio de sesión oficial de Spotify (necesitas crear una vez una app gratuita en [developer.spotify.com](https://developer.spotify.com/dashboard) y pegar su *Client ID*; la app lo explica paso a paso). Verás tus playlists, *Canciones que te gustan*, lo que más escuchas, lo reciente, tus artistas y **Para ti** (lo más escuchado de tus artistas favoritos que aún no oyes). Con **Premium** puedes reproducir y cambiar de playlist desde ViperTeca: suena en tu app de Spotify (Spotify Connect) y abajo aparece una barra con pausa, siguiente, aleatorio, volumen y dónde suena.
 
+## Trucos
+
+**Tu biblioteca → Trucos** es un motor de trucos propio, como los de Wand o Cheat Engine, para juegos **de un jugador**:
+
+1. Abre el juego y elígelo en la lista. Si el juego es en línea o tiene antitrampas (Genshin, Fortnite, Valorant, EasyAntiCheat, BattlEye…), ViperTeca **no se engancha**, para que no pierdas tu cuenta.
+2. Busca el valor que quieres cambiar (oro, vida, munición): escribe cuánto tienes, cambia esa cantidad en el juego y filtra (*ahora vale…*, *ha subido*, *ha bajado*…) hasta que queden pocos resultados.
+3. Añádelo a **Mis trucos**: ponle nombre, cámbialo al número que quieras o **congélalo**, y asígnale un **atajo** (F5…F11, Ctrl+número, Alt+número) que funciona dentro del juego.
+
+Los trucos se guardan por juego. También puedes **importar tablas de Cheat Engine (.CT)** de la comunidad: se cargan las entradas con dirección y punteros; las que son scripts de Cheat Engine no son compatibles. Si un juego se ejecuta como administrador, abre ViperTeca también como administrador.
+
+## Iluminación RGB
+
+**Tu PC → Iluminación** controla el RGB del PC (ventiladores, placa base, teclado…) con [OpenRGB](https://openrgb.org/), de código abierto, por debajo: un color y un efecto (fijo, respirar, arcoíris, ola, apagado) para todo a la vez, o modo, color, velocidad, brillo y número de LED de cada dispositivo.
+
+Para el RGB que va a la **placa base** (como unos ventiladores conectados a su conector ARGB de 5 V) OpenRGB necesita su controlador [PawnIO](https://pawnio.eu/): instálalo tú y pulsa *Abrir como administrador* en ViperTeca (Windows te pedirá permiso). En los conectores ARGB indica cuántos LED hay en total.
+
 ## Tu saldo en Steam y Epic
 
 En **Ofertas → Tu saldo**, *Conectar* abre la web oficial de Steam o de Epic para que inicies sesión tú, y la app lee tu cartera de Steam y tus **Epic Rewards** y saldo de Epic. Ninguna de las dos tiendas lo da a otros programas, así que se lee de su web; la sesión se guarda como en un navegador y *Desconectar* la borra.

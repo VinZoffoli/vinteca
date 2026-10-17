@@ -8,7 +8,7 @@ function h(tag, attrs, ...kids) {
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
-    else if (k === 'style') Object.assign(el.style, v);
+    else if (k === 'style') for (const [p, val] of Object.entries(v)) p.startsWith('--') ? el.style.setProperty(p, val) : (el.style[p] = val);
     else if (k === 'text') el.textContent = v;
     else if (k.startsWith('data-') || k.startsWith('aria-')) el.setAttribute(k, v);
     else el[k] = v;
@@ -545,6 +545,138 @@ function renderDeals() {
   }
 }
 
+// ---------- Iluminación (OpenRGB) ----------
+const lux = { st: null, busy: null, color: '#ef2f34', effect: 'static', speed: null, brightness: null, open: null };
+const LUX_SWATCHES = ['#ef2f34', '#ff7a1a', '#ffd23f', '#3ddc84', '#1ed7c8', '#3c8cff', '#8a5cff', '#ff4fd8', '#ffffff'];
+const LUX_EFFECTS = [['static', 'Fijo'], ['breathing', 'Respirar'], ['rainbow', 'Arcoíris'], ['wave', 'Ola'], ['off', 'Apagado']];
+async function loadRgb() {
+  if (!lux.lastLoaded) {
+    lux.lastLoaded = true;
+    const last = await window.api.rgb.last().catch(() => null);
+    if (last) Object.assign(lux, { color: last.color || lux.color, effect: last.effect || lux.effect });
+  }
+  lux.busy = lux.busy || 'Buscando OpenRGB…';
+  renderRgb();
+  try {
+    lux.st = await window.api.rgb.status();
+  } catch (e) {
+    lux.st = { error: errMsg(e) };
+  }
+  lux.busy = null;
+  renderRgb();
+}
+async function rgbDo(label, fn) {
+  lux.busy = label;
+  renderRgb();
+  try {
+    const r = await fn();
+    return r;
+  } catch (e) {
+    toast(errMsg(e), true);
+  } finally {
+    lux.busy = null;
+    renderRgb();
+  }
+}
+function renderRgb() {
+  const box = $('#rgbBody');
+  if (!box || $('#rgbView').hidden) return;
+  const st = lux.st;
+  if (!st) return fill(box, h('p', { class: 'hint', text: lux.busy || 'Cargando…' }));
+  if (!st.running) {
+    return fill(
+      box,
+      h(
+        'ol',
+        { class: 'steps lux-steps' },
+        h('li', {}, h('b', { text: st.installed ? 'OpenRGB ya está en tu PC.' : 'Descarga OpenRGB (gratis y de código abierto).' }), h('span', {}, st.installed ? 'ViperTeca lo abre en segundo plano y le manda los colores.' : ['Desde ', h('button', { class: 'link-btn', text: 'openrgb.org', onclick: () => window.api.open('https://openrgb.org/') }), '. Si lo guardas en otra carpeta, indícala con «Buscar OpenRGB».'])),
+        h('li', {}, h('b', { text: 'Para la placa base (tus ventiladores ARGB): instala PawnIO.' }), h('span', {}, 'Es el controlador que OpenRGB usa para hablar con el chip RGB de la placa. Descárgalo de ', h('button', { class: 'link-btn', text: 'pawnio.eu', onclick: () => window.api.open('https://pawnio.eu/') }), ' e instálalo tú (pide permisos de administrador).')),
+        h('li', {}, h('b', { text: 'Abre OpenRGB como administrador.' }), h('span', { text: 'Windows te preguntará si das permiso. Sin administrador solo se ven el teclado, el ratón y otros dispositivos USB.' }))
+      ),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { class: 'btn primary', disabled: !!lux.busy || !st.installed, text: 'Abrir como administrador', onclick: () => rgbDo('Abriendo OpenRGB…', async () => (lux.st = await window.api.rgb.start(true))) }),
+        h('button', { class: 'btn ghost', disabled: !!lux.busy || !st.installed, text: 'Abrir sin permisos', onclick: () => rgbDo('Abriendo OpenRGB…', async () => (lux.st = await window.api.rgb.start(false))) }),
+        h('button', { class: 'btn ghost subtle', text: 'Buscar OpenRGB…', onclick: async () => { if (await window.api.rgb.pickExe()) loadRgb(); } }),
+        lux.busy && h('span', { class: 'hint', text: lux.busy })
+      )
+    );
+  }
+  if (!st.devices.length && (lux.retries || 0) < 6) {
+    lux.retries = (lux.retries || 0) + 1;
+    setTimeout(loadRgb, 2500);
+  }
+  if (st.devices.length) lux.retries = 0;
+  const effectSeg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Efecto' }, LUX_EFFECTS.map(([k, t]) => h('button', { class: lux.effect === k ? 'on' : '', text: t, onclick: () => { lux.effect = k; renderRgb(); } })));
+  const picker = h('input', { type: 'color', class: 'lux-picker', value: lux.color, 'aria-label': 'Color' });
+  picker.addEventListener('input', () => (lux.color = picker.value));
+  picker.addEventListener('change', () => renderRgb());
+  const applyAll = () => rgbDo('Aplicando…', async () => {
+    const r = await window.api.rgb.applyAll({ effect: lux.effect, color: lux.color });
+    toast(r.skipped.length ? `Aplicado en ${r.done.length}; sin ese efecto: ${r.skipped.join(', ')}` : `Aplicado en ${plural(r.done.length, 'dispositivo', 'dispositivos')}.`);
+    lux.st = await window.api.rgb.status();
+  });
+  const hasBoard = st.devices.some((d) => d.type === 'Placa base');
+  return fill(
+    box,
+    h(
+      'section',
+      { class: 'lux-main', style: { '--lux': lux.effect === 'off' ? '#222' : lux.color } },
+      h('div', { class: `lux-orb ${lux.effect}`, 'aria-hidden': 'true' }),
+      h(
+        'div',
+        { class: 'lux-ctrls' },
+        h('h2', { class: 'section-h', text: 'Todo el PC' }),
+        effectSeg,
+        lux.effect !== 'off' && lux.effect !== 'rainbow' && h('div', { class: 'lux-colors' }, picker, LUX_SWATCHES.map((c) => h('button', { class: `lux-sw${lux.color === c ? ' on' : ''}`, style: { background: c }, title: c, 'aria-label': `Color ${c}`, onclick: () => { lux.color = c; renderRgb(); } }))),
+        h('div', { class: 'row' }, h('button', { class: 'btn primary', disabled: !!lux.busy, text: lux.busy || 'Aplicar a todo', onclick: applyAll }), h('button', { class: 'btn ghost small', disabled: !!lux.busy, text: 'Volver a buscar dispositivos', onclick: () => rgbDo('Buscando…', async () => { await window.api.rgb.rescan(); await new Promise((r) => setTimeout(r, 5000)); lux.st = await window.api.rgb.status(); }) }))
+      )
+    ),
+    !hasBoard && h('div', { class: 'notice' }, h('span', {}, 'OpenRGB no ve la placa base, así que tus ventiladores (conectados a su conector ARGB) aún no se pueden controlar. Instala ', h('button', { class: 'link-btn', text: 'PawnIO', onclick: () => window.api.open('https://pawnio.eu/') }), ', cierra OpenRGB y ábrelo como administrador desde aquí.'), h('button', { class: 'btn ghost small', text: 'Abrir como administrador', onclick: () => rgbDo('Abriendo OpenRGB…', async () => (lux.st = await window.api.rgb.start(true))) })),
+    h('h2', { class: 'section-h', text: `Dispositivos (${st.devices.length})` }),
+    h('div', { class: 'lux-devs' }, st.devices.map(rgbDevice))
+  );
+}
+function rgbDevice(d) {
+  const open = lux.open === d.id;
+  const mode = d.modes[d.activeMode];
+  const sel = h('select', { 'aria-label': `Modo de ${d.name}` }, d.modes.map((m) => h('option', { value: m.id, text: m.name, selected: m.id === d.activeMode })));
+  const color = h('input', { type: 'color', value: (mode?.colors?.[0] && mode.colors[0] !== '#000000' ? mode.colors[0] : lux.color), 'aria-label': 'Color' });
+  const cur = () => d.modes[Number(sel.value)];
+  const speed = h('input', { type: 'range', class: 'lux-range', 'aria-label': 'Velocidad' });
+  const bright = h('input', { type: 'range', class: 'lux-range', 'aria-label': 'Brillo' });
+  const syncRanges = () => {
+    const m = cur();
+    for (const [el, k] of [[speed, 'speed'], [bright, 'brightness']]) {
+      el.parentElement && (el.parentElement.hidden = !m[k]);
+      if (m[k]) Object.assign(el, { min: m[k].min, max: m[k].max, value: m[k].value });
+    }
+    color.parentElement && (color.parentElement.hidden = !(m.perLed || m.modeColors));
+  };
+  sel.addEventListener('change', syncRanges);
+  const body = h(
+    'div',
+    { class: 'lux-dev-body' },
+    h('label', { class: 'lux-field' }, h('span', { text: 'Modo' }), sel),
+    h('label', { class: 'lux-field' }, h('span', { text: 'Color' }), color),
+    h('label', { class: 'lux-field' }, h('span', { text: 'Velocidad' }), speed),
+    h('label', { class: 'lux-field' }, h('span', { text: 'Brillo' }), bright),
+    d.zones.filter((z) => z.resizable).map((z) => {
+      const n = h('input', { type: 'number', min: z.min, max: z.max, value: z.leds, class: 'lux-num', 'aria-label': `LEDs de ${z.name}` });
+      return h('div', { class: 'lux-field' }, h('span', { text: `LEDs en «${z.name}»` }), h('div', { class: 'row' }, n, h('button', { class: 'btn ghost small', text: 'Guardar', onclick: () => rgbDo('Guardando…', async () => { await window.api.rgb.resize(d.id, z.id, Number(n.value)); lux.st = await window.api.rgb.status(); }) })), h('small', { class: 'hint', text: 'En los conectores ARGB indica cuántos LED hay en total (por ejemplo, 3 ventiladores de 8 LED = 24).' }));
+    }),
+    h('div', { class: 'row' }, h('button', { class: 'btn primary small', text: 'Aplicar', onclick: () => rgbDo('Aplicando…', async () => { await window.api.rgb.apply(d.id, { mode: Number(sel.value), color: color.value, speed: cur().speed ? Number(speed.value) : null, brightness: cur().brightness ? Number(bright.value) : null }); lux.st = await window.api.rgb.status(); }) }))
+  );
+  queueMicrotask(syncRanges);
+  return h(
+    'div',
+    { class: `lux-dev${open ? ' open' : ''}` },
+    h('button', { class: 'lux-dev-head', 'aria-expanded': String(open), onclick: () => { lux.open = open ? null : d.id; renderRgb(); } }, h('span', { class: 'lux-dot', style: { background: mode?.colors?.[0] && mode.colors[0] !== '#000000' ? mode.colors[0] : d.color } }), h('span', {}, h('b', { text: d.name }), h('small', { text: `${d.type}, ${plural(d.leds, 'LED', 'LED')}, modo «${mode?.name || '—'}»` })), h('span', { class: 'lux-chev', text: open ? '▴' : '▾' })),
+    open && body
+  );
+}
+
 // ---------- Tu saldo en Steam y Epic ----------
 const wal = { data: null, busy: {} };
 async function loadWallets() {
@@ -965,6 +1097,10 @@ function showView(view) {
   $('#lanView').hidden = view !== 'lan';
   $('#genshinView').hidden = view !== 'genshin';
   $('#musicView').hidden = view !== 'music';
+  $('#rgbView').hidden = view !== 'rgb';
+  $('#cheatsView').hidden = view !== 'cheats';
+  if (view === 'cheats') window.cheats?.show();
+  if (view === 'rgb') loadRgb();
   if (view === 'music') window.music?.show();
   if (view === 'genshin') loadGenshin(false);
   if (view === 'lan') loadLan();
