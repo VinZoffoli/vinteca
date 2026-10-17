@@ -153,6 +153,7 @@ contextBridge.exposeInMainWorld('api', {
     search: () => ipcRenderer.invoke('li:search'),
     detail: (id) => ipcRenderer.invoke('li:detail', id),
     openAccount: (url) => ipcRenderer.invoke('li:open', url),
+    openBrave: (url) => ipcRenderer.invoke('li:browser', url),
     readAccount: (which) => ipcRenderer.invoke('li:read', which),
     track: (job, status) => ipcRenderer.invoke('li:track', job, status),
     savePrefs: (p) => ipcRenderer.invoke('li:prefs', p),

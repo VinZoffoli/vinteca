@@ -38,7 +38,7 @@
     try {
       const r = await api.readAccount(which);
       if (r.login) {
-        L.error = 'Inicia sesión en LinkedIn en la ventana que se abrió y vuelve a pulsar «Leer de LinkedIn».';
+        L.error = 'Para traerlas a ViperTeca, inicia sesión en LinkedIn en la ventana que se abrió y vuelve a pulsar «Traerlas a ViperTeca». Si prefieres no hacerlo, usa el botón rojo para verlas en Brave.';
         api.openAccount();
       } else L.st.account = { ...L.st.account, [which]: r };
     } catch (e) {
@@ -104,7 +104,7 @@
         ),
         h('div', { class: 'li-act' },
           h('select', { class: 'sn-select', 'aria-label': 'Seguimiento', onchange: (e) => setTrack(j, e.target.value || null) }, h('option', { value: '', text: t ? 'Quitar seguimiento' : 'Seguimiento…' }), TRACK.map(([v, l]) => h('option', { value: v, text: l, selected: t?.status === v }))),
-          h('button', { class: 'btn primary small', text: 'Ver en LinkedIn', onclick: () => api.openAccount(j.url) })
+          h('button', { class: 'btn primary small', text: 'Abrir en Brave', onclick: () => api.openBrave(j.url) })
         )
       ),
       open && h('div', { class: 'li-detail' },
@@ -145,11 +145,11 @@
     const local = isApplied ? Object.values(L.st.tracked || {}).filter((t) => t.status !== 'saved' && !items.some((i) => i.id === t.id)) : [];
     return [
       h('div', { class: 'toolbar flat' },
-        h('button', { class: 'btn primary', text: L.busy ? 'Leyendo…' : 'Leer de LinkedIn', disabled: !!L.busy, onclick: () => readAccount(which) }),
-        h('button', { class: 'btn ghost small', text: 'Abrir LinkedIn / iniciar sesión', onclick: () => api.openAccount(isApplied ? 'https://www.linkedin.com/my-items/saved-jobs/?cardType=APPLIED' : 'https://www.linkedin.com/jobs/collections/recommended/') }),
+        h('button', { class: 'btn primary', text: isApplied ? 'Ver mis postulaciones en Brave' : 'Ver recomendadas en Brave', onclick: () => api.openBrave(isApplied ? 'https://www.linkedin.com/my-items/saved-jobs/?cardType=APPLIED' : 'https://www.linkedin.com/jobs/collections/recommended/') }),
+        h('button', { class: 'btn ghost small', text: L.busy ? 'Leyendo…' : 'Traerlas a ViperTeca', disabled: !!L.busy, onclick: () => readAccount(which) }),
         acc && h('span', { class: 'hint', text: `Leído ${relTime(acc.at / 1000)}.` })
       ),
-      h('p', { class: 'hint', text: isApplied ? 'Lee la página «Mis empleos → Solicitados» de tu cuenta: dónde te postulaste, cuándo y si vieron tu solicitud. La primera vez inicia sesión en la ventana de LinkedIn que abre la app.' : 'Las ofertas que LinkedIn te recomienda según tu perfil. Se leen de tu cuenta solo cuando pulsas el botón.' }),
+      h('p', { class: 'hint', text: isApplied ? 'El botón rojo abre «Mis empleos → Solicitados» en Brave, donde ya tienes la sesión. Para verlas aquí, con su estado, usa «Traerlas a ViperTeca»: como la app no puede usar la sesión de Brave, la primera vez te pide entrar a LinkedIn en una ventana propia.' : 'El botón rojo abre en Brave las ofertas que LinkedIn te recomienda. «Traerlas a ViperTeca» las lee con una sesión propia de la app (la primera vez entras tú).' }),
       items.length
         ? [isApplied && h('dl', { class: 'stat-strip rx-stats' },
             h('div', {}, h('dt', { text: 'Postulaciones' }), h('dd', { text: String(items.length) })),
@@ -173,7 +173,7 @@
       L.busy && h('p', { class: 'hint', text: L.busy }),
       L.error && h('p', { class: 'hint bad', text: L.error }),
       L.tab === 'search' ? searchTab() : accountTab(L.tab),
-      h('p', { class: 'hint wk-note', text: 'ViperTeca no postula ni escribe en LinkedIn: buscas aquí, abres la oferta y te postulas tú. Tus postulaciones y recomendadas se leen de tu cuenta solo cuando pulsas «Leer de LinkedIn».' })
+      h('p', { class: 'hint wk-note', text: 'ViperTeca no postula ni escribe en LinkedIn: buscas aquí, abres la oferta en Brave y te postulas tú.' })
     );
   }
 

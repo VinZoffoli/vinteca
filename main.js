@@ -2105,16 +2105,14 @@ async function genshinTick() {
       label = '200';
     }
   }
-  if (full && Date.now() >= full && resinNotified !== full) {
-    resinNotified = full;
-    const s = store.read('settings.json', {});
-    if (s.lastResinFull !== full) {
-      s.lastResinFull = full;
-      store.write('settings.json', s);
-      notify('Resina llena en Genshin', `Tienes ${label} de resina: gástala antes de que se desperdicie.`);
-    }
+  // Una sola vez por cada vez que abres la app (antes, con la resina llena,
+  // cada revisión contaba como un llenado nuevo y el aviso se repetía)
+  if (full && Date.now() >= full && !resinShownThisRun) {
+    resinShownThisRun = true;
+    notify('Resina llena en Genshin', `Tienes ${label} de resina: gástala antes de que se desperdicie.`);
   }
 }
+let resinShownThisRun = false;
 ipcMain.handle('gfarm:avatars', () => genshinFarm.avatars(ctxRW));
 ipcMain.handle('gfarm:plan', () => store.read('gfarm-plan.json', []));
 ipcMain.handle('gfarm:save', (_e, plan) => {
@@ -2276,6 +2274,21 @@ ipcMain.handle('li:open', (_e, url) => {
   const u = String(url || 'https://www.linkedin.com/login');
   if (!/^https:\/\/www\.linkedin\.com\/(login|jobs\/view\/\d+\/?|my-items\/saved-jobs\/\?cardType=APPLIED|jobs\/collections\/recommended\/?)$/.test(u)) return false;
   return linkedin.openAccount(u);
+});
+// Abre en Brave (donde ya tienes la sesión de LinkedIn); si no está, en el navegador predeterminado
+function openInBrave(url) {
+  const fs = require('fs');
+  const p = require('path');
+  const cands = [p.join(process.env.ProgramFiles || 'C:\\Program Files', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), p.join(process.env.LOCALAPPDATA || '', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'), p.join(process.env['ProgramFiles(x86)'] || '', 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe')];
+  const exe = cands.find((c) => fs.existsSync(c));
+  if (!exe) return shell.openExternal(url);
+  require('child_process').spawn(exe, [url], { detached: true, stdio: 'ignore', windowsHide: false }).unref();
+}
+ipcMain.handle('li:browser', (_e, url) => {
+  const u = String(url || '');
+  if (!/^https:\/\/www\.linkedin\.com\/(jobs\/view\/\d+\/?|my-items\/saved-jobs\/\?cardType=APPLIED|jobs\/collections\/recommended\/?|jobs\/search\/\?[\w=&%.+-]*)$/.test(u)) return false;
+  openInBrave(u);
+  return true;
 });
 ipcMain.handle('li:read', (_e, which) => linkedin.readAccount(ctxRW, which === 'applied' ? 'applied' : 'recommended'));
 ipcMain.handle('li:track', (_e, job, status) => {
