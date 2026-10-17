@@ -1102,6 +1102,11 @@ function showView(view) {
   $('#workanaView').hidden = view !== 'workana';
   if (view === 'workana') window.workanaUI?.show();
   $('#calView').hidden = view !== 'cal';
+  $('#sensorsView').hidden = view !== 'sensors';
+  $('#backlogView').hidden = view !== 'backlog';
+  if (view === 'sensors') window.pcUI?.sensorsShow();
+  else window.pcUI?.sensorsHide();
+  if (view === 'backlog') loadSessions().then(() => window.pcUI?.backlogShow());
   $('#notionView').hidden = view !== 'notion';
   $('#websView').hidden = view !== 'webs';
   if (view === 'cal') window.resto?.calShow();
@@ -1904,6 +1909,7 @@ function rollPick() {
     if (u.pin) w += 1;
     if (pick.time === 'short') w += SHORT_TAGS.test(tags) ? 2 : LONG_TAGS.test(tags) ? -0.7 : 0;
     if (pick.time === 'long') w += LONG_TAGS.test(tags) ? 2 : SHORT_TAGS.test(tags) ? -0.5 : 0;
+    w += window.backlogBoost?.(g) || 0; // le falta poco para terminarlo
     if (pick.last.includes(g.id)) w *= 0.2; // que no repita la tirada anterior
     return Math.max(0.1, w);
   };
@@ -2328,6 +2334,8 @@ const GI_TABS = [
   ['prioridades', 'Prioridades'],
   ['notas', 'Notas de HoYoLAB'],
   ['deseos', 'Deseos'],
+  ['farmeo', 'Farmeo'],
+  ['codigos', 'Códigos'],
 ];
 function genshinTabs() {
   return h(
@@ -2340,7 +2348,7 @@ function setGenshinTab(k) {
   gi.tab = k;
   if (k === 'noticias' && !gi.news && !gi.newsBusy) loadGnews(false);
   if (k === 'deseos' && !gi.wish) window.api.gwish().then((w) => { gi.wish = w; renderGenshin(); });
-  if ((k === 'notas' || k === 'prioridades') && !gi.hoyo && !gi.hoyoBusy) loadHoyo(false);
+  if ((k === 'notas' || k === 'prioridades' || k === 'farmeo') && !gi.hoyo && !gi.hoyoBusy) loadHoyo(false);
   if (k === 'prioridades' && !gi.tasks) {
     window.api.gtasks().then((t) => { gi.tasks = t; renderGenshin(); });
     window.api.gquestsPending().then((p) => { if (p?.quests?.length) { gi.found = p; renderGenshin(); } });
@@ -2351,6 +2359,8 @@ function genshinOtherTab() {
   if (gi.tab === 'deseos') return renderWishes();
   if (gi.tab === 'noticias') return renderGnews();
   if (gi.tab === 'notas') return renderHoyo();
+  if (gi.tab === 'farmeo') return window.gplusUI?.renderFarm();
+  if (gi.tab === 'codigos') return window.gplusUI?.renderCodes();
   return renderPriorities();
 }
 

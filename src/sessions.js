@@ -94,6 +94,7 @@ class SessionTracker {
     if (s.fps) row.fps = Math.round(s.fps * 10) / 10;
     if (s.low1) row.low1 = Math.round(s.low1 * 10) / 10;
     if (s.unlocks) row.unlocks = s.unlocks;
+    if (s.temps) row.temps = s.temps;
     list.push(row);
     this.write('sessions.json', list.slice(-MAX_SESSIONS));
     return true;

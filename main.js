@@ -33,6 +33,11 @@ const recs = require('./src/recs');
 const notion = require('./src/notion');
 const repos = require('./src/repos');
 const calendar = require('./src/calendar');
+const sensors = require('./src/sensors');
+const hltb = require('./src/hltb');
+const genshinFarm = require('./src/genshin-farm');
+const genshinCodes = require('./src/genshin-codes');
+const webhealth = require('./src/webhealth');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -206,6 +211,31 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'v190') {
+      const steps = [
+        ['sensors', `showView('sensors')`, 5000],
+        ['backlog', `showView('backlog')`, 2500],
+        ['farmeo', `showView('genshin'); setGenshinTab('farmeo')`, 6000],
+        ['codigos', `setGenshinTab('codigos')`, 5000],
+        ['salud', `showView('webs'); [...document.querySelectorAll('#websBody .rx-tabs button')][1]?.click()`, 9000],
+        ['vercel', `[...document.querySelectorAll('#websBody .rx-tabs button')][2]?.click()`, 3000],
+        ['webs-squads', `[...document.querySelectorAll('#websBody .rx-tabs button')][0]?.click(); [...document.querySelectorAll('#websBody .chip')].pop()?.click()`, 3000],
+        ['workana-mine', `showView('workana'); setTimeout(() => [...document.querySelectorAll('.wk-views button')][1]?.click(), 800)`, 2500],
+      ];
+      for (const [name, code, ms] of steps) {
+        await js(code).catch((e) => log(`[error] ${name}: ${e.message}`));
+        await wait(ms);
+        await shot(`${name}.png`);
+      }
+      try {
+        openPanel();
+        await wait(5000);
+        if (panelWin) fs.writeFileSync(path.join(dir, 'panel.png'), (await panelWin.webContents.capturePage()).toPNG());
+      } catch (e) {
+        log(`[error] panel: ${e.message}`);
+      }
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'resto') {
@@ -431,7 +461,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -507,6 +537,18 @@ app.whenReady().then(() => {
     setTimeout(friendAlerts, 20000);
     setInterval(friendAlerts, 5 * 60000);
     setTimeout(() => calendarTick(false), 15000);
+    setTimeout(() => sensors.read().catch(() => {}), 8000);
+    setTimeout(genshinTick, 40000);
+    setInterval(genshinTick, 5 * 60000);
+    setTimeout(codesTick, 60000);
+    setInterval(codesTick, 6 * 3600000);
+    setTimeout(notionTick, 45000);
+    setInterval(notionTick, 10 * 60000);
+    setTimeout(healthTick, 120000);
+    setInterval(healthTick, 30 * 60000);
+    setTimeout(vercelTick, 75000);
+    setInterval(vercelTick, 10 * 60000);
+    if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
     setInterval(() => calendarTick(true), 5 * 60000);
     setInterval(calendarReminders, 30000);
   }
@@ -925,6 +967,8 @@ ipcMain.handle('data:export', async () => {
   delete settings.notionEnc;
   delete settings.notionClientId;
   delete settings.calIcsEnc;
+  delete settings.vercelEnc;
+  delete settings.psiKeyEnc;
   const data = {
     app: 'biblioteca-juegos',
     version: 1,
@@ -1804,6 +1848,312 @@ function calendarReminders() {
       notify(`En ${Math.max(1, Math.round(mins))} min: ${e.title}`, e.link ? 'Haz clic para entrar a la reunión.' : e.location || 'Reunión', e.link && /^https:\/\/meet\.google\.com\//.test(e.link) ? e.link : null);
     }
   }
+}
+
+// ---------- 1.9: sensores, panel del case, backlog, Genshin, salud de webs ----------
+const settingsOn = (k) => store.read('settings.json', {})[k] !== false;
+const ctxRW = { read: store.read, write: store.write };
+
+// Sensores: se leen cada 3 s cuando alguien los mira, hay partida o avisos activos
+let sensorViewers = 0;
+const sessTemps = { id: null, cpu: 0, gpu: 0 };
+async function sensorTick() {
+  const needed = sensorViewers > 0 || (panelWin && !panelWin.isDestroyed()) || focus.mode === 'on' || (settingsOn('sensorAlerts') && sensors.lhmSeen());
+  if (!needed) return;
+  const s = await sensors.read().catch(() => null);
+  if (!s) return;
+  if (focus.mode === 'on' && focus.game) {
+    if (sessTemps.id !== focus.game.id) Object.assign(sessTemps, { id: focus.game.id, cpu: 0, gpu: 0 });
+    sessTemps.cpu = Math.max(sessTemps.cpu, s.cpu.temp || 0);
+    sessTemps.gpu = Math.max(sessTemps.gpu, s.gpu.temp || 0);
+  }
+  if (settingsOn('sensorAlerts')) {
+    const lim = store.read('settings.json', {}).tempLimits || { cpu: 90, gpu: 85 };
+    for (const a of sensors.checkAlerts(s, lim)) notify(`${a.part} está a ${a.temp} °C`, `Pasó tu límite de ${a.limit} °C. Revisa los ventiladores o baja la exigencia del juego.`);
+  }
+}
+setInterval(sensorTick, 3000);
+setInterval(() => sensors.read().catch(() => {}), 5 * 60000); // detecta si abriste LibreHardwareMonitor
+const prevGetExtra = tracker.getExtra;
+tracker.getExtra = (s) => {
+  const extra = prevGetExtra ? prevGetExtra(s) : {};
+  if (sessTemps.id === s.id && (sessTemps.cpu || sessTemps.gpu)) extra.temps = { cpu: Math.round(sessTemps.cpu) || null, gpu: Math.round(sessTemps.gpu) || null };
+  Object.assign(sessTemps, { id: null, cpu: 0, gpu: 0 });
+  return extra;
+};
+ipcMain.handle('sensors:get', () => sensors.read());
+ipcMain.handle('sensors:limits', (_e, lim) => {
+  const s = store.read('settings.json', {});
+  s.tempLimits = { cpu: Math.max(50, Math.min(110, Number(lim?.cpu) || 90)), gpu: Math.max(50, Math.min(110, Number(lim?.gpu) || 85)) };
+  store.write('settings.json', s);
+  return s.tempLimits;
+});
+ipcMain.handle('sensors:watch', (_e, on) => {
+  sensorViewers = Math.max(0, sensorViewers + (on ? 1 : -1));
+  sensors.want(!!on);
+  return true;
+});
+
+// Panel en la pantalla del case
+let panelWin = null;
+function panelDisplays() {
+  const { screen } = require('electron');
+  const primary = screen.getPrimaryDisplay().id;
+  return screen.getAllDisplays().map((d) => ({ id: d.id, label: d.label || '', w: d.size.width, h: d.size.height, primary: d.id === primary, portrait: d.size.height > d.size.width }));
+}
+function openPanel() {
+  const { screen } = require('electron');
+  const s = store.read('settings.json', {});
+  const all = screen.getAllDisplays();
+  const d = all.find((x) => x.id === Number(s.panelDisplay)) || all.find((x) => x.size.height > x.size.width * 1.5);
+  if (!d) throw new Error('No encuentro la pantalla del case: elígela en la lista.');
+  if (panelWin && !panelWin.isDestroyed()) panelWin.destroy();
+  panelWin = new BrowserWindow({
+    x: d.bounds.x, y: d.bounds.y, width: d.bounds.width, height: d.bounds.height,
+    frame: false, resizable: false, movable: false, skipTaskbar: true, show: false, fullscreenable: true,
+    backgroundColor: '#0b0915', title: 'ViperTeca · Panel',
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false, backgroundThrottling: false },
+  });
+  panelWin.removeMenu();
+  panelWin.setBounds(d.bounds);
+  panelWin.loadFile(path.join(__dirname, 'renderer', 'panel.html'));
+  panelWin.once('ready-to-show', () => {
+    panelWin.showInactive();
+    panelWin.setFullScreen(true);
+  });
+  sensors.want(true);
+  panelWin.on('closed', () => {
+    panelWin = null;
+    sensors.want(false);
+  });
+  return true;
+}
+let spCache = { at: 0, v: null };
+ipcMain.handle('panel:displays', () => ({ displays: panelDisplays(), chosen: store.read('settings.json', {}).panelDisplay || null, open: !!(panelWin && !panelWin.isDestroyed()), auto: !!store.read('settings.json', {}).panelAuto }));
+ipcMain.handle('panel:set', (_e, opts) => {
+  const s = store.read('settings.json', {});
+  if (opts && 'display' in opts) s.panelDisplay = opts.display == null ? null : Number(opts.display);
+  if (opts && 'auto' in opts) s.panelAuto = !!opts.auto;
+  store.write('settings.json', s);
+  return true;
+});
+ipcMain.handle('panel:open', () => openPanel());
+ipcMain.handle('panel:close', () => {
+  if (panelWin && !panelWin.isDestroyed()) panelWin.destroy();
+  return true;
+});
+ipcMain.handle('panel:data', async () => {
+  const now = Date.now();
+  const cal = store.read('calendar-cache.json', null);
+  const next = (cal?.events || []).find((e) => !e.allDay && e.end > now && e.myStatus !== 'DECLINED' && !e.free) || null;
+  const hc = hoyolab.linked(store.read) ? store.read('hoyolab-cache.json', null)?.data?.notes || null : null;
+  const manual = store.read('gresin.json', null);
+  const resin = hc ? { value: hc.resin, max: hc.maxResin, fullAt: hc.resinFullAt, live: true } : manual ? resinFromManual(manual) : null;
+  const nc = store.read('notion-cache.json', null)?.data;
+  const open = (nc?.tickets || []).filter((t) => t.group !== 'done');
+  const late = open.filter((t) => t.deadline && new Date(t.deadline + 'T23:59:59').getTime() < now).length;
+  if (spotify.linked(store.read) && now - spCache.at > 4000) {
+    spCache = { at: now, v: spCache.v };
+    spotify.state(sp).then((v) => (spCache = { at: Date.now(), v })).catch(() => {});
+  }
+  const st = focus.status?.() || {};
+  return {
+    now,
+    sensors: sensors.last(),
+    game: focus.mode === 'on' && focus.game ? { title: focus.game.title, fps: fpsMeter ? fpsMeter.stats() : null } : null,
+    next: next && { title: next.title, start: next.start, end: next.end, link: next.link },
+    today: (cal?.events || []).filter((e) => !e.allDay && e.end > now && e.myStatus !== 'DECLINED' && new Date(e.start).toDateString() === new Date(now).toDateString()).slice(0, 6).map((e) => ({ title: e.title, start: e.start, daily: e.daily })),
+    resin,
+    tickets: nc ? { open: open.length, late } : null,
+    spotify: spCache.v,
+    lhm: sensors.lhmSeen(),
+    mode: st.mode || null,
+  };
+});
+
+// Resina: de HoYoLAB (si iniciaste sesión) o la que escribes tú
+const RESIN_MIN = 8 * 60000;
+function resinFromManual(m) {
+  const max = m.max || 200;
+  const value = Math.min(max, m.value + Math.floor((Date.now() - m.at) / RESIN_MIN));
+  return { value, max, fullAt: m.at + (max - m.value) * RESIN_MIN, live: false };
+}
+ipcMain.handle('gresin:get', () => {
+  const hc = hoyolab.linked(store.read) ? store.read('hoyolab-cache.json', null)?.data?.notes : null;
+  if (hc) return { value: hc.resin, max: hc.maxResin, fullAt: hc.resinFullAt, live: true, expeditions: hc.expeditions?.length ? hc.expeditions.filter((x) => x.done).length + '/' + hc.expeditions.length : null };
+  const m = store.read('gresin.json', null);
+  return m ? { ...resinFromManual(m), set: m } : null;
+});
+ipcMain.handle('gresin:set', (_e, value) => {
+  const v = Math.max(0, Math.min(200, Math.round(Number(value) || 0)));
+  store.write('gresin.json', { value: v, max: 200, at: Date.now() });
+  resinNotified = null;
+  return resinFromManual({ value: v, max: 200, at: Date.now() });
+});
+let resinNotified = null;
+async function genshinTick() {
+  if (!settingsOn('resinAlert')) return;
+  let full = null;
+  let label = '';
+  if (hoyolab.linked(store.read) && gUid()) {
+    const d = await hoyolab.overview(gUid(), { read: store.read, write: store.write, force: false }).catch(() => null);
+    if (d?.notes) {
+      full = d.notes.resinFullAt || (d.notes.resin >= d.notes.maxResin ? Date.now() : null);
+      label = `${d.notes.maxResin}`;
+      const exp = d.notes.expeditions || [];
+      if (exp.length && exp.every((x) => x.done) && resinNotified !== 'exp-' + d.fetchedAt) {
+        const k = 'exp-' + exp.length;
+        if (store.read('settings.json', {}).lastExpNotice !== k + new Date().toDateString()) {
+          const s = store.read('settings.json', {});
+          s.lastExpNotice = k + new Date().toDateString();
+          store.write('settings.json', s);
+          notify('Expediciones terminadas', 'Todas tus expediciones de Genshin volvieron. Recógelas y mándalas de nuevo.');
+        }
+      }
+    }
+  } else {
+    const m = store.read('gresin.json', null);
+    if (m) {
+      full = resinFromManual(m).fullAt;
+      label = '200';
+    }
+  }
+  if (full && Date.now() >= full && resinNotified !== full) {
+    resinNotified = full;
+    const s = store.read('settings.json', {});
+    if (s.lastResinFull !== full) {
+      s.lastResinFull = full;
+      store.write('settings.json', s);
+      notify('Resina llena en Genshin', `Tienes ${label} de resina: gástala antes de que se desperdicie.`);
+    }
+  }
+}
+ipcMain.handle('gfarm:avatars', () => genshinFarm.avatars(ctxRW));
+ipcMain.handle('gfarm:plan', () => store.read('gfarm-plan.json', []));
+ipcMain.handle('gfarm:save', (_e, plan) => {
+  const clean = (Array.isArray(plan) ? plan : []).slice(0, 20).map((p) => ({
+    id: Number(String(p.id).split('-')[0]) ? p.id : null,
+    level: Math.max(1, Math.min(90, Number(p.level) || 1)),
+    ascended: !!p.ascended,
+    talents: (p.talents || [1, 1, 1]).slice(0, 3).map((t) => Math.max(1, Math.min(10, Number(t) || 1))),
+    target: { level: Math.max(1, Math.min(90, Number(p.target?.level) || 90)), talents: (p.target?.talents || [8, 8, 8]).slice(0, 3).map((t) => Math.max(1, Math.min(10, Number(t) || 1))) },
+  })).filter((p) => p.id);
+  store.write('gfarm-plan.json', clean);
+  return clean;
+});
+ipcMain.handle('gfarm:compute', () => genshinFarm.compute(store.read('gfarm-plan.json', []), ctxRW));
+ipcMain.handle('gcodes:list', (_e, force) => genshinCodes.list(ctxRW, !!force));
+ipcMain.handle('gcodes:used', (_e, code, on) => genshinCodes.markUsed(ctxRW, String(code), !!on));
+ipcMain.handle('gcodes:open', (_e, code) => {
+  if (!/^[A-Z0-9]{6,20}$/.test(String(code))) return false;
+  shell.openExternal(genshinCodes.REDEEM(code));
+  return true;
+});
+async function codesTick() {
+  if (!settingsOn('codesAlert')) return;
+  const c = await genshinCodes.list(ctxRW, true).catch(() => null);
+  const fresh = (c?.codes || []).filter((x) => x.isNew && !x.used);
+  if (!c || c.first || !fresh.length) return;
+  notify(fresh.length === 1 ? 'Código nuevo de Genshin' : `${fresh.length} códigos nuevos de Genshin`, fresh.map((x) => `${x.code}: ${x.rewards.join(', ')}`).join('\n'), fresh[0].url);
+}
+
+// Backlog: duración de HowLongToBeat
+ipcMain.handle('hltb:get', () => store.read('hltb.json', {}));
+ipcMain.handle('hltb:fill', async (e, games, force) => {
+  const list = (Array.isArray(games) ? games : []).slice(0, 300).map((g) => ({ id: String(g.id), title: String(g.title).slice(0, 120) }));
+  return hltb.fill(list, { read: store.read, write: store.write, force: !!force, onProgress: (p) => !e.sender.isDestroyed() && e.sender.send('hltb:progress', p) });
+});
+
+// Salud de las webs y Vercel
+function healthSites() {
+  const rows = store.read('notion-cache.json', null)?.data?.pipeline?.rows || [];
+  const extra = store.read('settings.json', {}).healthExtra || [];
+  const vc = store.read('vercel.json', null)?.projects || [];
+  const map = new Map();
+  for (const r of rows) if (r.production && /^https:\/\//.test(r.production) && (r.group === 'done' || /live/i.test(r.status))) map.set(r.production, { url: r.production, name: r.name, mine: r.mine });
+  for (const p of vc) if (p.domain && ![...map.values()].some((x) => new URL(x.url).hostname.replace(/^www\./, '') === new URL(p.domain).hostname.replace(/^www\./, ''))) map.set(p.domain, { url: p.domain, name: p.name, fromVercel: true });
+  for (const u of extra) if (!map.has(u)) map.set(u, { url: u, name: new URL(u).hostname });
+  return [...map.values()];
+}
+ipcMain.handle('health:get', () => ({ last: store.read('webhealth.json', null), sites: healthSites(), psi: !!webhealth.getSecret(store.read, 'psiKeyEnc') }));
+ipcMain.handle('health:check', async () => {
+  const r = await webhealth.checkAll(healthSites(), ctxRW);
+  return { last: r, sites: healthSites(), psi: !!webhealth.getSecret(store.read, 'psiKeyEnc') };
+});
+ipcMain.handle('health:psi', async (_e, url) => {
+  const sites = healthSites();
+  if (!sites.some((s) => s.url === url)) throw new Error('Esa web no está en tu lista.');
+  const r = await webhealth.pagespeed(store.read, url);
+  const h = store.read('webhealth.json', { sites: {} });
+  h.sites[url] = { ...(h.sites[url] || { url }), psi: r };
+  store.write('webhealth.json', h);
+  return r;
+});
+ipcMain.handle('health:setKey', (_e, key) => webhealth.setSecret(ctxRW, 'psiKeyEnc', key));
+ipcMain.handle('health:addSite', (_e, url) => {
+  const u = String(url || '').trim();
+  if (!/^https:\/\/[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(u)) throw new Error('Escribe la dirección completa, con https://');
+  const s = store.read('settings.json', {});
+  s.healthExtra = [...new Set([...(s.healthExtra || []), u])].slice(0, 100);
+  store.write('settings.json', s);
+  return healthSites();
+});
+ipcMain.handle('health:openSite', (_e, url) => {
+  const u = String(url || '');
+  const known = healthSites().some((s) => s.url === u) || (store.read('vercel.json', null)?.projects || []).some((p) => [p.domain, p.production?.url, p.latest?.url, p.production?.inspector, p.latest?.inspector].includes(u));
+  if (!known || !/^https:\/\//.test(u)) return false;
+  shell.openExternal(u);
+  return true;
+});
+async function healthTick() {
+  const sites = healthSites();
+  if (!sites.length || !settingsOn('healthAlerts')) return;
+  const r = await webhealth.checkAll(sites, ctxRW).catch(() => null);
+  for (const c of r?.changes || []) {
+    if (c.kind === 'down') notify(`${c.site.name} está caída`, `${c.site.url} no responde (${c.r.error || 'HTTP ' + c.r.status}).`, null);
+    if (c.kind === 'up') notify(`${c.site.name} volvió`, `${c.site.url} responde otra vez.`);
+    if (c.kind === 'ssl') notify(`El SSL de ${c.site.name} vence pronto`, `Le quedan ${c.r.sslDays} días al certificado de ${new URL(c.site.url).hostname}.`);
+  }
+}
+ipcMain.handle('vercel:status', () => ({ linked: !!webhealth.getSecret(store.read, 'vercelEnc'), team: store.read('settings.json', {}).vercelTeam || null, last: store.read('vercel.json', null) }));
+ipcMain.handle('vercel:setToken', async (_e, token) => {
+  const ok = webhealth.setSecret(ctxRW, 'vercelEnc', token);
+  if (!ok) {
+    store.write('vercel.json', null);
+    return { linked: false, teams: [] };
+  }
+  const teams = await webhealth.vercelTeams(store.read);
+  return { linked: true, teams };
+});
+ipcMain.handle('vercel:teams', () => webhealth.vercelTeams(store.read));
+ipcMain.handle('vercel:setTeam', (_e, id) => {
+  const s = store.read('settings.json', {});
+  if (id) s.vercelTeam = String(id);
+  else delete s.vercelTeam;
+  store.write('settings.json', s);
+  store.write('vercel.json', null);
+  return true;
+});
+ipcMain.handle('vercel:get', () => webhealth.deployments(ctxRW));
+async function vercelTick() {
+  if (!webhealth.getSecret(store.read, 'vercelEnc') || !settingsOn('vercelAlerts')) return;
+  const r = await webhealth.deployments(ctxRW).catch(() => null);
+  for (const p of (r?.failed || []).slice(0, 3)) notify(`Falló el despliegue de ${p.name}`, `${p.latest.target === 'production' ? 'Producción' : 'Preview'}${p.latest.branch ? ' · ' + p.latest.branch : ''}${p.latest.commit ? ': ' + p.latest.commit : ''}`, null);
+}
+
+// Avisos de Notion: tickets nuevos y menciones
+async function notionTick() {
+  if (!notion.linked(store.read) || !settingsOn('notionAlerts')) return;
+  const r = await notion.watch(rx).catch(() => null);
+  if (!r || r.first) return;
+  const tickets = r.events.filter((e) => e.kind === 'ticket');
+  const mentions = r.events.filter((e) => e.kind === 'mention');
+  const comments = r.events.filter((e) => e.kind === 'comment');
+  if (tickets.length === 1) notify('Ticket nuevo a tu nombre', `${tickets[0].ticket.title}${tickets[0].ticket.deadline ? ' · vence el ' + tickets[0].ticket.deadline : ''}`);
+  else if (tickets.length > 1) notify(`${tickets.length} tickets nuevos a tu nombre`, tickets.slice(0, 3).map((e) => e.ticket.title).join('\n'));
+  for (const m of mentions.slice(0, 3)) notify(`${m.comment.author} te mencionó`, `En «${m.ticket.title}»: ${m.comment.text}`);
+  if (comments.length) notify(comments.length === 1 ? `Mensaje nuevo de ${comments[0].comment.author}` : `${comments.length} mensajes nuevos en tus tickets`, comments.slice(0, 3).map((c) => `«${c.ticket.title}»: ${c.comment.text.slice(0, 90)}`).join('\n'));
+  if (r.events.length && win && !win.isDestroyed()) win.webContents.send('notion:changed');
 }
 
 ipcMain.handle('genshin:get', (_e, force, uid) => {

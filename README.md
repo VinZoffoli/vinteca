@@ -240,6 +240,22 @@ Tres apartados para el trabajo, en la sección **Resto Experience** del menú.
 
 **Websites**: revisa cada carpeta de `Escritorio\Vincenzo\Resto Experience\Webs` (se puede cambiar). *Revisar con GitHub* hace `git fetch` en cada repo con tus credenciales de git y te dice cuáles necesitan `git pull`, cuáles tienen cambios sin commit o commits sin subir, si tu rama va por detrás de main y cuál fue el último commit en GitHub. *Hacer git pull* solo aparece cuando la carpeta está limpia (usa `--ff-only`, así nunca pisa tu trabajo), y avisa si cambiaron las dependencias.
 
+## Novedades de la 1.9
+
+**Websites por squad, salud y Vercel.** Las webs se agrupan por squad (A, B, C, D), según el nombre de la carpeta o el squad del pipeline de Notion. La pestaña *Salud de las webs* vigila cada 30 minutos las webs publicadas (del pipeline de Notion, de Vercel o las que añadas): si responden, cuánto tardan y cuándo vence su SSL. Te avisa si una se cae, cuando vuelve y si al SSL le quedan menos de 14 días. Con una clave gratuita de PageSpeed Insights (la pegas tú) mide velocidad, SEO y accesibilidad. *Despliegues de Vercel*, con tu token de Vercel, muestra el último despliegue de producción y de preview de cada proyecto (rama, commit, autor) y te avisa cuando uno falla.
+
+**Avisos de Notion.** Cada 10 minutos revisa tus tickets: te avisa de un ticket nuevo a tu nombre, cuando alguien te menciona y cuando hay mensajes nuevos en el chat de tus tickets abiertos.
+
+**Sensores** (Tu PC → Sensores). Uso de CPU, GPU y RAM en tiempo real. Con [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases) abierto y su *Remote Web Server* activado, también temperaturas y ventiladores, con aviso si la CPU o la GPU pasan tu límite. La temperatura máxima de cada partida con modo enfoque queda en el registro de partidas.
+
+**Pantalla del case.** Desde Sensores, ViperTeca pone en la pantalla vertical del case un panel con la hora, tu próxima reunión y las del día, lo que suena en Spotify, temperaturas, FPS mientras juegas, la resina de Genshin y los tickets vencidos. Puede abrirse sola al iniciar la app.
+
+**Backlog** (Tu biblioteca → Backlog). Para los juegos que marcaste como *Jugando* o *Pendiente*, busca su duración en HowLongToBeat, te dice cuánto te falta de cada uno y cuándo lo terminarías con tu ritmo de las últimas cuatro semanas. *¿A qué juego?* elige más a menudo los que te faltan menos de 6 horas.
+
+**Genshin: Farmeo y Códigos.** *Farmeo*: eliges personajes, su nivel y talentos actuales y a dónde quieres llegar, y calcula los materiales (libros, jefes, gemas, especialidades y mora) y qué dominio de talentos toca hoy. También lleva la resina (de HoYoLAB o escrita por ti) y avisa cuando se llena o cuando vuelven las expediciones. *Códigos*: los códigos de canje vigentes, con aviso cuando sale uno nuevo; *Canjear* abre la página oficial con el código puesto.
+
+**Workana: Mis postulaciones.** Lo que postulaste, con tu precio y el presupuesto del cliente. Marcas si la vieron, te respondieron, la ganaste o no salió, y te dice a qué precio (respecto al presupuesto) ganas más.
+
 ## Trucos
 
 **Tu biblioteca → Trucos** es un motor de trucos propio, como los de Wand o Cheat Engine, para juegos **de un jugador**:

@@ -248,6 +248,7 @@
   const prioText = (p) => String(p || '').replace(/^[^\p{L}]+/u, '').trim();
 
   async function notionShow(force) {
+    if (N.alerts == null) N.alerts = (await window.api.basicSettings()).notionAlerts;
     if (N.linked == null) N.linked = (await re.notionStatus()).linked;
     if (!N.linked) return notionRender();
     if (!N.data || force) {
@@ -464,7 +465,8 @@
         h('button', { class: N.tab === 'pipe' ? 'on' : '', text: 'Pipeline de webs', onclick: () => { N.tab = 'pipe'; if (!W.data) websLoad(); notionRender(); } })
       ),
       N.tab === 'tickets' ? ticketsTab() : pipelineTab(),
-      h('p', { class: 'hint rx-foot', text: `${N.busy ? 'Actualizando… ' : ''}Datos de Notion de ${ago(N.data.at)}.` })
+      h('p', { class: 'hint rx-foot', text: `${N.busy ? 'Actualizando… ' : ''}Datos de Notion de ${ago(N.data.at)}.` }),
+      h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: N.alerts !== false, onchange: (e) => { N.alerts = e.target.checked; window.api.saveSettings({ notionAlerts: e.target.checked }); } }), h('span', { text: 'Avisarme cuando me asignen un ticket nuevo o alguien escriba o me mencione en el chat de mis tickets (reviso cada 10 minutos)' }))
     );
   }
 
@@ -483,7 +485,168 @@
     nogit: ['Sin git', 'muted'],
     error: ['No se pudo revisar', 'bad'],
   };
-  const W = { data: null, dir: '', busy: null, filter: 'attention', q: '', open: null, pulling: {} };
+  const W = { data: null, dir: '', busy: null, filter: 'attention', q: '', open: null, pulling: {}, tab: 'repos', squad: 'all' };
+  const SQUADS = [['a', 'Squad A'], ['b', 'Squad B'], ['c', 'Squad C'], ['d', 'Squad D'], ['other', 'Sin squad']];
+  /** Squad de una web: por el nombre (website-c-…) o, si no, por el pipeline de Notion. */
+  function squadOf(r) {
+    const m = String(r.name || '').match(/^website-([a-d])-/i);
+    if (m) return m[1].toLowerCase();
+    const p = pipeFor(r);
+    const s = p && String(p.squad || '').match(/squad\s*([a-d])\b/i);
+    return s ? s[1].toLowerCase() : 'other';
+  }
+  function websTabs() {
+    const T = [['repos', 'Repositorios'], ['health', 'Salud de las webs'], ['vercel', 'Despliegues de Vercel']];
+    return h('div', { class: 'seg rx-tabs', role: 'tablist' }, T.map(([k, l]) => h('button', { class: W.tab === k ? 'on' : '', role: 'tab', 'aria-selected': String(W.tab === k), text: l, onclick: () => { W.tab = k; if (k === 'health') healthLoad(); if (k === 'vercel') vercelLoad(); websRender(); } })));
+  }
+
+  // ---- salud de las webs ----
+  const HL = { data: null, busy: false, psi: {}, settings: null };
+  async function healthLoad(force) {
+    if (!HL.settings) HL.settings = await window.api.basicSettings();
+    // el pipeline de Notion trae las webs publicadas: se carga aparte, sin esperar
+    if (!N.data && N.linked !== false && !HL.notionAsked) {
+      HL.notionAsked = true;
+      re.notionStatus().then(async (s) => {
+        N.linked = s.linked;
+        if (!s.linked) return;
+        N.data = await re.notion(false).catch(() => null);
+        if (N.data && W.tab === 'health') {
+          HL.data = await window.api.health.get();
+          websRender();
+        }
+      });
+    }
+    if (HL.data && !force) return websRender();
+    HL.busy = true;
+    websRender();
+    try {
+      HL.data = force || !HL.data ? await window.api.health[force ? 'check' : 'get']() : HL.data;
+      if (!force && !HL.data.last && HL.data.sites.length) HL.data = await window.api.health.check();
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+    HL.busy = false;
+    websRender();
+  }
+  const scoreCls = (v) => (v == null ? '' : v >= 90 ? 'ok' : v >= 50 ? 'warn' : 'bad');
+  function healthTab() {
+    const d = HL.data;
+    if (!d) return skeleton(5);
+    const res = d.last?.sites || {};
+    const rows = d.sites.map((s) => ({ s, r: res[s.url] })).sort((a, b) => (a.r?.up === false ? -1 : 0) - (b.r?.up === false ? -1 : 0) || (a.r?.sslDays ?? 999) - (b.r?.sslDays ?? 999));
+    const down = rows.filter((x) => x.r && !x.r.up).length;
+    const ssl = rows.filter((x) => x.r?.sslDays != null && x.r.sslDays <= 21).length;
+    const slow = rows.filter((x) => x.r?.ms > 2500).length;
+    const keyIn = h('input', { type: 'password', class: 'rx-input', placeholder: 'Clave de la API de PageSpeed Insights', autocomplete: 'off', 'aria-label': 'Clave de PageSpeed' });
+    const addIn = h('input', { type: 'url', class: 'rx-input', placeholder: 'https://otra-web.com', 'aria-label': 'Añadir web' });
+    const row = ({ s, r }) => {
+      const psi = HL.psi[s.url] || r?.psi;
+      return h('li', { class: `rx-repo ${!r ? 'muted' : r.up ? 'ok' : 'bad'}` },
+        h('div', { class: 'rx-repo-head hl-head' },
+          h('span', { class: `rx-dot ${!r ? 'muted' : r.up ? 'ok' : 'bad'}` }),
+          h('span', { class: 'rx-repo-name' }, h('b', { text: s.name }), h('span', { text: s.url.replace(/^https:\/\//, '') })),
+          h('span', { class: `rx-repo-state ${!r ? 'muted' : r.up ? 'ok' : 'bad'}`, text: !r ? 'Sin revisar' : r.up ? `En línea · ${r.ms} ms` : r.error || `Error HTTP ${r.status}` }),
+          h('span', { class: `hl-ssl ${r?.sslDays == null ? '' : r.sslDays <= 14 ? 'bad' : r.sslDays <= 30 ? 'warn' : ''}`, text: r?.sslDays != null ? `SSL ${r.sslDays} días` : '' })
+        ),
+        h('div', { class: 'hl-psi' },
+          psi && !psi.error ? [['Velocidad', psi.performance], ['SEO', psi.seo], ['Accesibilidad', psi.accessibility]].map(([l, v]) => h('span', { class: `hl-score ${scoreCls(v)}` }, h('b', { text: v ?? '—' }), l)) : null,
+          psi?.lcp && h('span', { class: 'hint', text: `LCP ${psi.lcp}` }),
+          psi?.error && h('span', { class: 'hint bad', text: psi.error }),
+          h('button', { class: 'btn subtle small', text: psi === 'busy' ? 'Midiendo…' : psi ? 'Medir otra vez' : 'Medir velocidad y SEO', disabled: psi === 'busy' || !d.psi, title: d.psi ? '' : 'Añade tu clave de PageSpeed abajo', onclick: async () => { HL.psi[s.url] = 'busy'; websRender(); try { HL.psi[s.url] = await window.api.health.psi(s.url); } catch (e) { HL.psi[s.url] = { error: errMsg(e) }; } websRender(); } }),
+          h('button', { class: 'btn subtle small', text: 'Abrir', onclick: () => window.api.health.open(s.url) })
+        )
+      );
+    };
+    return [
+      h('dl', { class: 'stat-strip rx-stats' },
+        h('div', {}, h('dt', { text: 'Webs vigiladas' }), h('dd', { text: String(rows.length) })),
+        h('div', {}, h('dt', { text: 'Caídas' }), h('dd', { class: down ? 'rx-hot' : '', text: String(down) })),
+        h('div', {}, h('dt', { text: 'SSL vence en 3 semanas' }), h('dd', { class: ssl ? 'rx-hot' : '', text: String(ssl) })),
+        h('div', {}, h('dt', { text: 'Lentas (más de 2,5 s)' }), h('dd', { text: String(slow) }))
+      ),
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary small', text: HL.busy ? 'Revisando…' : 'Revisar ahora', disabled: HL.busy, onclick: () => healthLoad(true) }),
+        h('span', { class: 'hint', text: d.last ? `Última revisión ${ago(d.last.at)}. Se revisan solas cada 30 minutos.` : 'Todavía sin revisar.' })
+      ),
+      rows.length ? h('ul', { class: 'rx-repos' }, rows.map(row)) : h('p', { class: 'empty' }, h('b', { text: 'No hay webs para vigilar' }), 'Salen solas las webs publicadas del pipeline de Notion y los dominios de Vercel. También puedes añadir una abajo.'),
+      h('section', { class: 'rx-card' },
+        h('h3', { text: 'Ajustes' }),
+        h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: HL.settings?.healthAlerts !== false, onchange: (e) => window.api.saveSettings({ healthAlerts: e.target.checked }) }), h('span', { text: 'Avisarme si una web se cae, cuando vuelve y si su SSL vence en menos de 14 días' })),
+        h('div', { class: 'rx-paste' }, addIn, h('button', { class: 'btn ghost small', text: 'Añadir web', onclick: async () => { try { await window.api.health.addSite(addIn.value); HL.data = await window.api.health.check(); websRender(); } catch (e) { toast(errMsg(e), true); } } })),
+        h('p', { class: 'hint', text: d.psi ? 'Clave de PageSpeed guardada (cifrada en este PC).' : 'Para medir velocidad y SEO hace falta una clave gratuita de la API de PageSpeed Insights (Google Cloud). Créala y pégala aquí.' }),
+        h('div', { class: 'rx-paste' }, keyIn, h('button', { class: 'btn ghost small', text: 'Guardar clave', onclick: async () => { await window.api.health.setKey(keyIn.value); HL.data = await window.api.health.get(); toast(keyIn.value ? 'Clave guardada.' : 'Clave borrada.'); websRender(); } }), h('button', { class: 'btn subtle small', text: 'Cómo crear la clave', onclick: () => window.api.open('https://developers.google.com/speed/docs/insights/v5/get-started') }))
+      ),
+    ];
+  }
+
+  // ---- Vercel ----
+  const VC = { status: null, data: null, busy: false, error: null, teams: null, settings: null };
+  async function vercelLoad(force) {
+    if (!VC.settings) VC.settings = await window.api.basicSettings();
+    VC.status = await window.api.vercel.status();
+    if (!VC.status.linked) return websRender();
+    if (!VC.data) VC.data = VC.status.last;
+    if (VC.data && !force) return websRender();
+    VC.busy = true;
+    websRender();
+    try {
+      VC.data = await window.api.vercel.get();
+      VC.error = null;
+    } catch (e) {
+      VC.error = errMsg(e);
+    }
+    VC.busy = false;
+    websRender();
+  }
+  const VSTATE = { READY: ['Listo', 'ok'], ERROR: ['Falló', 'bad'], BUILDING: ['Construyendo', 'warn'], QUEUED: ['En cola', 'warn'], INITIALIZING: ['Empezando', 'warn'], CANCELED: ['Cancelado', 'muted'] };
+  function vercelTab() {
+    const st = VC.status;
+    if (!st) return skeleton(4);
+    if (!st.linked) {
+      const tok = h('input', { type: 'password', class: 'rx-input', placeholder: 'Token de Vercel', autocomplete: 'off', 'aria-label': 'Token de Vercel' });
+      return h('div', { class: 'rx-setup' },
+        h('h2', { text: 'Conecta Vercel' }),
+        h('p', { class: 'sub', text: 'Verás el último despliegue de producción y de preview de cada web, de qué commit es y si falló, con aviso cuando un despliegue falle.' }),
+        h('ol', { class: 'rx-steps' },
+          h('li', {}, 'Crea un token en tu cuenta de Vercel (Account Settings → Tokens), con acceso al equipo de Resto Experience. ', h('button', { class: 'btn ghost small', text: 'Abrir tokens de Vercel', onclick: () => window.api.open('https://vercel.com/account/settings/tokens') })),
+          h('li', { text: 'Pégalo aquí. Se guarda cifrado en este PC y solo se usa para leer.' })
+        ),
+        h('div', { class: 'rx-paste' }, tok, h('button', { class: 'btn primary', text: 'Guardar token', onclick: async () => { try { const r = await window.api.vercel.setToken(tok.value); VC.teams = r.teams; await vercelLoad(true); } catch (e) { toast(errMsg(e), true); } } }))
+      );
+    }
+    const teamSel = VC.teams?.length ? h('select', { class: 'sn-select', 'aria-label': 'Equipo de Vercel', onchange: async (e) => { await window.api.vercel.setTeam(e.target.value); VC.data = null; vercelLoad(true); } }, h('option', { value: '', text: 'Mi cuenta personal' }), VC.teams.map((t) => h('option', { value: t.id, selected: st.team === t.id, text: t.name }))) : h('button', { class: 'btn subtle small', text: 'Elegir equipo', onclick: async () => { VC.teams = await window.api.vercel.teams(); websRender(); } });
+    const projects = VC.data?.projects || [];
+    const failed = projects.filter((p) => p.latest?.state === 'ERROR' || p.production?.state === 'ERROR').length;
+    const deplCell = (d, label) => {
+      if (!d) return h('div', { class: 'vc-dep muted' }, h('small', { text: label }), h('span', { text: 'Sin despliegues' }));
+      const [t, tone] = VSTATE[d.state] || [d.state, 'muted'];
+      return h('div', { class: `vc-dep ${tone}` },
+        h('small', { text: label }),
+        h('b', { class: `rx-repo-state ${tone}`, text: t }),
+        h('span', { text: [d.branch, d.sha].filter(Boolean).join(' · ') }),
+        d.commit && h('span', { class: 'vc-commit', text: d.commit }),
+        h('span', { class: 'hint', text: `${ago(d.at)}${d.author ? ` · ${d.author}` : ''}` }),
+        d.url && h('button', { class: 'btn subtle small', text: 'Ver', onclick: () => window.api.health.open(d.inspector || d.url) })
+      );
+    };
+    return [
+      h('dl', { class: 'stat-strip rx-stats' },
+        h('div', {}, h('dt', { text: 'Proyectos' }), h('dd', { text: String(projects.length) })),
+        h('div', {}, h('dt', { text: 'Con despliegue fallido' }), h('dd', { class: failed ? 'rx-hot' : '', text: String(failed) })),
+        h('div', {}, h('dt', { text: 'Desplegados hoy' }), h('dd', { text: String(projects.filter((p) => p.latest?.at && Date.now() - p.latest.at < 86400000).length) }))
+      ),
+      h('div', { class: 'toolbar flat' }, teamSel, h('button', { class: 'btn primary small', text: VC.busy ? 'Actualizando…' : 'Actualizar', disabled: VC.busy, onclick: () => vercelLoad(true) }), VC.data && h('span', { class: 'hint', text: `Leído ${ago(VC.data.at)}.` })),
+      VC.error && h('p', { class: 'hint bad', text: VC.error }),
+      projects.length ? h('ul', { class: 'vc-list' }, projects.map((p) => h('li', { class: 'vc-row' },
+        h('div', { class: 'vc-name' }, h('b', { text: p.name }), h('span', { text: [p.framework, p.repo].filter(Boolean).join(' · ') }), p.domain && h('button', { class: 'btn subtle small', text: p.domain.replace('https://', ''), onclick: () => window.api.health.open(p.domain) })),
+        deplCell(p.production, 'Producción'),
+        p.latest && p.latest.id !== p.production?.id ? deplCell(p.latest, 'Último (preview)') : h('div', { class: 'vc-dep muted' }, h('small', { text: 'Último (preview)' }), h('span', { text: 'El mismo que producción' }))
+      ))) : VC.busy ? skeleton(5) : h('p', { class: 'empty', text: 'No hay proyectos en esta cuenta. Si las webs están en el equipo de Resto Experience, elígelo arriba.' }),
+      h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: VC.settings?.vercelAlerts !== false, onchange: (e) => window.api.saveSettings({ vercelAlerts: e.target.checked }) }), h('span', { text: 'Avisarme cuando falle un despliegue (reviso cada 10 minutos)' })),
+      h('button', { class: 'btn subtle small', text: 'Quitar token de Vercel', onclick: async () => { await window.api.vercel.setToken(''); VC.data = null; vercelLoad(); } })
+    ];
+  }
   re.onScanProgress((p) => {
     W.busy = `Revisando ${p.done} de ${p.total} · ${p.name}`;
     if (!$('#websView').hidden) websRender();
@@ -595,14 +758,19 @@
     const f = FILTERS.find((x) => x[0] === W.filter) || FILTERS[0];
     const q = W.q.trim().toLowerCase();
     const order = ['behind-dirty', 'diverged', 'error', 'behind', 'ahead', 'nopush', 'dirty', 'ok', 'noremote', 'nogit'];
-    const list = repos.filter(f[2]).filter((r) => !q || r.name.toLowerCase().includes(q)).sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || a.name.localeCompare(b.name));
+    const list = repos.filter(f[2]).filter((r) => (!q || r.name.toLowerCase().includes(q)) && (W.squad === 'all' || squadOf(r) === W.squad)).sort((a, b) => order.indexOf(a.state) - order.indexOf(b.state) || a.name.localeCompare(b.name));
     const pullable = repos.filter((r) => r.state === 'behind');
 
     $('#websScan').disabled = !!W.busy;
     $('#websScan').textContent = W.busy ? 'Revisando…' : 'Revisar con GitHub';
+    $('#websScan').hidden = W.tab !== 'repos';
+    if (W.tab === 'health') return fill(body, websTabs(), healthTab());
+    if (W.tab === 'vercel') return fill(body, websTabs(), vercelTab());
     const search = h('label', { class: 'search' }, svg('M10.5 4a6.5 6.5 0 1 0 4 11.6l4.4 4.4 1.1-1.1-4.4-4.4A6.5 6.5 0 0 0 10.5 4z'), h('input', { type: 'search', placeholder: 'Buscar web', value: W.q, oninput: (e) => { W.q = e.target.value; const pos = e.target.selectionStart; websRender(); const i = $('#websBody input[type=search]'); i?.focus(); i?.setSelectionRange(pos, pos); } }));
-    if (!W.data) return fill(body, W.busy ? [h('p', { class: 'hint', text: W.busy }), skeleton(8)] : h('p', { class: 'empty', text: 'Revisa tus webs para ver su estado.' }));
+    if (!W.data) return fill(body, websTabs(), W.busy ? [h('p', { class: 'hint', text: W.busy }), skeleton(8)] : h('p', { class: 'empty', text: 'Revisa tus webs para ver su estado.' }));
+    const bySquad = SQUADS.map(([k, label]) => [k, label, list.filter((r) => squadOf(r) === k)]).filter(([, , l]) => l.length);
     fill(body,
+      websTabs(),
       W.busy && h('div', { class: 'notice' }, h('span', { text: W.busy })),
       h('dl', { class: 'stat-strip rx-stats' },
         h('div', {}, h('dt', { text: 'Webs' }), h('dd', { text: String(repos.length) })),
@@ -613,7 +781,10 @@
       ),
       pullable.length > 1 && h('div', { class: 'notice' }, h('span', { text: `${plural(pullable.length, 'web está limpia y solo necesita', 'webs están limpias y solo necesitan')} git pull.` }), h('button', { class: 'btn primary small', text: 'Actualizar todas', disabled: !!W.busy, onclick: async () => { for (const r of pullable) await pull(r); } })),
       h('div', { class: 'toolbar flat' }, h('div', { class: 'chips' }, FILTERS.map(([k, l, fn]) => h('button', { class: 'chip', 'aria-pressed': String(W.filter === k), onclick: () => ((W.filter = k), websRender()) }, l, h('b', { text: String(count(fn)) })))), search),
-      list.length ? h('ul', { class: 'rx-repos' }, list.map(repoRow)) : h('p', { class: 'empty', text: W.filter === 'attention' ? 'Ninguna web necesita atención. Todo al día.' : 'No hay webs en este filtro.' }),
+      h('div', { class: 'seg rx-squads', role: 'group', 'aria-label': 'Squad' }, [['all', 'Todos los squads'], ...SQUADS].map(([k, l]) => h('button', { class: W.squad === k ? 'on' : '', text: k === 'all' ? l : l.replace('Squad ', ''), title: l, onclick: () => ((W.squad = k), websRender()) }))),
+      list.length
+        ? bySquad.map(([k, label, l]) => h('section', { class: `rx-squad sq-${k}` }, h('h3', { class: 'rx-squad-h' }, h('span', { class: 'rx-squad-dot' }), label, h('span', { class: 'count', text: String(l.length) })), h('ul', { class: 'rx-repos' }, l.map(repoRow))))
+        : h('p', { class: 'empty', text: W.filter === 'attention' ? 'Ninguna web necesita atención. Todo al día.' : 'No hay webs en este filtro.' }),
       h('p', { class: 'hint rx-foot', text: `Revisado ${ago(W.data.at)}. "Revisar con GitHub" hace git fetch en cada web con tus credenciales de git; solo "Hacer git pull" cambia archivos, y únicamente si la carpeta está limpia.` })
     );
   }
@@ -637,6 +808,12 @@
     const pulls = (W.data?.repos || []).filter((r) => r.behind > 0).length;
     $('#countWebs').textContent = pulls ? String(pulls) : '';
   }
+
+  window.api.onNotionChanged(() => {
+    N.chats = {};
+    if (!$('#notionView').hidden) notionShow(true);
+    else re.notion(false).then((d) => { N.data = d; updateBadges(); }).catch(() => {});
+  });
 
   cal.onChanged(() => {
     C.data = null;

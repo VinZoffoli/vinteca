@@ -1,0 +1,68 @@
+/* Panel de la pantalla del case (vertical, 462×1920). Usa la paleta de la app. */
+:root {
+  --night: #16122a; --night-2: #1c1734; --surface: #211b3d; --surface-2: #2b2450; --line: #3a3166;
+  --text: #f1edff; --muted: #a39cc3; --faint: #6f6797; --amber: #ffb547; --pink: #ff5c8a; --cyan: #62e0e8; --green: #7ee2a8;
+  --display: "Bahnschrift", "DIN Alternate", "Segoe UI Variable Display", sans-serif;
+  --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --pn-hot: color-mix(in srgb, #ff4f5e 85%, var(--text));
+  --pn-warm: color-mix(in srgb, #f5a524 85%, var(--text));
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--night); color: var(--text); font-family: var(--body); overflow: hidden; cursor: none; user-select: none; }
+body { background: radial-gradient(120% 50% at 50% 0%, color-mix(in srgb, var(--amber) 14%, var(--night)) 0%, var(--night) 60%); }
+#panel { height: 100vh; padding: 34px 26px 22px; display: flex; flex-direction: column; gap: 22px; }
+
+.pn-clock { display: grid; gap: 2px; text-align: center; }
+.pn-clock b { font: 700 120px/0.95 var(--display); font-stretch: 75%; letter-spacing: -2px; font-variant-numeric: tabular-nums; }
+.pn-clock span { color: var(--muted); font-size: 22px; text-transform: none; }
+.pn-clock span::first-letter { text-transform: uppercase; }
+
+.pn-kicker { margin: 0; color: var(--amber); font: 600 15px/1.2 var(--display); }
+.pn-sub { margin: 4px 0 0; color: var(--muted); font-size: 16px; }
+.pn-hint { margin: 0; color: var(--faint); font-size: 14px; text-align: center; }
+
+.pn-game { padding: 22px; border-radius: 22px; background: color-mix(in srgb, var(--amber) 12%, var(--night-2)); border: 1px solid color-mix(in srgb, var(--amber) 35%, var(--line)); text-align: center; }
+.pn-game h1 { margin: 6px 0 4px; font: 700 30px/1.1 var(--display); overflow-wrap: anywhere; }
+.pn-fps { margin: 6px 0 0; display: flex; justify-content: center; align-items: baseline; gap: 8px; }
+.pn-fps b { font: 700 110px/1 var(--display); font-stretch: 75%; font-variant-numeric: tabular-nums; color: var(--amber); }
+.pn-fps span { font: 600 24px var(--display); color: var(--muted); }
+
+.pn-rings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pn-ring { position: relative; display: grid; justify-items: center; text-align: center; }
+.pn-ring svg { width: 100%; max-width: 132px; transform: rotate(-90deg); }
+.pn-ring-bg { fill: none; stroke: var(--surface-2); stroke-width: 8; }
+.pn-ring-fg { fill: none; stroke: var(--cyan); stroke-width: 8; stroke-linecap: round; transition: stroke-dasharray .8s ease; }
+.pn-ring.warm .pn-ring-fg { stroke: var(--pn-warm); }
+.pn-ring.hot .pn-ring-fg { stroke: var(--pn-hot); }
+.pn-ring-mid { position: absolute; top: 0; width: 100%; max-width: 132px; aspect-ratio: 1; display: grid; place-content: center; }
+.pn-ring-mid b { font: 700 36px/1 var(--display); font-variant-numeric: tabular-nums; }
+.pn-ring-mid span { font-size: 13px; color: var(--muted); }
+.pn-ring-label { margin: 6px 0 0; font: 700 17px var(--display); }
+.pn-ring-sub { margin: 0; font-size: 13px; color: var(--muted); }
+
+.pn-music { display: grid; grid-template-columns: 120px 1fr; gap: 16px; align-items: center; padding: 16px; border-radius: 20px; background: var(--night-2); border: 1px solid var(--line); }
+.pn-cover { width: 120px; height: 120px; border-radius: 12px; object-fit: cover; }
+.pn-music-info { display: grid; gap: 4px; min-width: 0; }
+.pn-music-info b { font: 700 21px/1.2 var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pn-music-info span { color: var(--muted); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pn-music-info small { color: var(--faint); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pn-bar { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
+.pn-bar i { display: block; height: 100%; background: var(--green); }
+
+.pn-card { padding: 18px 20px; border-radius: 20px; background: var(--night-2); border: 1px solid var(--line); }
+.pn-card h2 { margin: 0 0 8px; font: 600 15px/1.2 var(--display); color: var(--muted); }
+.pn-title { display: block; font: 700 24px/1.2 var(--display); overflow-wrap: anywhere; }
+.pn-when { margin: 6px 0 0; color: var(--cyan); font: 600 18px var(--display); }
+.pn-when.soon { color: var(--pn-warm); }
+.pn-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pn-num { margin: 0; font: 700 44px/1 var(--display); font-variant-numeric: tabular-nums; }
+.pn-num.hot { color: var(--pn-hot); }
+.pn-fans { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pn-fans li { display: flex; justify-content: space-between; font-size: 16px; }
+.pn-fans span { color: var(--muted); }
+.pn-brand { margin-top: auto; text-align: center; color: var(--faint); font: 700 16px var(--display); letter-spacing: .5px; }
+@media (prefers-reduced-motion: reduce) { .pn-ring-fg { transition: none; } }
+.pn-agenda { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pn-agenda li { display: grid; grid-template-columns: 64px 1fr; gap: 10px; font-size: 17px; }
+.pn-agenda b { font: 700 17px var(--display); color: var(--cyan); font-variant-numeric: tabular-nums; }
+.pn-agenda span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

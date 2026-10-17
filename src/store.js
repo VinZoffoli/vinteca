@@ -57,6 +57,16 @@ function getSettings() {
     bgGame: s.bgGame || '',
     lanAuto: !!s.lanAuto,
     priceAlerts: s.priceAlerts !== false,
+    calReminders: s.calReminders !== false,
+    calNewAlerts: s.calNewAlerts !== false,
+    sensorAlerts: s.sensorAlerts !== false,
+    resinAlert: s.resinAlert !== false,
+    codesAlert: s.codesAlert !== false,
+    notionAlerts: s.notionAlerts !== false,
+    healthAlerts: s.healthAlerts !== false,
+    vercelAlerts: s.vercelAlerts !== false,
+    panelAuto: !!s.panelAuto,
+    tempLimits: s.tempLimits || { cpu: 90, gpu: 85 },
     genshinUid: s.genshinUid || '',
     palette: s.palette || 'viper',
     customAccent: s.customAccent || '#ef2f34',
@@ -75,7 +85,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});

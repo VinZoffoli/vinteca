@@ -262,7 +262,9 @@ function parseComments(xml) {
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .trim();
-    out.push({ uid, author: names[uid] || (email ? email.split('@')[0] : 'Alguien'), at: dt, mine: /by-you="true"/.test(rest), images: Number((rest.match(/image-attached-count="(\d+)"/) || [0, 0])[1]), text });
+    const id = (m[0].match(/^<comment [^>]*?\bid="([^"]+)"/) || [])[1] || `${uid}|${dt}`;
+    const mentions = [...body.matchAll(/<mention-user url="user:\/\/([^/"]+)/g)].map((x) => x[1]);
+    out.push({ id, uid, author: names[uid] || (email ? email.split('@')[0] : 'Alguien'), at: dt, mine: /by-you="true"/.test(rest), images: Number((rest.match(/image-attached-count="(\d+)"/) || [0, 0])[1]), mentions, text });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }
@@ -385,4 +387,42 @@ function logout({ read, write }) {
   write('notion-cache.json', null);
 }
 
-module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze };
+/**
+ * Avisos: tickets nuevos a tu nombre y mensajes nuevos en el chat de tus
+ * tickets abiertos (marcando cuando te mencionan). La primera vez solo memoriza.
+ */
+async function watch(ctx) {
+  const data = await overview(ctx, true);
+  const meId = cfg(ctx.read).notionUserId || data.user?.id || null;
+  const prev = ctx.read('notion-watch.json', null);
+  const open = (data.tickets || []).filter((t) => t.group !== 'done');
+  const events = [];
+  const state = { at: Date.now(), tickets: open.map((t) => t.id), seen: { ...(prev?.seen || {}) } };
+  if (prev) for (const t of open) if (!prev.tickets.includes(t.id)) events.push({ kind: 'ticket', ticket: t });
+  let i = 0;
+  await Promise.all(
+    [0, 1].map(async () => {
+      while (i < open.length) {
+        const t = open[i++];
+        let comments = [];
+        try {
+          comments = parseComments(await tool(ctx, 'get-comments', { page_id: t.id, include_all_blocks: true }));
+        } catch {
+          continue;
+        }
+        const seen = new Set(state.seen[t.id] || []);
+        if (prev && prev.seen?.[t.id]) {
+          for (const c of comments) {
+            if (seen.has(c.id) || c.mine) continue;
+            events.push({ kind: meId && c.mentions.includes(meId) ? 'mention' : 'comment', ticket: t, comment: { author: c.author, text: c.text.slice(0, 200), at: c.at } });
+          }
+        }
+        state.seen[t.id] = comments.map((c) => c.id).slice(-200);
+      }
+    })
+  );
+  ctx.write('notion-watch.json', state);
+  return { first: !prev, events };
+}
+
+module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze, watch };

@@ -70,7 +70,7 @@
 
   async function markDone(p, done) {
     const d = { ...(W.state.done || {}) };
-    if (done) d[p.slug] = { at: Date.now(), price: W.prices[p.slug] || null, title: p.title };
+    if (done) d[p.slug] = { at: Date.now(), price: W.prices[p.slug] || null, title: p.title, url: p.url, budget: p.budget ? { text: p.budget.text, min: p.budget.min, max: p.budget.max, currency: p.budget.currency } : null, bids: p.bids, country: p.country, verified: p.verified, outcome: 'sent' };
     else delete d[p.slug];
     W.state = await api.saveState({ done: d });
     render();
@@ -129,6 +129,7 @@
     const pending = (W.list || []).filter((p) => !W.state?.done?.[p.slug]).length;
     $('#countWorkana').textContent = pending || '';
     if (!box || !visible() || !W.state) return;
+    if (W.view === 'mine') return fill(box, viewTabs(), tracker());
     const qInput = h('input', { type: 'text', class: 'wk-q', value: W.state.queries.join(', '), 'aria-label': 'Palabras para buscar, separadas por comas' });
     qInput.addEventListener('change', async () => {
       W.state = await api.saveState({ queries: qInput.value.split(',').map((s) => s.trim()).filter(Boolean) });
@@ -144,6 +145,7 @@
     else list.sort((a, b) => String(b.published || '').localeCompare(String(a.published || '')));
     fill(
       box,
+      viewTabs(),
       h(
         'div',
         { class: 'wk-bar' },
@@ -165,8 +167,63 @@
         : list.length
           ? h('div', { class: 'wk-list' }, list.map(card))
           : h('p', { class: 'hint', text: W.filter === 'done' ? 'Aún no has marcado ninguno como postulado.' : 'No hay proyectos en este filtro.' }),
-      h('p', { class: 'hint wk-note', text: 'ViperTeca no envía propuestas por ti (Workana no permite postular con programas automáticos): la deja lista y copiada, abre el proyecto en tu navegador y la envías tú.' })
+      h('p', { class: 'hint wk-note', text: 'ViperTeca no envía propuestas por ti (Workana no permite postular con programas automáticos): con «Postular» la deja escrita en la ventana de Workana y la envías tú.' })
     );
+  }
+
+  // ---- seguimiento de postulaciones ----
+  const OUTCOMES = [['sent', 'Enviada'], ['viewed', 'La vieron'], ['replied', 'Me respondieron'], ['won', 'Ganada'], ['lost', 'No salió']];
+  function viewTabs() {
+    const n = Object.keys(W.state.done || {}).length;
+    return h('div', { class: 'seg wk-views', role: 'tablist' },
+      h('button', { class: W.view !== 'mine' ? 'on' : '', role: 'tab', text: 'Proyectos', onclick: () => { W.view = 'list'; render(); } }),
+      h('button', { class: W.view === 'mine' ? 'on' : '', role: 'tab', text: `Mis postulaciones${n ? ` (${n})` : ''}`, onclick: () => { W.view = 'mine'; render(); } })
+    );
+  }
+  const num = (v) => {
+    const n = Number(String(v ?? '').replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const mid = (b) => (b ? (b.min && b.max ? (b.min + b.max) / 2 : b.max || b.min || null) : null);
+  async function setOutcome(slug, outcome) {
+    const d = { ...(W.state.done || {}) };
+    d[slug] = { ...d[slug], outcome, outcomeAt: Date.now() };
+    W.state = await api.saveState({ done: d });
+    render();
+  }
+  function tracker() {
+    const rows = Object.entries(W.state.done || {}).map(([slug, x]) => ({ slug, ...x, outcome: x.outcome || 'sent' })).sort((a, b) => (b.at || 0) - (a.at || 0));
+    if (!rows.length) return h('p', { class: 'empty' }, h('b', { text: 'Aún no hay postulaciones' }), 'Cuando postules a un proyecto y lo marques como postulado, aparece aquí para que anotes si te respondieron o si lo ganaste.');
+    const count = (k) => rows.filter((r) => r.outcome === k).length;
+    const answered = count('replied') + count('won') + count('lost');
+    const won = count('won');
+    const ratio = (list) => {
+      const v = list.map((r) => (num(r.price) && mid(r.budget) ? num(r.price) / mid(r.budget) : null)).filter((x) => x != null);
+      return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) : null;
+    };
+    const wonRatio = ratio(rows.filter((r) => r.outcome === 'won'));
+    const restRatio = ratio(rows.filter((r) => r.outcome !== 'won'));
+    const last30 = rows.filter((r) => Date.now() - (r.at || 0) < 30 * 86400000).length;
+    const insight = won >= 2 && wonRatio != null && restRatio != null
+      ? `Las que ganaste las cotizaste, de media, al ${wonRatio} % del presupuesto del cliente; las demás, al ${restRatio} %.${wonRatio < restRatio - 10 ? ' Te va mejor con precios más ajustados.' : wonRatio > restRatio + 10 ? ' Cobrar más no te está quitando proyectos.' : ''}`
+      : 'Cuando marques al menos dos como ganadas, aquí verás a qué precio te conviene postular.';
+    return [
+      h('dl', { class: 'stat-strip rx-stats' },
+        h('div', {}, h('dt', { text: 'Postulaciones' }), h('dd', { text: String(rows.length) })),
+        h('div', {}, h('dt', { text: 'Últimos 30 días' }), h('dd', { text: String(last30) })),
+        h('div', {}, h('dt', { text: 'Te respondieron' }), h('dd', { text: rows.length ? `${Math.round(((count('replied') + won) / rows.length) * 100)} %` : '—' })),
+        h('div', {}, h('dt', { text: 'Ganadas' }), h('dd', { text: `${won}${answered ? ` de ${answered} con respuesta` : ''}` }))
+      ),
+      h('p', { class: 'hint', text: insight }),
+      h('ul', { class: 'wk-track' }, rows.map((r) => h('li', { class: `wk-trow o-${r.outcome}` },
+        h('div', { class: 'wk-tmain' },
+          r.url ? h('button', { class: 'link-title', text: r.title || r.slug, onclick: () => window.api.open(r.url) }) : h('b', { text: r.title || r.slug }),
+          h('p', { class: 'wk-meta' }, h('span', { text: `Postulaste ${relTime((r.at || Date.now()) / 1000)}` }), r.price && h('span', { text: `Tu precio: ${r.price}${r.budget?.currency ? ' ' + r.budget.currency : ''}` }), r.budget?.text && h('span', { text: `Cliente: ${r.budget.text}` }), r.bids != null && h('span', { text: `${r.bids} propuestas` }))
+        ),
+        h('select', { class: 'sn-select', 'aria-label': 'Cómo fue', onchange: (e) => setOutcome(r.slug, e.target.value) }, OUTCOMES.map(([k, l]) => h('option', { value: k, selected: r.outcome === k, text: l })))
+      ))),
+      h('p', { class: 'hint wk-note', text: 'Workana no deja que otros programas lean tus mensajes, así que el resultado lo marcas tú: «La vieron», «Me respondieron», «Ganada» o «No salió».' })
+    ];
   }
 
   function card(p) {

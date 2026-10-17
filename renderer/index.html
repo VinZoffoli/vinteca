@@ -42,6 +42,7 @@
       <button class="tab" data-view="sagas" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3.5" width="10" height="14" rx="1.5"/><path d="M4.5 7v11.5a2 2 0 0 0 2 2H15"/></svg><span class="tab-lbl">Sagas</span><span id="countSagas" class="count"></span></button>
       <button class="tab" data-view="ach" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7"/></svg><span class="tab-lbl">Logros</span><span id="countPlat" class="count plat"></span></button>
       <button class="tab" data-view="stats" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M10 20V5M15 20v-7M20 20V9"/></svg><span class="tab-lbl">Estadísticas</span></button>
+      <button class="tab" data-view="backlog" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14M5 10h14M5 14.5h8M5 19h5"/><circle cx="17.5" cy="17.5" r="3"/><path d="M17.5 16v1.6l1 .8"/></svg><span class="tab-lbl">Backlog</span></button>
       <button class="tab" data-view="cheats" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 3 6 13.2h5.2L10.5 21 18 10.8h-5.2z"/></svg><span class="tab-lbl">Trucos</span><span id="countCheats" class="count"></span></button>
       <button class="tab" data-view="genshin" id="genshinTab" role="tab" aria-selected="undefined" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.2 6.3 6.3 2.2-6.3 2.2L12 20.5l-2.2-6.3L3.5 12l6.3-2.2z"/></svg><span class="tab-lbl">Genshin</span></button>
       <p class="side-h">Comunidad y tiendas</p>
@@ -58,6 +59,7 @@
       <p class="side-h">Música</p>
       <button class="tab" data-view="music" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 9.6c3-1 6.4-.8 9.2.7M8 12.6c2.5-.7 5.3-.5 7.6.7M8.6 15.4c2-.5 4.1-.3 5.9.6"/></svg><span class="tab-lbl">Spotify</span><span id="countMusic" class="count"></span></button>
       <p class="side-h">Tu PC</p>
+      <button class="tab" data-view="sensors" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14.5V5a2 2 0 1 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></svg><span class="tab-lbl">Sensores</span></button>
       <button class="tab" data-view="disk" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M7 14.5h5"/><circle cx="16.5" cy="14.5" r=".9"/></svg><span class="tab-lbl">Espacio</span></button>
       <button class="tab" data-view="lan" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.2"/><path d="M11 17.5h2"/></svg><span class="tab-lbl">En el móvil</span><span id="countLan" class="count"></span></button>
       <button class="tab" data-view="rgb" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg><span class="tab-lbl">Iluminación</span></button>
@@ -204,6 +206,23 @@
     <!-- Spotify -->
     <section id="musicView" class="view" hidden>
       <div id="musicBody"></div>
+    </section>
+
+    <!-- Sensores -->
+    <section id="sensorsView" class="view" hidden>
+      <div class="view-head">
+        <h1>Sensores</h1>
+        <p class="sub">Temperaturas, uso y ventiladores de tu PC en tiempo real, con aviso si algo se calienta. También la pantalla del case.</p>
+      </div>
+      <div id="sensorsBody"></div>
+    </section>
+    <!-- Backlog -->
+    <section id="backlogView" class="view" hidden>
+      <div class="view-head">
+        <h1>Backlog</h1>
+        <p class="sub">Cuánto te falta de cada juego que estás jugando o tienes pendiente, según HowLongToBeat, y cuándo lo terminarías con tu ritmo.</p>
+      </div>
+      <div id="backlogBody"></div>
     </section>
 
     <!-- Resto Experience -->
@@ -562,6 +581,8 @@
   <script src="cheats.js"></script>
   <script src="workana.js"></script>
   <script src="resto.js"></script>
+  <script src="pc.js"></script>
+  <script src="genshin-plus.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>
