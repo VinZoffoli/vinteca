@@ -19,6 +19,41 @@ function localIp() {
   return all.sort((a, b) => score(b) - score(a))[0]?.address || null;
 }
 
+// Tailscale: red privada entre tus aparatos (direcciones 100.64.0.0/10).
+// Si está instalado y conectado, el celular llega al PC desde cualquier red.
+function tailscaleIp() {
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    for (const i of list || []) {
+      if (i.family !== 'IPv4' || i.internal) continue;
+      if (/tailscale/i.test(name) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(i.address)) return i.address;
+    }
+  }
+  return null;
+}
+// Nombre MagicDNS del PC (p. ej. mi-pc.tailnet.ts.net), si Tailscale lo da
+let tsName = null;
+function readTailscaleName() {
+  const exe = require('path').join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale', 'tailscale.exe');
+  if (!require('fs').existsSync(exe)) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    require('child_process').execFile(exe, ['status', '--json'], { windowsHide: true, timeout: 6000 }, (err, out) => {
+      try {
+        const name = String(JSON.parse(out).Self?.DNSName || '').replace(/\.$/, '');
+        tsName = /^[a-z0-9.-]+\.ts\.net$/i.test(name) ? name : null;
+      } catch {
+        tsName = null;
+      }
+      resolve(tsName);
+    });
+  });
+}
+const qrSvg = (text) => {
+  const q = qrcode(0, 'M');
+  q.addData(text);
+  q.make();
+  return 'data:image/svg+xml;base64,' + Buffer.from(q.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
+};
+
 const same = (a, b) => {
   const x = Buffer.from(String(a || ''));
   const y = Buffer.from(String(b || ''));
@@ -27,9 +62,11 @@ const same = (a, b) => {
 
 class LanServer {
   /** @param games () => juegos  @param launch (id) => abre el juego en el PC */
-  constructor({ games, launch, token, shopping, day }) {
+  constructor({ games, launch, token, shopping, day, mobile, iconPath }) {
     this.shopping = shopping || null;
     this.day = day || null;
+    this.mobile = mobile || null;
+    this.iconPath = iconPath || null;
     this.games = games;
     this.launch = launch;
     this.token = token || crypto.randomBytes(12).toString('hex');
@@ -72,10 +109,20 @@ class LanServer {
       q3.make();
       dayQr = 'data:image/svg+xml;base64,' + Buffer.from(q3.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
     }
-    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr };
+    // La app completa del celular: /m (en la wifi de casa y, con Tailscale, desde fuera)
+    const mUrl = ip && this.mobile ? `http://${ip}:${this.port}/m?t=${this.token}` : null;
+    const ts = tailscaleIp();
+    const tsHost = tsName || ts;
+    const tsUrl = ts && this.mobile ? `http://${tsHost}:${this.port}/m?t=${this.token}` : null;
+    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr, mUrl, mQr: mUrl && qrSvg(mUrl), tailscale: ts ? { ip: ts, name: tsName } : null, tsUrl, tsQr: tsUrl && qrSvg(tsUrl) };
   }
 
-  start() {
+  async start() {
+    await readTailscaleName().catch(() => null);
+    return this.listen();
+  }
+
+  listen() {
     if (this.server) return Promise.resolve(this.info());
     const srv = http.createServer((req, res) => this.handle(req, res));
     return new Promise((resolve, reject) => {
@@ -106,7 +153,7 @@ class LanServer {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'",
+      'Content-Security-Policy': "default-src 'none'; img-src 'self' https: data:; manifest-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'",
     });
     res.end(body);
   }
@@ -136,6 +183,50 @@ class LanServer {
       if (req.method === 'GET' && u.pathname === '/api/compras') return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(this.shopping.get()));
       if (req.method === 'POST' && u.pathname === '/api/compras/toggle') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.toggle(String(u.searchParams.get('id') || '')) }));
       if (req.method === 'POST' && u.pathname === '/api/compras/add') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.add(u.searchParams.get('name'), u.searchParams.get('qty')) }));
+    }
+    if (this.mobile) {
+      if (req.method === 'GET' && (u.pathname === '/m' || u.pathname === '/m/')) {
+        const page = require('fs').readFileSync(require('path').join(__dirname, 'mobile.html'), 'utf8').replaceAll('__T__', this.token);
+        return this.send(res, 200, 'text/html; charset=utf-8', page);
+      }
+      if (req.method === 'GET' && u.pathname === '/m/manifest.webmanifest') {
+        const t = encodeURIComponent(this.token);
+        return this.send(res, 200, 'application/manifest+json; charset=utf-8', JSON.stringify({ name: 'ViperTeca', short_name: 'ViperTeca', start_url: `/m?t=${t}`, scope: '/m', display: 'standalone', background_color: '#1a1214', theme_color: '#1a1214', icons: [{ src: `/m/icon.png?t=${t}`, sizes: '256x256', type: 'image/png' }] }));
+      }
+      if (req.method === 'GET' && u.pathname === '/m/icon.png' && this.iconPath) {
+        try {
+          return this.send(res, 200, 'image/png', require('fs').readFileSync(this.iconPath));
+        } catch {}
+      }
+      if (req.method === 'GET' && u.pathname === '/api/m') {
+        try {
+          const data = await this.mobile.get(String(u.searchParams.get('s') || ''));
+          if (data == null) return this.send(res, 404, 'application/json', '{"error":"No existe"}');
+          return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(data));
+        } catch (e) {
+          return this.send(res, 500, 'application/json', JSON.stringify({ error: e.message }));
+        }
+      }
+      if (req.method === 'POST' && u.pathname === '/api/m/act') {
+        try {
+          return this.send(res, 200, 'application/json', JSON.stringify({ ok: !!(await this.mobile.act(String(u.searchParams.get('a') || ''), u.searchParams)) }));
+        } catch (e) {
+          return this.send(res, 500, 'application/json', JSON.stringify({ ok: false, error: e.message }));
+        }
+      }
+      if (req.method === 'POST' && u.pathname === '/api/m/ask') {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 20000) return this.send(res, 413, 'application/json', '{"error":"Demasiado largo"}');
+        }
+        let msg = {};
+        try {
+          msg = JSON.parse(body || '{}');
+        } catch {}
+        const r = await this.mobile.ask(String(msg.text || ''), msg.session || null);
+        return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(r));
+      }
     }
     if (this.day) {
       if (req.method === 'GET' && u.pathname === '/dia') return this.send(res, 200, 'text/html; charset=utf-8', DAY_PAGE);
@@ -292,4 +383,4 @@ async function load(){
 load();setInterval(load,60000);
 </script></body></html>`;
 
-module.exports = { LanServer, localIp };
+module.exports = { LanServer, localIp, tailscaleIp };

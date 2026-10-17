@@ -6,6 +6,7 @@
         content="default-src 'self'; img-src https: data: blob: bjshot:; media-src https://video.akamai.steamstatic.com blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; script-src 'self'; connect-src https://video.akamai.steamstatic.com">
   <title>ViperTeca</title>
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="design.css">
 </head>
 <body>
   <div id="appBg" class="app-bg" aria-hidden="true"></div>
@@ -376,8 +377,8 @@
     <!-- En el móvil -->
     <section id="lanView" class="view" hidden>
       <div class="view-head">
-        <h1>Tu biblioteca en el móvil</h1>
-        <p class="sub">Mira tus juegos desde el teléfono y ábrelos en el PC sin levantarte. Funciona en tu Wi-Fi de casa, sin internet ni cuentas.</p>
+        <h1>ViperTeca en el móvil</h1>
+        <p class="sub">Toda la app en tu iPhone, en vivo: en la wifi de casa o, con Tailscale, desde cualquier lugar.</p>
       </div>
       <div id="lanBody"></div>
     </section>
@@ -583,6 +584,18 @@
       </fieldset>
 
       <fieldset data-tab="apariencia">
+        <legend>Estilo</legend>
+        <p class="hint">Ajusta la interfaz a tu gusto. Los cambios se ven al momento.</p>
+        <div class="look-grid" id="lookGrid">
+          <div><span>Densidad</span><div class="seg" data-look="density" role="group" aria-label="Densidad"><button type="button" data-v="comoda">Cómoda</button><button type="button" data-v="compacta">Compacta</button></div></div>
+          <div><span>Esquinas</span><div class="seg" data-look="radius" role="group" aria-label="Esquinas"><button type="button" data-v="rectas">Rectas</button><button type="button" data-v="suaves">Suaves</button><button type="button" data-v="redondas">Redondas</button></div></div>
+          <div><span>Luz de fondo</span><div class="seg" data-look="glow" role="group" aria-label="Luz de fondo"><button type="button" data-v="off">Apagada</button><button type="button" data-v="soft">Suave</button><button type="button" data-v="strong">Intensa</button></div></div>
+          <div><span>Tamaño</span><div class="seg" data-look="uiScale" role="group" aria-label="Tamaño de la interfaz"><button type="button" data-v="90">90 %</button><button type="button" data-v="100">100 %</button><button type="button" data-v="110">110 %</button><button type="button" data-v="120">120 %</button></div></div>
+          <div><span>Animaciones</span><div class="seg" data-look="motion" role="group" aria-label="Animaciones"><button type="button" data-v="full">Completas</button><button type="button" data-v="reduced">Mínimas</button></div></div>
+        </div>
+      </fieldset>
+
+      <fieldset data-tab="apariencia">
         <legend>Modo</legend>
         <div class="seg" id="themeSeg" role="group" aria-label="Tema">
           <button type="button" data-v="dark">Oscuro</button>
@@ -658,6 +671,7 @@
   <script src="mail.js"></script>
   <script src="day.js"></script>
   <script src="v117.js"></script>
+  <script src="v118.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>

@@ -221,6 +221,46 @@ function snapshot(dir) {
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
       return app.quit();
     }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
+      const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      const CODE = {
+        dia: [`showView('day')`, 4000],
+        biblioteca: [`showView('library')`, 2500],
+        'casa-pagos': [`showView('casa-pagos')`, 2500],
+        'casa-cumples': [`showView('casa-cumples')`, 2500],
+        'genshin-mapa': [`showView('genshin'); setGenshinTab('mapa')`, 3000],
+        movil: [`showView('lan')`, 3000],
+        ajustes: [`openSettings?.(); setTimeout(() => { showSettingsTab?.('apariencia'); }, 500)`, 2500],
+        logros: [`document.querySelector('dialog[open]')?.close(); showView('ach')`, 3000],
+        asistente: [`showView('assist')`, 2000],
+      };
+      for (const name of steps) {
+        const [code, ms] = CODE[name] || [name, 2000];
+        await js(code).catch((e) => log(`[error] ${name}: ${e.message}`));
+        await wait(ms);
+        await shot(`${name}.png`);
+      }
+      // la app del iPhone, a tamaño de teléfono
+      try {
+        const info = await lanServer().start();
+        log(`LAN ${JSON.stringify({ mUrl: !!info.mUrl, ts: info.tailscale })}`);
+        const phone = new BrowserWindow({ width: 390, height: 844, show: true, webPreferences: { partition: 'snap-phone', sandbox: true } });
+        phone.webContents.on('console-message', (e) => log(`[movil] ${e.message}`));
+        const local = info.mUrl.replace(/^http:\/\/[^/]+/, `http://127.0.0.1:${info.port}`);
+        for (const tab of ['hoy', 'casa', 'juegos', 'genshin', 'mas']) {
+          await phone.loadURL(local);
+          await wait(800);
+          await phone.webContents.executeJavaScript(`localStorage.setItem('vt-tab', '${tab}'); location.reload()`).catch(() => {});
+          await wait(3500);
+          fs.writeFileSync(path.join(dir, `movil-${tab}.png`), (await phone.webContents.capturePage()).toPNG());
+        }
+        phone.destroy();
+        lan.stop();
+      } catch (e) {
+        log(`[error] movil: ${e.message}`);
+      }
+      return app.quit();
+    }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v117') {
       const steps = [
         ['dia', `showView('day')`, 5000],
@@ -620,7 +660,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/act\.hoyolab\.com\/ys\/event\/signin-sea-v3\/|https:\/\/www\.gamerpower\.com\/(open\/)?[\w-]+$|https:\/\/www\.nexusmods\.com\/[a-z0-9]+\/mods\/(\d+)?$|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started|https:\/\/www\.(grupoins\.com|rtv\.co\.cr|csv\.go\.cr|tse\.go\.cr|migracion\.go\.cr|bccr\.fi\.cr)\/)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/act\.hoyolab\.com\/ys\/event\/signin-sea-v3\/|https:\/\/www\.gamerpower\.com\/(open\/)?[\w-]+$|https:\/\/www\.nexusmods\.com\/[a-z0-9]+\/mods\/(\d+)?$|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started|https:\/\/www\.(grupoins\.com|rtv\.co\.cr|csv\.go\.cr|tse\.go\.cr|migracion\.go\.cr|bccr\.fi\.cr)\/|https:\/\/tailscale\.com\/(download|kb)\b)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -1588,6 +1628,8 @@ function lanServer() {
       launch: async (g) => launchFromMain(g),
       token: s.lanToken,
       day: () => daySummary(),
+      mobile: mobileApi,
+      iconPath: path.join(__dirname, 'build', 'icon.png'),
       // lista de compras de Casa, para verla y marcarla desde el celular
       shopping: {
         get: () => {
@@ -2890,6 +2932,199 @@ ipcMain.handle('assist:save', (_e, h) => {
   store.write('assist-chat.json', { session: /^[0-9a-f-]{36}$/i.test(h?.session || '') ? h.session : null, model: String(h?.model || 'sonnet').slice(0, 20), messages: (Array.isArray(h?.messages) ? h.messages : []).slice(-120), at: Date.now() });
   return true;
 });
+
+// Mapa interactivo oficial de Genshin (HoYoLAB) en una ventana de la app.
+// Usa su propia sesión guardada: si entras con tu cuenta de HoYoLAB, tus marcas
+// se quedan. Recuerda dónde lo dejaste (mapa, centro y zoom).
+const GMAP_HOME = 'https://act.hoyolab.com/ys/app/interactive-map/index.html?lang=es-es#/map/2?shown_types=&center=2008.50,-1084.00&zoom=-2.50';
+const GMAP_OK = /^https:\/\/([\w-]+\.)*(hoyolab\.com|hoyoverse\.com|mihoyo\.com|hoyo\.link)\//;
+let gmapWin = null;
+ipcMain.handle('gmap:open', (_e, fresh) => {
+  if (gmapWin && !gmapWin.isDestroyed()) {
+    if (fresh) gmapWin.loadURL(GMAP_HOME);
+    gmapWin.show();
+    gmapWin.focus();
+    return true;
+  }
+  const last = store.read('gmap.json', {}).url;
+  gmapWin = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    title: 'Mapa interactivo de Genshin',
+    backgroundColor: '#11131a',
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'build', 'icon.ico'),
+    webPreferences: { partition: 'persist:vt-genshin-map', contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  gmapWin.removeMenu();
+  const wc = gmapWin.webContents;
+  // solo páginas de HoYoverse dentro de la ventana; el resto, fuera o nada
+  wc.on('will-navigate', (ev, url) => {
+    if (!GMAP_OK.test(url)) ev.preventDefault();
+  });
+  wc.setWindowOpenHandler(({ url }) => {
+    if (GMAP_OK.test(url)) return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, webPreferences: { partition: 'persist:vt-genshin-map', sandbox: true, contextIsolation: true } } };
+    return { action: 'deny' };
+  });
+  const remember = () => {
+    const u = !wc.isDestroyed() && wc.getURL();
+    if (u && /^https:\/\/act\.hoyolab\.com\/ys\/app\/interactive-map\//.test(u)) store.write('gmap.json', { url: u, at: Date.now() });
+  };
+  wc.on('did-navigate-in-page', remember);
+  gmapWin.on('close', remember);
+  gmapWin.on('closed', () => (gmapWin = null));
+  gmapWin.loadURL(!fresh && last && GMAP_OK.test(last) ? last : GMAP_HOME);
+  return true;
+});
+
+
+// ---------- 1.18: ViperTeca en el iPhone (misma wifi o por Tailscale) ----------
+// Lo que ve y puede hacer la app del celular. Solo lectura, salvo marcar compras,
+// pagos, recordatorios y recolecciones, anotar gastos, abrir juegos y preguntar.
+const mobileCasaChanged = () => win && !win.isDestroyed() && win.webContents.send('casa:changed');
+const mobileApi = {
+  async get(section) {
+    const now = Date.now();
+    const d0 = new Date().setHours(0, 0, 0, 0);
+    const inDays = (iso) => Math.round((new Date(iso + 'T00:00:00').getTime() - d0) / DAYMS);
+    if (section === 'hoy') return daySummary();
+    if (section === 'casa') {
+      const c = casa.load(ctxRW);
+      const rate = await fx.get(ctxRW).catch(() => null);
+      const month = new Date().toLocaleDateString('sv').slice(0, 7);
+      const b = casa.budgetStatus(c, now, rate?.sell);
+      return {
+        fx: rate,
+        shopping: { cats: c.shopCats, items: (c.shopping || []).map((x) => ({ id: x.id, name: x.name, qty: x.qty, cat: x.cat, done: x.done })) },
+        payments: (c.payments || []).map((p) => {
+          const n = casa.nextDue(p, now);
+          return { id: p.id, name: p.name, group: p.group, day: p.day, amount: p.amount, currency: p.currency, paid: !!p.paid?.[month], days: n?.days ?? null };
+        }),
+        groups: c.payGroups,
+        budget: { limit: b.limit, spent: b.spent, currency: b.currency, byKind: b.byKind, lines: b.lines.slice(-12).reverse(), planned: b.planned },
+        reminders: (c.reminders || []).filter((r) => !r.done).map((r) => ({ id: r.id, title: r.title, date: r.date, time: r.time, days: inDays(r.date) })).sort((a, z) => a.days - z.days),
+        birthdays: (c.birthdays || []).map((x) => ({ x, n: casa.nextBirthday(x, now) })).filter((y) => y.n).sort((a, z) => a.n.days - z.n.days).map(({ x, n }) => ({ name: x.name, kind: x.kind, day: x.day, month: x.month, days: n.days, age: n.age })),
+        gifts: (c.gifts || []).filter((g) => g.status === 'idea').map((g) => ({ name: g.name, for: g.for, note: g.note, price: g.price, image: /^https:/.test(g.image || '') ? g.image : '' })),
+        tramites: (c.tramites || []).map((t) => ({ name: t.name, due: t.due, days: t.due ? inDays(t.due) : null, plate: t.plate })).sort((a, z) => (a.days ?? 9e9) - (z.days ?? 9e9)),
+        cats: (c.catCare || []).filter((x) => !x.done && x.next).map((x) => ({ cat: x.cat, type: x.type, next: x.next, days: inDays(x.next) })).sort((a, z) => a.days - z.days),
+      };
+    }
+    if (section === 'juegos') {
+      const lib = store.read('library.json', null)?.games || [];
+      const sess = store.read('sessions.json', []);
+      const week = sess.filter((s) => s.end > now - 7 * DAYMS).reduce((a, s) => a + (s.end - s.start), 0) / 60000;
+      const pick = (g) => ({ id: g.id, title: g.title, cover: /^https:/.test(g.cover || '') ? g.cover : '', store: g.store, installed: !!g.installed, lastPlayed: (g.lastPlayed || 0) * 1000, hours: Math.round((g.playtimeMin || 0) / 60) });
+      return {
+        current: tracker.current ? { title: tracker.current.title, start: tracker.current.start } : null,
+        focus: focus.mode,
+        weekMin: Math.round(week),
+        recent: lib.filter((g) => g.lastPlayed && g.kind !== 'tool').sort((a, z) => z.lastPlayed - a.lastPlayed).slice(0, 12).map(pick),
+        installed: lib.filter((g) => g.installed && g.kind !== 'tool').sort((a, z) => a.title.localeCompare(z.title, 'es')).map(pick),
+        total: lib.length,
+      };
+    }
+    if (section === 'genshin') {
+      const d = await daySummary();
+      let pools = [];
+      try {
+        pools = (genshinWish.summary(store.read('genshin-wishes.json', { items: {} }))?.pools || []).map((p) => ({ name: p.name, key: p.key, pity: p.pity5, hard: p.hardPity, guaranteed: p.guaranteed }));
+      } catch {}
+      const codes = await genshinCodes.list(ctxRW, false).catch(() => null);
+      return { resin: d.resin, resets: genshinEndgame.resets(now), pools, gather: gatherState().sort((a, z) => a.readyAt - z.readyAt), codes: (codes?.codes || codes?.list || []).slice(0, 12).map((x) => ({ code: x.code, rewards: x.rewards, used: x.used, url: x.url })) };
+    }
+    if (section === 'trabajo') {
+      const cal = store.read('calendar-cache.json', null);
+      const nc = store.read('notion-cache.json', null)?.data;
+      const mc = store.read('mail-cache.json', null);
+      return {
+        meetings: (cal?.events || []).filter((e) => e.end > now && e.start < now + 7 * DAYMS && e.myStatus !== 'DECLINED').sort((a, z) => a.start - z.start).slice(0, 40).map((e) => ({ title: e.title, start: e.start, end: e.end, allDay: e.allDay, link: /^https:\/\/meet\.google\.com\//.test(e.link || '') ? e.link : null })),
+        tickets: (nc?.tickets || []).filter((t) => t.group !== 'done').slice(0, 40).map((t) => ({ title: t.title, status: t.status, deadline: t.deadline, late: !!t.deadline && new Date(t.deadline + 'T23:59:59').getTime() < now })),
+        mail: { user: mc?.user || null, unread: mc?.unread || 0, list: (mc?.list || []).slice(0, 20).map((m) => ({ from: m.from, subject: m.subject, date: m.date, unread: m.unread })) },
+      };
+    }
+    if (section === 'anime') {
+      return Object.values(anime.mine(ctxRW).follows || {}).map((a) => ({ title: a.title, cover: /^https:/.test(a.cover || '') ? a.cover : '', next: a.next || null, status: a.status, start: a.start })).sort((a, z) => (a.next?.at || 9e15) - (z.next?.at || 9e15));
+    }
+    if (section === 'pc') {
+      const s = await sensors.read().catch(() => null);
+      return { sensors: s ? { cpu: s.cpu, gpu: s.gpu, fans: (s.fans || []).slice(0, 6) } : null, focus: focus.status(), current: tracker.current ? { title: tracker.current.title, start: tracker.current.start } : null };
+    }
+    return null;
+  },
+  async act(a, q) {
+    const c = () => casa.load(ctxRW);
+    if (a === 'pay') {
+      const d = c();
+      const p = (d.payments || []).find((x) => x.id === q.get('id'));
+      if (!p) return false;
+      const k = new Date().toLocaleDateString('sv').slice(0, 7);
+      p.paid ||= {};
+      if (p.paid[k]) delete p.paid[k];
+      else p.paid[k] = Date.now();
+      casa.save(ctxRW, d);
+      mobileCasaChanged();
+      return true;
+    }
+    if (a === 'rem') {
+      const d = c();
+      const r = (d.reminders || []).find((x) => x.id === q.get('id'));
+      if (!r) return false;
+      r.done = true;
+      casa.save(ctxRW, d);
+      mobileCasaChanged();
+      return true;
+    }
+    if (a === 'expense') {
+      const amount = Number(q.get('amount'));
+      if (!(amount > 0) || amount > 1e9) return false;
+      const d = c();
+      d.budget ||= { limit: null, currency: 'CRC', expenses: [] };
+      d.budget.expenses ||= [];
+      d.budget.expenses.push({ id: require('crypto').randomBytes(6).toString('hex'), date: new Date().toLocaleDateString('sv'), amount, cat: String(q.get('cat') || 'Otros').slice(0, 40), note: String(q.get('note') || '').slice(0, 200) });
+      casa.save(ctxRW, d);
+      mobileCasaChanged();
+      return true;
+    }
+    if (a === 'gather') {
+      const list = store.read('genshin-gather.json', []);
+      const g = list.find((x) => x.id === q.get('id'));
+      if (!g) return false;
+      g.at = Date.now();
+      g.notified = false;
+      store.write('genshin-gather.json', list);
+      return true;
+    }
+    return false;
+  },
+  // Pregúntale desde el celular: misma idea que en el PC, pero espera la respuesta entera
+  ask(text, session) {
+    return new Promise((resolve) => {
+      const cwd = assistDir();
+      let out = '';
+      let sid = session || null;
+      const timer = setTimeout(() => {
+        claudeChat.stop('assist-m');
+        resolve({ text: out || 'Tardó demasiado: prueba otra vez.', session: sid });
+      }, 150000);
+      assistContext(cwd).catch(() => {}).then(() => {
+        try {
+          claudeChat.send({ cwd, chatId: 'assist-m', text: String(text || '').slice(0, 8000), session: /^[0-9a-f-]{36}$/i.test(session || '') ? session : null, model: 'sonnet', access: 'ask', system: ASSIST_SYSTEM }, (ev) => {
+            if (ev.type === 'system' && ev.session_id) sid = ev.session_id;
+            if (ev.type === 'assistant') for (const p of ev.message?.content || []) if (p.type === 'text') out += (out ? '\n\n' : '') + p.text;
+            if (ev.type === 'result' && ev.session_id) sid = ev.session_id;
+            if (ev.type === 'vt-end') {
+              clearTimeout(timer);
+              resolve({ text: out || (ev.stderr ? 'Claude Code no respondió. ¿Tiene la sesión iniciada en el PC?' : 'Sin respuesta.'), session: sid });
+            }
+          });
+        } catch (e) {
+          clearTimeout(timer);
+          resolve({ text: e.message, session: sid });
+        }
+      });
+    });
+  },
+};
 
 // Workana en Brave (donde ya tienes la sesión iniciada)
 ipcMain.handle('wk:brave', (_e, url, text) => {

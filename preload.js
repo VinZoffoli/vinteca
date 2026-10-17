@@ -203,6 +203,7 @@ contextBridge.exposeInMainWorld('api', {
   weekAhead: () => ipcRenderer.invoke('week:ahead'),
   assist: { send: (o) => ipcRenderer.invoke('assist:send', o), stop: () => ipcRenderer.invoke('assist:stop'), history: () => ipcRenderer.invoke('assist:history'), save: (h) => ipcRenderer.invoke('assist:save', h) },
   wkBrave: (url, text) => ipcRenderer.invoke('wk:brave', url, text),
+  gmap: (fresh) => ipcRenderer.invoke('gmap:open', fresh),
   searchIndex: () => ipcRenderer.invoke('search:index'),
   family: {
     status: () => ipcRenderer.invoke('family:status'),

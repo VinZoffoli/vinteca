@@ -102,13 +102,14 @@
     current = { s, findGame };
     // Se recuerda para pintar los colores al instante la próxima vez que se abra la app
     try {
-      localStorage.setItem('vt-look', JSON.stringify({ theme: s.theme, palette: s.palette, customAccent: s.customAccent, customHue: s.customHue, customSat: s.customSat }));
+      localStorage.setItem('vt-look', JSON.stringify({ theme: s.theme, palette: s.palette, customAccent: s.customAccent, customHue: s.customHue, customSat: s.customSat, density: s.density, radius: s.radius, glow: s.glow, uiScale: s.uiScale, motion: s.motion }));
     } catch {}
     const light = s.theme === 'system' ? media.matches : s.theme === 'light';
     const root = document.documentElement;
     root.dataset.theme = light ? 'light' : 'dark';
     root.style.colorScheme = light ? 'light' : 'dark';
     for (const [k, v] of Object.entries(tokens(palette(s), light))) root.style.setProperty(k, v);
+    style(s);
     const g = s.bgGame && findGame ? findGame(s.bgGame) : null;
     const bg = document.getElementById('appBg');
     if (g?.hero && /^https:\/\//.test(g.hero)) {
@@ -118,6 +119,17 @@
       bg.style.backgroundImage = '';
       document.body.classList.remove('has-bg');
     }
+  }
+
+  // Densidad, esquinas, brillo del fondo, tamaño y movimiento
+  function style(s) {
+    const root = document.documentElement;
+    root.dataset.density = s.density || 'comoda';
+    root.dataset.radius = s.radius || 'suaves';
+    root.dataset.glow = s.glow || 'soft';
+    root.dataset.motion = s.motion || 'full';
+    const z = Number(s.uiScale) || 100;
+    document.body ? (document.body.style.zoom = z === 100 ? '' : String(z / 100)) : null;
   }
 
   /** Colores de muestra de una paleta (para dibujar su botón en Ajustes). */
@@ -140,6 +152,8 @@
       const light = last.theme === 'system' ? media.matches : last.theme === 'light';
       document.documentElement.dataset.theme = light ? 'light' : 'dark';
       for (const [k, v] of Object.entries(tokens(palette(last), light))) document.documentElement.style.setProperty(k, v);
+      if (document.body) style(last);
+      else document.addEventListener('DOMContentLoaded', () => style(last), { once: true });
     }
   } catch {}
 })();

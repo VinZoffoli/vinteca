@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1a1214">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ViperTeca">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="/m/manifest.webmanifest?t=__T__">
+<link rel="apple-touch-icon" href="/m/icon.png?t=__T__">
+<link rel="icon" href="/m/icon.png?t=__T__">
+<title>ViperTeca</title>
+<style>
+:root{
+  --bg:#1a1214;--bg2:#211719;--card:#261b1e;--card2:#30232700;--line:#3b2b30;--text:#f8eef0;--muted:#b8a3a8;--faint:#7f6a70;
+  --accent:#ef3a3f;--gold:#ffc247;--cyan:#62e0e8;--green:#7ee2a8;--ink:#fff;
+  --ease:cubic-bezier(.23,1,.32,1);--r:18px;
+  --safe-t:env(safe-area-inset-top);--safe-b:env(safe-area-inset-bottom);
+  --display:"SF Pro Display",-apple-system,system-ui,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,system-ui,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+body{overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+input,select,textarea{font:inherit;font-size:16px;color:var(--text)}
+a{color:var(--cyan)}
+.app{position:fixed;inset:0;display:flex;flex-direction:column}
+.glow{position:fixed;inset:0;pointer-events:none;background:radial-gradient(90vw 50vh at 100% -10%,rgba(239,58,63,.18),transparent 70%),radial-gradient(80vw 40vh at -10% 110%,rgba(98,224,232,.08),transparent 70%)}
+main{position:relative;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 96px);overscroll-behavior-y:contain}
+header.hd{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:6px 2px 16px}
+header.hd h1{margin:0;font:800 34px/1.05 var(--display);letter-spacing:-.02em}
+header.hd p{margin:4px 0 0;color:var(--muted);font-size:15px}
+.refresh{width:40px;height:40px;border-radius:50%;background:var(--card);display:grid;place-items:center;border:1px solid var(--line);transition:transform .16s var(--ease)}
+.refresh:active{transform:scale(.92)}
+.refresh svg{width:19px;height:19px}
+.refresh.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+svg{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.strip{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.stat{padding:14px;border-radius:var(--r);background:linear-gradient(180deg,#2c2024,#231a1d);border:1px solid var(--line)}
+.stat small{display:block;color:var(--muted);font-size:13px}
+.stat b{display:block;margin-top:2px;font:800 30px/1.05 var(--display);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat b.hot{color:var(--accent)}
+.card{margin:0 0 12px;padding:14px 16px;border-radius:var(--r);background:linear-gradient(180deg,#2a1e22,#22181b);border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.card h3{margin:0 0 8px;font:700 17px/1.2 var(--display);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h3 small{font:500 13px var(--display);color:var(--muted)}
+.hero{position:relative;overflow:hidden;padding:18px;border-radius:22px;margin-bottom:14px;background:radial-gradient(120% 140% at 0 0,rgba(239,58,63,.35),transparent 60%),#261b1e;border:1px solid rgba(239,58,63,.45)}
+.hero small{color:var(--gold);font-weight:600;font-size:13px}
+.hero h2{margin:4px 0 2px;font:800 24px/1.15 var(--display);letter-spacing:-.01em}
+.hero p{margin:0;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.list li:last-child{border-bottom:0}
+.list li .t{min-width:0;flex:1}
+.list li .t span{display:block;overflow-wrap:anywhere}
+.list li .t small{display:block;color:var(--muted);font-size:13px}
+.list li b{flex:none;font-weight:600;font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.list li.hot b,.big.hot,b.hot{color:var(--accent)}
+.list li.ok b{color:var(--green)}
+.list li.past .t span{color:var(--faint);text-decoration:line-through}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-weight:600;font-size:15px;transition:transform .16s var(--ease),background-color .15s}
+.btn:active{transform:scale(.96)}
+.btn.primary{background:var(--accent);border-color:transparent;color:#fff;box-shadow:0 8px 20px -10px rgba(239,58,63,.9)}
+.btn.small{min-height:34px;padding:0 12px;font-size:14px}
+.btn.done{background:rgba(126,226,168,.14);border-color:rgba(126,226,168,.45);color:var(--green)}
+.seg{display:flex;gap:4px;padding:4px;margin:0 0 14px;border-radius:14px;background:var(--bg2);border:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:1 0 auto;min-height:36px;padding:0 14px;border-radius:10px;color:var(--muted);font-weight:600;font-size:14px;transition:background-color .2s var(--ease),color .2s}
+.seg button.on{background:var(--card);color:var(--text);box-shadow:0 2px 8px -2px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05)}
+.field{width:100%;min-height:44px;padding:10px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line);outline:none}
+.field:focus{border-color:var(--accent)}
+.row{display:flex;gap:8px;align-items:center}
+.row .field{flex:1;min-width:0}
+.check{display:flex;align-items:center;gap:12px;min-height:46px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.check:last-child{border-bottom:0}
+.check i{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;transition:background-color .2s var(--ease),border-color .2s}
+.check.on i{background:var(--accent);border-color:var(--accent)}
+.check.on i::after{content:"";width:9px;height:5px;border:2.5px solid #fff;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.check.on span{color:var(--faint);text-decoration:line-through}
+.check small{margin-left:auto;color:var(--muted)}
+h4.sec{margin:16px 2px 6px;font:600 13px var(--display);color:var(--muted);letter-spacing:.02em}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin:8px 0 4px}
+.bar i{display:block;height:100%;border-radius:4px;background:var(--gold);transition:width .5s var(--ease)}
+.bar i.hot{background:var(--accent)}
+.big{font:800 34px/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin:2px 0}
+.covers{display:flex;gap:10px;overflow-x:auto;margin:0 -16px 14px;padding:0 16px 4px;scroll-padding-inline:16px;scroll-snap-type:x mandatory;scrollbar-width:none}
+.covers::-webkit-scrollbar{display:none}
+.covers button{flex:none;width:104px;scroll-snap-align:start;text-align:left}
+.covers img,.covers .ph{width:104px;aspect-ratio:2/3;object-fit:cover;border-radius:12px;background:var(--card);display:block;box-shadow:0 10px 20px -12px #000}
+.covers span{display:block;margin-top:6px;font-size:13px;line-height:1.25;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.game{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.game img,.game .ph{width:40px;height:60px;border-radius:8px;object-fit:cover;background:var(--card);flex:none}
+.game .t{flex:1;min-width:0}
+.game .t span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game .t small{color:var(--muted);font-size:13px}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(98,224,232,.14);color:var(--cyan)}
+.chat{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.msg{max-width:88%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:rgba(239,58,63,.25);border-bottom-right-radius:6px}
+.msg.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
+.msg.wait{color:var(--muted)}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.err{margin:0 0 12px;padding:12px 14px;border-radius:14px;background:rgba(239,58,63,.12);border:1px solid rgba(239,58,63,.4);color:#ffd0d2}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 6px calc(var(--safe-b) + 6px);background:rgba(26,18,20,.82);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border-top:1px solid rgba(255,255,255,.07)}
+nav.tabs button{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--faint);font-size:11px;font-weight:600;transition:color .2s,transform .16s var(--ease)}
+nav.tabs button:active{transform:scale(.92)}
+nav.tabs button svg{width:24px;height:24px}
+nav.tabs button.on{color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 84px);z-index:9;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:rgba(48,35,39,.95);border:1px solid var(--line);font-size:14px;transition:opacity .2s var(--ease),transform .25s var(--ease)}
+@starting-style{.toast{opacity:0;transform:translate(-50%,10px)}}
+.skel{height:64px;border-radius:var(--r);margin-bottom:12px;background:linear-gradient(90deg,#241a1d 0,#2e2226 50%,#241a1d 100%);background-size:200% 100%;animation:sk 1.2s linear infinite}
+@keyframes sk{to{background-position:-200% 0}}
+.view{animation:in .28s var(--ease)}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){.view,.skel,.refresh.spin svg{animation:none}}
+@media (hover:hover) and (pointer:fine){.btn:hover{border-color:var(--muted)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="glow" aria-hidden="true"></div>
+  <main id="main"></main>
+  <nav class="tabs" id="tabs" aria-label="Secciones"></nav>
+</div>
+<script>
+'use strict';
+const T = new URLSearchParams(location.search).get('t') || '__T__';
+const $ = (s) => document.querySelector(s);
+function h(tag, a, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(a || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'style') el.setAttribute('style', v);
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v);
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false && c !== '') el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+const svg = (d) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.innerHTML = d; return s; };
+const ICONS = {
+  hoy: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/>',
+  casa: '<path d="M4 11 12 4.5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>',
+  juegos: '<rect x="3" y="7" width="18" height="11" rx="5"/><path d="M8 10.5v4M6 12.5h4M15.5 11.5h.01M17.5 13.5h.01"/>',
+  genshin: '<path d="M12 3l2.2 6.3L21 12l-6.8 2.7L12 21l-2.2-6.3L3 12l6.8-2.7z"/>',
+  mas: '<circle cx="5.5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18.5" cy="12" r="1.4"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4.5V11h-6.5"/>',
+};
+const TABS = [['hoy', 'Hoy'], ['casa', 'Casa'], ['juegos', 'Juegos'], ['genshin', 'Genshin'], ['mas', 'Más']];
+const S = { tab: localStorage.getItem('vt-tab') || 'hoy', sub: JSON.parse(localStorage.getItem('vt-sub') || '{}'), data: {}, at: {}, busy: false, chat: JSON.parse(sessionStorage.getItem('vt-chat') || '{"msgs":[],"session":null}') };
+const api = async (p, opt) => {
+  const r = await fetch(p + (p.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(T), opt);
+  if (r.status === 403) throw new Error('El código no vale: escanea el QR de ViperTeca otra vez.');
+  if (!r.ok) throw new Error('El PC respondió con un error (' + r.status + ').');
+  return r.json();
+};
+const DAY = 86400000;
+const hm = (t) => new Date(t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+const dd = (t) => new Date(t).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+const when = (d) => d == null ? 'sin fecha' : d === 0 ? 'hoy' : d === 1 ? 'mañana' : d < 0 ? 'atrasado' : 'en ' + d + ' días';
+const money = (v, c) => Number(v || 0).toLocaleString('es') + ' ' + (c || '');
+const until = (t) => { const m = Math.round((t - Date.now()) / 60000); if (m <= 0) return 'ahora'; if (m < 60) return 'en ' + m + ' min'; const hh = Math.floor(m / 60); return hh < 48 ? 'en ' + hh + ' h' : 'en ' + Math.round(hh / 24) + ' días'; };
+const plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+function toast(t) { document.querySelector('.toast')?.remove(); const el = h('div', { class: 'toast', role: 'status', text: t }); document.body.append(el); setTimeout(() => el.remove(), 2600); }
+const li = (main, side, cls, sub) => h('li', { class: cls || '' }, h('div', { class: 't' }, h('span', { text: main }), sub && h('small', { text: sub })), side != null && h('b', { text: side }));
+const card = (title, extra, ...kids) => { const body = kids.flat().filter(Boolean); return body.length ? h('section', { class: 'card' }, h('h3', {}, title, extra && h('small', { text: extra })), body) : null; };
+const list = (rows) => rows.length ? h('ul', { class: 'list' }, rows) : null;
+const seg = (key, opts) => { const cur = S.sub[key] || opts[0][0]; return h('div', { class: 'seg', role: 'tablist' }, opts.map(([k, l]) => h('button', { class: k === cur ? 'on' : '', role: 'tab', 'aria-selected': String(k === cur), text: l, onclick: () => { S.sub[key] = k; localStorage.setItem('vt-sub', JSON.stringify(S.sub)); render(); } }))); };
+const sub = (key, def) => S.sub[key] || def;
+
+async function load(section, force) {
+  if (!force && S.data[section] && Date.now() - S.at[section] < 30000) return;
+  S.busy = true; renderHead();
+  try { S.data[section] = await api('/api/m?s=' + section); S.at[section] = Date.now(); S.error = null; }
+  catch (e) { S.error = e.message || 'No llego al PC. ¿Está ViperTeca abierta?'; }
+  S.busy = false; render();
+}
+async function act(a, params, ok) {
+  const q = Object.entries(params || {}).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  try { const r = await api('/api/m/act?a=' + a + (q ? '&' + q : ''), { method: 'POST' }); if (r.ok) { if (ok) toast(ok); } else toast('No se pudo.'); }
+  catch (e) { toast(e.message); }
+}
+
+// ------------------------------------------------ HOY
+function hoy(d) {
+  const now = new Date();
+  const meets = d.meetings.filter((m) => !m.allDay);
+  const nx = meets.find((m) => m.end > Date.now());
+  return [
+    h('div', { class: 'strip' },
+      h('div', { class: 'stat' }, h('small', { text: 'Reuniones hoy' }), h('b', { text: String(meets.length) })),
+      h('div', { class: 'stat' }, h('small', { text: 'Pagos 7 días' }), h('b', { class: d.pays.some((p) => p.days <= 0) ? 'hot' : '', text: String(d.pays.length) })),
+      h('div', { class: 'stat' }, h('small', { text: 'Por comprar' }), h('b', { text: String(d.shopping) })),
+      h('div', { class: 'stat' }, h('small', { text: d.fx ? 'Dólar hoy' : 'Correos sin leer' }), h('b', { text: d.fx ? '₡' + Math.round(d.fx.sell) : String(d.mail?.count ?? '—') }))
+    ),
+    nx && h('section', { class: 'hero' }, h('small', { text: nx.start <= Date.now() ? 'Reunión en curso' : 'Próxima reunión · ' + until(nx.start) }), h('h2', { text: nx.title }), h('p', { text: hm(nx.start) + ' – ' + hm(nx.end) }), nx.link && /^https:\/\/meet\.google\.com\//.test(nx.link) && h('a', { class: 'btn primary', href: nx.link, style: 'margin-top:12px;text-decoration:none', text: 'Unirse' })),
+    d.missed?.length ? card('Mientras jugabas', plural(d.missed.length, 'aviso', 'avisos'), list(d.missed.slice(0, 6).map((m) => li(m.title, hm(m.at))))) : null,
+    card('Agenda de hoy', null, list(d.meetings.map((m) => li(m.title, m.allDay ? 'todo el día' : hm(m.start), m.end < Date.now() ? 'past' : '')))),
+    card('Pagos que vienen', null, list(d.pays.map((p) => li(p.name + (p.group && p.group !== 'Personal' ? ' (' + p.group + ')' : ''), when(p.days), p.days <= 0 ? 'hot' : '', p.amount ? money(p.amount, p.currency) : null)))),
+    card('Trámites', null, list((d.tramites || []).map((t) => li(t.name, when(t.days), t.days <= 7 ? 'hot' : '')))),
+    card('Cumpleaños', null, list(d.bdays.map((b) => li(b.name + (b.kind === 'gato' ? ' 🐾' : ''), when(b.days), b.days === 0 ? 'hot' : '', b.age ? 'cumple ' + b.age : null)))),
+    card('Recordatorios', null, list(d.rems.map((r) => li(r.title, when(r.days))))),
+    card('Gatitos', null, list(d.cats.map((c) => li(c.cat + ': ' + c.type, when(c.days), c.days <= 0 ? 'hot' : '')))),
+    card('Tickets de Notion', d.tickets.length ? String(d.tickets.length) : null, list(d.tickets.slice(0, 6).map((t) => li(t.title, t.late ? 'vencido' : t.deadline, t.late ? 'hot' : '')))),
+    card('Correo', d.mail?.count ? plural(d.mail.count, 'sin leer', 'sin leer') : null, list((d.mail?.last || []).map((m) => li(m.subject, null, '', m.from)))),
+    card('Anime', null, list(d.anime.map((a) => li(a.title, hm(a.at), '', a.what)))),
+    d.resin && card('Genshin', null, h('p', { class: 'big ' + (d.resin.value >= d.resin.max ? 'hot' : ''), text: 'Resina ' + d.resin.value + '/' + d.resin.max }), list(d.resets.map((r) => li(r.name, until(r.at))))),
+    d.budget?.limit ? card('Presupuesto del mes', null, h('p', { class: 'big', text: money(d.budget.spent, d.budget.currency) }), h('div', { class: 'bar' }, h('i', { class: d.budget.spent > d.budget.limit ? 'hot' : '', style: 'width:' + Math.min(100, d.budget.spent / d.budget.limit * 100) + '%' })), h('small', { style: 'color:var(--muted)', text: 'de ' + money(d.budget.limit, d.budget.currency) })) : null,
+  ];
+}
+
+// ------------------------------------------------ CASA
+function casa(d) {
+  const tab = sub('casa', 'compras');
+  const out = [seg('casa', [['compras', 'Compras'], ['pagos', 'Pagos'], ['presupuesto', 'Presupuesto'], ['fechas', 'Fechas'], ['regalos', 'Regalos']])];
+  if (tab === 'compras') {
+    const name = h('input', { class: 'field', placeholder: 'Qué falta', enterkeyhint: 'done', autocomplete: 'off' });
+    const qty = h('input', { class: 'field', placeholder: 'Cant.', style: 'flex:0 0 76px' });
+    const add = async () => { const n = name.value.trim(); if (!n) return name.focus(); await api('/api/compras/add?name=' + encodeURIComponent(n) + '&qty=' + encodeURIComponent(qty.value), { method: 'POST' }); name.value = ''; qty.value = ''; load('casa', true); };
+    name.addEventListener('keydown', (e) => e.key === 'Enter' && add());
+    const items = d.shopping.items;
+    const pend = items.filter((x) => !x.done);
+    const cats = [...new Set([...d.shopping.cats, ...pend.map((x) => x.cat)])];
+    const row = (x) => h('button', { class: 'check' + (x.done ? ' on' : ''), role: 'checkbox', 'aria-checked': String(!!x.done), onclick: async () => { x.done = !x.done; render(); await api('/api/compras/toggle?id=' + encodeURIComponent(x.id), { method: 'POST' }); S.at.casa = 0; } }, h('i'), h('span', { text: x.name }), x.qty && h('small', { text: x.qty }));
+    out.push(h('section', { class: 'card' }, h('div', { class: 'row' }, name, qty, h('button', { class: 'btn primary', text: 'Añadir', onclick: add }))));
+    for (const c of cats) { const l = pend.filter((x) => x.cat === c); if (l.length) out.push(card(c, String(l.length), l.map(row))); }
+    if (!pend.length) out.push(h('p', { class: 'empty', text: 'No falta nada por comprar.' }));
+    const done = items.filter((x) => x.done);
+    if (done.length) out.push(card('Comprado', String(done.length), done.slice(0, 30).map(row)));
+  }
+  if (tab === 'pagos') {
+    for (const g of d.groups) {
+      const l = d.payments.filter((p) => p.group === g);
+      if (!l.length) continue;
+      out.push(card(g, null, list(l.map((p) => h('li', { class: p.paid ? 'ok' : p.days != null && p.days <= 0 ? 'hot' : '' },
+        h('div', { class: 't' }, h('span', { text: p.name }), h('small', { text: [p.amount ? money(p.amount, p.currency) : null, p.day ? 'día ' + p.day : 'sin fecha', p.paid ? 'pagado este mes' : p.days != null ? when(p.days) : null].filter(Boolean).join(' · ') })),
+        h('button', { class: 'btn small' + (p.paid ? ' done' : ''), text: p.paid ? 'Pagado' : 'Marcar pagado', onclick: async () => { p.paid = !p.paid; render(); await act('pay', { id: p.id }, p.paid ? 'Marcado como pagado' : 'Desmarcado'); S.at.casa = 0; } })
+      )))));
+    }
+  }
+  if (tab === 'presupuesto') {
+    const b = d.budget;
+    const amount = h('input', { class: 'field', type: 'number', inputmode: 'decimal', placeholder: 'Monto' });
+    const cat = h('select', { class: 'field', style: 'flex:0 0 130px' }, ['Comida', 'Casa', 'Transporte', 'Salud', 'Gatos', 'Salidas', 'Regalos', 'Otros'].map((c) => h('option', { value: c, text: c })));
+    const note = h('input', { class: 'field', placeholder: 'En qué (opcional)' });
+    out.push(h('section', { class: 'hero' }, h('small', { text: 'Gastado este mes' }), h('h2', { text: money(b.spent, b.currency) }), b.limit ? [h('div', { class: 'bar' }, h('i', { class: b.spent > b.limit ? 'hot' : '', style: 'width:' + Math.min(100, b.spent / b.limit * 100) + '%' })), h('p', { text: b.spent > b.limit ? 'Te pasaste por ' + money(b.spent - b.limit, b.currency) : 'Te quedan ' + money(b.limit - b.spent, b.currency) })] : h('p', { text: 'Sin límite puesto (se pone en el PC).' })));
+    out.push(card('Anotar un gasto', null, h('div', { class: 'row', style: 'margin-bottom:8px' }, amount, cat), h('div', { class: 'row' }, note, h('button', { class: 'btn primary', text: 'Anotar', onclick: async () => { if (!Number(amount.value)) return amount.focus(); await act('expense', { amount: amount.value, cat: cat.value, note: note.value }, 'Gasto anotado'); load('casa', true); } }))));
+    if (d.fx) {
+      const usd = h('input', { class: 'field', type: 'number', inputmode: 'decimal', placeholder: 'USD' });
+      const crc = h('input', { class: 'field', type: 'number', inputmode: 'decimal', placeholder: 'CRC' });
+      usd.addEventListener('input', () => { crc.value = usd.value ? Math.round(usd.value * d.fx.sell) : ''; });
+      crc.addEventListener('input', () => { usd.value = crc.value ? (crc.value / d.fx.sell).toFixed(2) : ''; });
+      out.push(card('Dólar hoy', 'venta ₡' + d.fx.sell + ' · compra ₡' + d.fx.buy, h('div', { class: 'row' }, usd, h('span', { text: '=' }), crc)));
+    }
+    out.push(card('En qué se va', null, list(Object.entries(b.byKind).sort((x, y) => y[1] - x[1]).map(([k, v]) => li(k, money(v, b.currency))))));
+    out.push(card('Movimientos', null, list(b.lines.map((l) => li(l.name, money(l.amount, b.currency), '', l.kind)))));
+  }
+  if (tab === 'fechas') {
+    out.push(card('Trámites', null, list(d.tramites.map((t) => li(t.name, when(t.days), t.days != null && t.days <= 30 ? 'hot' : '', t.due ? new Date(t.due + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : 'pon la fecha en el PC')))));
+    out.push(card('Recordatorios', null, list(d.reminders.map((r) => h('li', {}, h('div', { class: 't' }, h('span', { text: r.title }), h('small', { text: when(r.days) + (r.time ? ' · ' + r.time : '') })), h('button', { class: 'btn small', text: 'Hecho', onclick: async () => { await act('rem', { id: r.id }, 'Hecho'); load('casa', true); } }))))));
+    out.push(card('Cumpleaños', null, list(d.birthdays.slice(0, 14).map((b) => li(b.name + (b.kind === 'gato' ? ' 🐾' : ''), when(b.days), b.days <= 7 ? 'hot' : '', (b.day || '¿?') + '/' + b.month + (b.age ? ' · cumple ' + b.age : ''))))));
+    out.push(card('Gatitos', null, list(d.cats.map((c) => li(c.cat + ': ' + c.type, when(c.days), c.days <= 0 ? 'hot' : '')))));
+  }
+  if (tab === 'regalos') {
+    const by = {};
+    for (const g of d.gifts) (by[g.for] ||= []).push(g);
+    for (const [p, l] of Object.entries(by)) out.push(card('Para ' + p, String(l.length), list(l.map((g) => li(g.name, g.price ? money(g.price, '') : null, '', g.note)))));
+    if (!d.gifts.length) out.push(h('p', { class: 'empty', text: 'No hay ideas de regalo anotadas.' }));
+  }
+  return out;
+}
+
+// ------------------------------------------------ JUEGOS
+function juegos(d) {
+  const q = S.q || '';
+  const search = h('input', { class: 'field', type: 'search', placeholder: 'Buscar entre tus ' + d.installed.length + ' juegos instalados', value: q, oninput: (e) => { S.q = e.target.value; const pos = e.target.selectionStart; render(); const i = $('main input[type=search]'); i.focus(); i.setSelectionRange(pos, pos); } });
+  const n = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const launch = async (g) => { try { const r = await api('/api/launch?id=' + encodeURIComponent(g.id), { method: 'POST' }); toast(r.ok ? 'Abriendo ' + g.title + ' en el PC' : r.error || 'No se pudo abrir'); } catch (e) { toast(e.message); } };
+  const gameRow = (g) => h('div', { class: 'game' }, g.cover ? h('img', { src: g.cover, alt: '', loading: 'lazy' }) : h('div', { class: 'ph' }), h('div', { class: 't' }, h('span', { text: g.title }), h('small', { text: [g.hours ? g.hours + ' h' : null, g.lastPlayed ? 'jugado ' + dd(g.lastPlayed) : null].filter(Boolean).join(' · ') || g.store })), g.installed && h('button', { class: 'btn small', text: 'Jugar', onclick: () => launch(g) }));
+  const filtered = q ? d.installed.filter((g) => n(g.title).includes(n(q))) : d.installed;
+  return [
+    d.current && h('section', { class: 'hero' }, h('small', { text: 'Jugando ahora en el PC' }), h('h2', { text: d.current.title }), h('p', { text: 'desde las ' + hm(d.current.start) + (d.focus === 'on' ? ' · modo enfoque activo' : '') })),
+    h('div', { class: 'strip' }, h('div', { class: 'stat' }, h('small', { text: 'Esta semana' }), h('b', { text: d.weekMin >= 60 ? Math.round(d.weekMin / 60) + ' h' : d.weekMin + ' min' })), h('div', { class: 'stat' }, h('small', { text: 'Instalados' }), h('b', { text: String(d.installed.length) }))),
+    !q && d.recent.length && [h('h4', { class: 'sec', text: 'Lo último que jugaste' }), h('div', { class: 'covers' }, d.recent.map((g) => h('button', { onclick: () => g.installed ? launch(g) : toast('No está instalado') }, g.cover ? h('img', { src: g.cover, alt: '', loading: 'lazy' }) : h('div', { class: 'ph' }), h('span', { text: g.title }))))],
+    h('div', { style: 'margin-bottom:10px' }, search),
+    h('section', { class: 'card' }, filtered.length ? filtered.slice(0, 80).map(gameRow) : h('p', { class: 'empty', text: 'No hay juegos instalados con ese nombre.' })),
+  ];
+}
+
+// ------------------------------------------------ GENSHIN
+function genshin(d) {
+  const r = d.resin;
+  return [
+    r ? h('section', { class: 'hero' }, h('small', { text: r.value >= r.max ? 'Resina llena' : r.fullAt ? 'Se llena ' + until(r.fullAt) : 'Resina' }), h('h2', { class: 'big', text: r.value + ' / ' + r.max }), h('div', { class: 'bar' }, h('i', { class: r.value >= r.max ? 'hot' : '', style: 'width:' + Math.min(100, r.value / r.max * 100) + '%' }))) : null,
+    card('Reinicios', null, list(d.resets.map((x) => li(x.name, until(x.at))))),
+    card('Tus tiradas', null, list(d.pools.map((p) => li(p.name, p.pity + '/' + p.hard, p.pity >= 74 ? 'hot' : '', p.key === 'character' ? (p.guaranteed ? 'el próximo 5★ es garantizado' : 'en 50/50') : null)))),
+    card('Especialidades y minerales', null, d.gather.length ? list(d.gather.map((g) => { const ready = g.readyAt <= Date.now(); return h('li', { class: ready ? 'ok' : '' }, h('div', { class: 't' }, h('span', { text: g.name }), h('small', { text: ready ? 'listo para recoger' : 'vuelve ' + until(g.readyAt) })), h('button', { class: 'btn small' + (ready ? ' done' : ''), text: 'Ya recogí', onclick: async () => { await act('gather', { id: g.id }, 'Anotado'); load('genshin', true); } })); })) : h('p', { class: 'empty', text: 'Añade recolecciones en el PC (Genshin → Farmeo).' })),
+    card('Códigos', null, list(d.codes.map((c) => h('li', { class: c.used ? 'past' : '' }, h('div', { class: 't' }, h('span', { text: c.code, style: '-webkit-user-select:all;user-select:all;font-weight:700;letter-spacing:.04em' }), h('small', { text: (c.rewards || []).join(', ') })), c.url && h('a', { class: 'btn small', href: c.url, target: '_blank', rel: 'noreferrer', style: 'text-decoration:none', text: 'Canjear' }))))),
+  ];
+}
+
+// ------------------------------------------------ MÁS
+function mas() {
+  const tab = sub('mas', 'preguntar');
+  const out = [seg('mas', [['preguntar', 'Pregúntale'], ['trabajo', 'Trabajo'], ['anime', 'Anime'], ['pc', 'PC']])];
+  if (tab === 'preguntar') {
+    const c = S.chat;
+    const input = h('textarea', { class: 'field', rows: '2', placeholder: 'Pregunta lo que quieras…', style: 'resize:none' });
+    const send = async () => {
+      const t = input.value.trim();
+      if (!t || S.asking) return;
+      c.msgs.push({ me: true, text: t }); S.asking = true; render();
+      try { const r = await api('/api/m/ask', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ text: t, session: c.session }) }); c.session = r.session; c.msgs.push({ me: false, text: r.text }); }
+      catch (e) { c.msgs.push({ me: false, text: e.message }); }
+      S.asking = false; sessionStorage.setItem('vt-chat', JSON.stringify(c)); render();
+      main.scrollTop = main.scrollHeight;
+    };
+    out.push(h('div', { class: 'chat' }, c.msgs.length ? c.msgs.map((m) => h('div', { class: 'msg ' + (m.me ? 'me' : 'ai'), text: m.text })) : h('p', { class: 'empty', text: 'Pregúntale por tus pagos, tu agenda, el dólar, tus juegos o Genshin. Responde tu Claude Code desde el PC.' }), S.asking && h('div', { class: 'msg ai wait', text: 'Pensando…' })));
+    out.push(h('section', { class: 'card' }, input, h('div', { class: 'row', style: 'margin-top:8px;justify-content:flex-end' }, c.msgs.length && h('button', { class: 'btn small', text: 'Nueva', onclick: () => { S.chat = { msgs: [], session: null }; sessionStorage.removeItem('vt-chat'); render(); } }), h('button', { class: 'btn primary', text: S.asking ? 'Esperando…' : 'Preguntar', onclick: send }))));
+    return out;
+  }
+  const d = S.data[tab];
+  if (!d) { load(tab); out.push(h('div', { class: 'skel' }), h('div', { class: 'skel' })); return out; }
+  if (tab === 'trabajo') {
+    const byDay = {};
+    for (const m of d.meetings) (byDay[new Date(m.start).toDateString()] ||= []).push(m);
+    for (const [k, l] of Object.entries(byDay)) out.push(card(dd(new Date(k).getTime()), plural(l.length, 'reunión', 'reuniones'), list(l.map((m) => h('li', { class: m.end < Date.now() ? 'past' : '' }, h('div', { class: 't' }, h('span', { text: m.title }), h('small', { text: m.allDay ? 'todo el día' : hm(m.start) + ' – ' + hm(m.end) })), m.link && h('a', { class: 'btn small', href: m.link, style: 'text-decoration:none', text: 'Unirse' }))))));
+    out.push(card('Tickets abiertos', String(d.tickets.length), list(d.tickets.map((t) => li(t.title, t.late ? 'vencido' : t.deadline || '', t.late ? 'hot' : '', t.status)))));
+    out.push(card('Correo' + (d.mail.user ? ' · ' + d.mail.user : ''), d.mail.unread ? d.mail.unread + ' sin leer' : null, list(d.mail.list.map((m) => li(m.subject, null, m.unread ? 'hot' : '', m.from)))));
+  }
+  if (tab === 'anime') out.push(card('Lo que sigues', String(d.length), list(d.map((a) => li(a.title, a.next ? dd(a.next.at) : '', '', a.next ? 'episodio ' + a.next.episode + ' · ' + hm(a.next.at) : a.status === 'NOT_YET_RELEASED' ? 'por estrenarse' : 'sin episodios nuevos')))));
+  if (tab === 'pc') {
+    const s = d.sensors;
+    out.push(d.current ? h('section', { class: 'hero' }, h('small', { text: 'Jugando ahora' }), h('h2', { text: d.current.title }), h('p', { text: 'desde las ' + hm(d.current.start) })) : null);
+    out.push(s ? h('div', { class: 'strip' }, h('div', { class: 'stat' }, h('small', { text: 'CPU' }), h('b', { text: s.cpu?.temp != null ? Math.round(s.cpu.temp) + ' °C' : '—' }), h('small', { text: s.cpu?.load != null ? Math.round(s.cpu.load) + ' % de uso' : '' })), h('div', { class: 'stat' }, h('small', { text: 'GPU' }), h('b', { text: s.gpu?.temp != null ? Math.round(s.gpu.temp) + ' °C' : '—' }), h('small', { text: s.gpu?.load != null ? Math.round(s.gpu.load) + ' % de uso' : '' }))) : h('p', { class: 'empty', text: 'Sin sensores: abre LibreHardwareMonitor en el PC.' }));
+    if (s?.fans?.length) out.push(card('Ventiladores', null, list(s.fans.map((f) => li(f.name, f.rpm + ' rpm')))));
+    out.push(card('Modo enfoque', null, h('p', { text: d.focus?.mode === 'on' ? 'Activo en ' + (d.focus.game?.title || 'un juego') : d.focus?.mode === 'waiting' ? 'Esperando a que abras un juego' : 'Apagado' })));
+  }
+  return out;
+}
+
+// ------------------------------------------------ marco
+const TITLES = { hoy: () => { const hr = new Date().getHours(); return hr < 12 ? 'Buenos días' : hr < 19 ? 'Buenas tardes' : 'Buenas noches'; }, casa: () => 'Casa', juegos: () => 'Juegos', genshin: () => 'Genshin', mas: () => 'Más' };
+const main = $('#main');
+function renderHead() { const b = $('.refresh'); if (b) b.classList.toggle('spin', S.busy); }
+function render() {
+  const t = S.tab;
+  const keep = main.scrollTop;
+  const d = t === 'mas' ? true : S.data[t];
+  const head = h('header', { class: 'hd' }, h('div', {}, h('h1', { text: TITLES[t]() }), h('p', { text: t === 'hoy' ? new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase()) : S.at[t] ? 'Actualizado a las ' + hm(S.at[t]) : 'ViperTeca en tu PC' })), h('button', { class: 'refresh' + (S.busy ? ' spin' : ''), 'aria-label': 'Actualizar', onclick: () => load(t === 'mas' ? sub('mas', 'preguntar') : t, true) }, svg(ICONS.refresh)));
+  const body = S.error && !S.data[t] ? [h('p', { class: 'err', text: S.error })] : !d ? [h('div', { class: 'skel' }), h('div', { class: 'skel' }), h('div', { class: 'skel' })] : t === 'hoy' ? hoy(d) : t === 'casa' ? casa(d) : t === 'juegos' ? juegos(d) : t === 'genshin' ? genshin(d) : mas();
+  main.replaceChildren(h('div', { class: 'view' }, head, S.error && S.data[t] ? h('p', { class: 'err', text: S.error }) : null, body));
+  main.scrollTop = keep;
+  $('#tabs').replaceChildren(...TABS.map(([k, l]) => h('button', { class: k === t ? 'on' : '', 'aria-current': k === t ? 'page' : null, onclick: () => { if (S.tab === k) { main.scrollTo({ top: 0, behavior: 'smooth' }); return; } S.tab = k; localStorage.setItem('vt-tab', k); main.scrollTop = 0; render(); if (k !== 'mas') load(k); } }, svg(ICONS[k]), h('span', { text: l }))));
+}
+render();
+if (S.tab !== 'mas') load(S.tab);
+// se actualiza solo cada minuto mientras la tienes delante
+setInterval(() => { if (document.visibilityState === 'visible' && S.tab !== 'mas') load(S.tab, true); }, 60000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.tab !== 'mas') load(S.tab); });
+</script>
+</body>
+</html>

@@ -258,6 +258,14 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.18
+
+- **Diseño renovado en toda la app**: superficies con profundidad y una sola familia de tarjetas, títulos más firmes, Mi día con un saludo grande y cifras en tarjetas, menú lateral translúcido, botones que responden al pulsar, foco visible con el teclado, diálogos y avisos que entran suaves, y textos largos que ya no se salen.
+- **Más personalización** (Ajustes → Apariencia → Estilo): densidad cómoda o compacta, esquinas rectas, suaves o redondas, luz de fondo apagada, suave o intensa, tamaño de la interfaz (90 a 120 %) y animaciones completas o mínimas.
+- **ViperTeca en el iPhone**: en «En el móvil» hay una app completa para el celular (Hoy, Casa, Juegos, Genshin y Más: Pregúntale, trabajo, anime y el PC), en vivo mientras ViperTeca está abierta. Se instala desde Safari con «Añadir a pantalla de inicio». Desde el teléfono puedes marcar compras, pagos, recordatorios y recolecciones, anotar gastos, abrir juegos en el PC y preguntar.
+- **Desde cualquier red con Tailscale**: si instalas Tailscale en el PC y en el iPhone (y entras tú con tu cuenta), aparece un segundo código que funciona con datos móviles o en otra wifi. Es una red privada entre tus aparatos: nada queda abierto a internet.
+- **Genshin → Mapa**: el mapa interactivo oficial de HoYoLAB en una ventana de la app, con su propia sesión (tus marcas quedan guardadas) y abriéndose donde lo dejaste.
+
 ## Novedades de la 1.17
 
 - **Rendimiento por juego**: en la ficha de cada juego, el FPS medio, el 1 % bajo y la temperatura máxima de CPU y GPU de cada partida medida con el modo enfoque, con un gráfico de las últimas 24.

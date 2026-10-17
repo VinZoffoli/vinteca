@@ -55,6 +55,11 @@ function getSettings() {
     backupDir: s.backupDir || '',
     theme: ['light', 'system'].includes(s.theme) ? s.theme : 'dark',
     bgGame: s.bgGame || '',
+    density: s.density || 'comoda',
+    radius: s.radius || 'suaves',
+    glow: s.glow || 'soft',
+    uiScale: s.uiScale || '100',
+    motion: s.motion || 'full',
     lanAuto: !!s.lanAuto,
     priceAlerts: s.priceAlerts !== false,
     calReminders: s.calReminders !== false,
@@ -116,6 +121,9 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   if (rest.customHue !== undefined) s.customHue = Math.max(0, Math.min(360, Math.round(Number(rest.customHue) || 0)));
   if (rest.customSat !== undefined) s.customSat = Math.max(0, Math.min(60, Math.round(Number(rest.customSat) || 0)));
   if (rest.bgGame !== undefined) s.bgGame = String(rest.bgGame || '').slice(0, 200);
+  // estilo de la interfaz (Ajustes → Apariencia)
+  const LOOK = { density: ['comoda', 'compacta'], radius: ['suaves', 'rectas', 'redondas'], glow: ['soft', 'off', 'strong'], uiScale: ['100', '90', '110', '120'], motion: ['full', 'reduced'] };
+  for (const [k, ok] of Object.entries(LOOK)) if (rest[k] !== undefined) s[k] = ok.includes(String(rest[k])) ? String(rest[k]) : ok[0];
   if (clearSteamKey) delete s.steamKeyEnc;
   if (steamKey) {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('El cifrado de Windows (DPAPI) no está disponible.');

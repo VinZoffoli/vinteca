@@ -951,6 +951,14 @@ function applyAppearance(s) {
 
 function fillAppearance(s) {
   for (const b of $$('#themeSeg button')) b.classList.toggle('on', b.dataset.v === (s.theme || 'dark'));
+  const LOOK_DEF = { density: 'comoda', radius: 'suaves', glow: 'soft', uiScale: '100', motion: 'full' };
+  for (const seg of $$('#lookGrid .seg')) {
+    const k = seg.dataset.look;
+    for (const b of seg.querySelectorAll('button')) {
+      b.classList.toggle('on', b.dataset.v === String(s[k] || LOOK_DEF[k]));
+      b.onclick = () => saveAppearance({ [k]: b.dataset.v });
+    }
+  }
   const light = document.documentElement.dataset.theme === 'light';
   const ids = [...Object.keys(window.appearance.PALETTES), 'custom'];
   fill(
@@ -1042,6 +1050,7 @@ function renderLan() {
   const box = $('#lanBody');
   if (!box || $('#lanView').hidden) return;
   const auto = h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: !!state.settings?.lanAuto, onchange: async (e) => (state.settings = await window.api.saveSettings({ lanAuto: e.target.checked })) }), 'Encenderla cada vez que abro la app');
+  if (window.renderPhone) return window.renderPhone(box, l, auto);
   if (!l.running)
     return fill(
       box,
@@ -2378,6 +2387,7 @@ const GI_TABS = [
   ['deseos', 'Deseos'],
   ['farmeo', 'Farmeo'],
   ['tiradas', 'Calculadora de tiradas'],
+  ['mapa', 'Mapa'],
   ['codigos', 'Códigos'],
 ];
 function genshinTabs() {
@@ -2406,6 +2416,7 @@ function genshinOtherTab() {
   if (gi.tab === 'farmeo') return window.gplusUI?.renderFarm();
   if (gi.tab === 'codigos') return window.gplusUI?.renderCodes();
   if (gi.tab === 'tiradas') return window.gcalcUI?.render();
+  if (gi.tab === 'mapa') return window.gmapUI?.render();
   return renderPriorities();
 }
 
