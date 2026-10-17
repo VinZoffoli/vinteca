@@ -1102,6 +1102,8 @@ function showView(view) {
   $('#workanaView').hidden = view !== 'workana';
   if (view === 'workana') window.workanaUI?.show();
   $('#calView').hidden = view !== 'cal';
+  $('#casaView').hidden = !view.startsWith('casa-');
+  if (view.startsWith('casa-')) window.casaUI?.show(view.slice(5));
   $('#sensorsView').hidden = view !== 'sensors';
   $('#backlogView').hidden = view !== 'backlog';
   if (view === 'sensors') window.pcUI?.sensorsShow();

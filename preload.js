@@ -128,6 +128,11 @@ contextBridge.exposeInMainWorld('api', {
     setTeam: (id) => ipcRenderer.invoke('vercel:setTeam', id),
     get: () => ipcRenderer.invoke('vercel:get'),
   },
+  casa: {
+    get: () => ipcRenderer.invoke('casa:get'),
+    save: (d) => ipcRenderer.invoke('casa:save', d),
+    holidays: (years) => ipcRenderer.invoke('casa:holidays', years),
+  },
   onNotionChanged: (cb) => ipcRenderer.on('notion:changed', () => cb()),
   cal: {
     status: () => ipcRenderer.invoke('cal:status'),

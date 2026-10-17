@@ -38,6 +38,7 @@ const hltb = require('./src/hltb');
 const genshinFarm = require('./src/genshin-farm');
 const genshinCodes = require('./src/genshin-codes');
 const webhealth = require('./src/webhealth');
+const casa = require('./src/casa');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -211,6 +212,20 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'casa') {
+      for (const t of ['compras', 'pagos', 'recordatorios', 'cumples', 'feriados']) {
+        await js(`showView('casa-${t}')`);
+        await wait(t === 'feriados' ? 5000 : 1800);
+        await shot(`casa-${t}.png`);
+      }
+      await js(`[...document.querySelectorAll('#casaBody .seg button')].find((b) => b.textContent === 'Calendario')?.click()`);
+      await wait(1200);
+      await shot('casa-calendario.png');
+      await js(`[...document.querySelectorAll('#casaBody .ks-calhead .btn')][1]?.click()`);
+      await wait(800);
+      await shot('casa-calendario-nov.png');
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v190') {
@@ -548,6 +563,8 @@ app.whenReady().then(() => {
     setInterval(healthTick, 30 * 60000);
     setTimeout(vercelTick, 75000);
     setInterval(vercelTick, 10 * 60000);
+    setTimeout(casaTick, 30000);
+    setInterval(casaTick, 30 * 60000);
     if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
     setInterval(() => calendarTick(true), 5 * 60000);
     setInterval(calendarReminders, 30000);
@@ -2154,6 +2171,14 @@ async function notionTick() {
   for (const m of mentions.slice(0, 3)) notify(`${m.comment.author} te mencionó`, `En «${m.ticket.title}»: ${m.comment.text}`);
   if (comments.length) notify(comments.length === 1 ? `Mensaje nuevo de ${comments[0].comment.author}` : `${comments.length} mensajes nuevos en tus tickets`, comments.slice(0, 3).map((c) => `«${c.ticket.title}»: ${c.comment.text.slice(0, 90)}`).join('\n'));
   if (r.events.length && win && !win.isDestroyed()) win.webContents.send('notion:changed');
+}
+
+// ---------- Casa ----------
+ipcMain.handle('casa:get', () => casa.load(ctxRW));
+ipcMain.handle('casa:save', (_e, d) => casa.save(ctxRW, d || {}));
+ipcMain.handle('casa:holidays', (_e, years) => casa.holidays(ctxRW, (Array.isArray(years) ? years : []).map(Number).filter((y) => y >= 2000 && y <= 2100).slice(0, 3)));
+function casaTick() {
+  for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
 }
 
 ipcMain.handle('genshin:get', (_e, force, uid) => {

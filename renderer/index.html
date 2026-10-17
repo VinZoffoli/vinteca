@@ -56,6 +56,12 @@
       <button class="tab" data-view="cal" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M7.5 13h3M7.5 16.5h3M13.5 13h3"/></svg><span class="tab-lbl">Calendario</span><span id="countCal" class="count"></span></button>
       <button class="tab" data-view="notion" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span class="tab-lbl">Notion</span><span id="countNotion" class="count"></span></button>
       <button class="tab" data-view="webs" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="6" r="2"/><circle cx="6.5" cy="18" r="2"/><circle cx="17.5" cy="9" r="2"/><path d="M6.5 8v8M17.5 11c0 3-3 3.5-6 4l-3.2.8"/></svg><span class="tab-lbl">Websites</span><span id="countWebs" class="count"></span></button>
+      <p class="side-h">Casa</p>
+      <button class="tab" data-view="casa-compras" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2l2 10h10l2-7H7.2"/><circle cx="9.5" cy="19" r="1.3"/><circle cx="17" cy="19" r="1.3"/></svg><span class="tab-lbl">Compras</span><span id="countCompras" class="count"></span></button>
+      <button class="tab" data-view="casa-pagos" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M3.5 10h17M7 14.5h4"/></svg><span class="tab-lbl">Pagos</span><span id="countPagos" class="count"></span></button>
+      <button class="tab" data-view="casa-recordatorios" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15zM10 20.5h4"/></svg><span class="tab-lbl">Recordatorios</span><span id="countRecordatorios" class="count"></span></button>
+      <button class="tab" data-view="casa-cumples" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 20.5h15v-7h-15zM4.5 16.5c2.5 1.5 5 1.5 7.5 0s5-1.5 7.5 0M12 13.5V9.5M12 7c-.9-.8-.9-2 0-3 .9 1 .9 2.2 0 3z"/></svg><span class="tab-lbl">Cumpleaños</span><span id="countCumples" class="count"></span></button>
+      <button class="tab" data-view="casa-feriados" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M12 12.2l1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3z"/></svg><span class="tab-lbl">Feriados</span><span id="countFeriados" class="count"></span></button>
       <p class="side-h">Música</p>
       <button class="tab" data-view="music" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 9.6c3-1 6.4-.8 9.2.7M8 12.6c2.5-.7 5.3-.5 7.6.7M8.6 15.4c2-.5 4.1-.3 5.9.6"/></svg><span class="tab-lbl">Spotify</span><span id="countMusic" class="count"></span></button>
       <p class="side-h">Tu PC</p>
@@ -223,6 +229,15 @@
         <p class="sub">Cuánto te falta de cada juego que estás jugando o tienes pendiente, según HowLongToBeat, y cuándo lo terminarías con tu ritmo.</p>
       </div>
       <div id="backlogBody"></div>
+    </section>
+
+    <!-- Casa -->
+    <section id="casaView" class="view" hidden>
+      <div class="view-head">
+        <h1 id="casaTitle">Casa</h1>
+        <p id="casaSub" class="sub"></p>
+      </div>
+      <div id="casaBody"></div>
     </section>
 
     <!-- Resto Experience -->
@@ -583,6 +598,7 @@
   <script src="resto.js"></script>
   <script src="pc.js"></script>
   <script src="genshin-plus.js"></script>
+  <script src="casa.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>

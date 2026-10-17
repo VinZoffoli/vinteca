@@ -240,6 +240,16 @@ Tres apartados para el trabajo, en la sección **Resto Experience** del menú.
 
 **Websites**: revisa cada carpeta de `Escritorio\Vincenzo\Resto Experience\Webs` (se puede cambiar). *Revisar con GitHub* hace `git fetch` en cada repo con tus credenciales de git y te dice cuáles necesitan `git pull`, cuáles tienen cambios sin commit o commits sin subir, si tu rama va por detrás de main y cuál fue el último commit en GitHub. *Hacer git pull* solo aparece cuando la carpeta está limpia (usa `--ff-only`, así nunca pisa tu trabajo), y avisa si cambiaron las dependencias.
 
+## Casa
+
+Sección **Casa** del menú, todo guardado en este PC y editable (crear, editar y eliminar):
+
+- **Compras**: la lista de la casa por categorías (súper, verdulería, limpieza, gatos…). Marcas lo que compras, quitas lo comprado y puedes copiar la lista para mandarla por WhatsApp.
+- **Pagos**: alquiler, agua, luz, internet y demás, divididos en grupos (Personal, Abuela, Abuelo y los que crees). Pones el día del mes y ves cuántos días faltan; marcas cada mes como pagado. Te avisa unos días antes, el mismo día y si se atrasa. Los que aún no tienen fecha quedan como «Fecha por confirmar».
+- **Recordatorios**: visitas, citas y fechas sueltas, con aviso antes y el mismo día.
+- **Cumpleaños**: personas y gatitos, con cuenta regresiva y edad si pones el año. Si solo sabes el mes, se guarda así hasta que pongas el día.
+- **Feriados**: feriados nacionales oficiales de Estados Unidos, Argentina y Costa Rica (Nager.Date; no se editan), en lista o en calendario mes a mes, y si quieres con tus cumpleaños, recordatorios y pagos encima.
+
 ## Novedades de la 1.9
 
 **Websites por squad, salud y Vercel.** Las webs se agrupan por squad (A, B, C, D), según el nombre de la carpeta o el squad del pipeline de Notion. La pestaña *Salud de las webs* vigila cada 30 minutos las webs publicadas (del pipeline de Notion, de Vercel o las que añadas): si responden, cuánto tardan y cuándo vence su SSL. Te avisa si una se cae, cuando vuelve y si al SSL le quedan menos de 14 días. Con una clave gratuita de PageSpeed Insights (la pegas tú) mide velocidad, SEO y accesibilidad. *Despliegues de Vercel*, con tu token de Vercel, muestra el último despliegue de producción y de preview de cada proyecto (rama, commit, autor) y te avisa cuando uno falla.
