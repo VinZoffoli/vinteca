@@ -1725,3 +1725,16 @@ body.has-spbar .pad-hint { bottom: 90px; }
 .an-row-main .hint { margin: 0; }
 .an-ev { border-left-color: var(--pink) !important; }
 @media (max-width: 1000px) { .an-grid { grid-template-columns: 1fr; } }
+
+/* ---------- LinkedIn ---------- */
+.li-prefs { display: grid; gap: 10px; }
+.li-top { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 14px; align-items: start; }
+.li-logo { width: 48px; height: 48px; border-radius: 10px; object-fit: contain; background: #fff; }
+.li-logo.ph { display: grid; place-items: center; background: var(--surface-2); font: 700 20px var(--display); color: var(--muted); }
+.li-act { display: grid; gap: 6px; justify-items: end; }
+.li-card.tracked { border-color: color-mix(in srgb, var(--cyan) 45%, var(--line)); }
+.li-sal { color: var(--green); font-weight: 600; }
+.li-detail { padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.li-desc { margin: 0; white-space: pre-line; font-size: 13.5px; line-height: 1.55; max-height: 420px; overflow: auto; }
+@media (max-width: 800px) { .li-top { grid-template-columns: 40px 1fr; } .li-act { grid-column: 1 / -1; justify-items: start; } }
+#linkedinBody > .rx-tabs { margin-bottom: 14px; }

@@ -128,6 +128,16 @@ contextBridge.exposeInMainWorld('api', {
     setTeam: (id) => ipcRenderer.invoke('vercel:setTeam', id),
     get: () => ipcRenderer.invoke('vercel:get'),
   },
+  linkedin: {
+    state: () => ipcRenderer.invoke('li:state'),
+    search: () => ipcRenderer.invoke('li:search'),
+    detail: (id) => ipcRenderer.invoke('li:detail', id),
+    openAccount: (url) => ipcRenderer.invoke('li:open', url),
+    readAccount: (which) => ipcRenderer.invoke('li:read', which),
+    track: (job, status) => ipcRenderer.invoke('li:track', job, status),
+    savePrefs: (p) => ipcRenderer.invoke('li:prefs', p),
+    onProgress: (cb) => ipcRenderer.on('li:progress', (_e, t) => cb(t)),
+  },
   anime: {
     upcoming: (force) => ipcRenderer.invoke('anime:upcoming', force),
     search: (q) => ipcRenderer.invoke('anime:search', q),

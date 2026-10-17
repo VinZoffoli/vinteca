@@ -40,6 +40,7 @@ const genshinCodes = require('./src/genshin-codes');
 const webhealth = require('./src/webhealth');
 const casa = require('./src/casa');
 const anime = require('./src/anime');
+const linkedin = require('./src/linkedin');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -213,6 +214,17 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'linkedin') {
+      await js(`showView('linkedin')`);
+      await wait(2000);
+      await js(`[...document.querySelectorAll('#linkedinBody .toolbar .btn')].find((b) => b.textContent === 'Preferencias')?.click()`);
+      await wait(800);
+      await shot('linkedin.png');
+      await js(`[...document.querySelectorAll('#linkedinBody .rx-tabs button')][2]?.click()`);
+      await wait(800);
+      await shot('linkedin-postulaciones.png');
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'news') {
@@ -2209,6 +2221,23 @@ async function animeTick() {
   await anime.refreshFollows(ctxRW).catch(() => {});
   for (const n of anime.notices(ctxRW)) notify(n.title, n.body, n.url && /^https:\/\/anilist\.co\/anime\/\d+/.test(n.url) ? n.url : null);
 }
+ipcMain.handle('li:state', () => linkedin.state(store.read));
+ipcMain.handle('li:search', (e) => linkedin.search(ctxRW, (t) => !e.sender.isDestroyed() && e.sender.send('li:progress', t)));
+ipcMain.handle('li:detail', (_e, id) => {
+  if (!/^\d{5,15}$/.test(String(id))) throw new Error('Oferta no válida.');
+  return linkedin.detail(String(id));
+});
+ipcMain.handle('li:open', (_e, url) => {
+  const u = String(url || 'https://www.linkedin.com/login');
+  if (!/^https:\/\/www\.linkedin\.com\/(login|jobs\/view\/\d+\/?|my-items\/saved-jobs\/\?cardType=APPLIED|jobs\/collections\/recommended\/?)$/.test(u)) return false;
+  return linkedin.openAccount(u);
+});
+ipcMain.handle('li:read', (_e, which) => linkedin.readAccount(ctxRW, which === 'applied' ? 'applied' : 'recommended'));
+ipcMain.handle('li:track', (_e, job, status) => {
+  if (!job || !/^\d{5,15}$/.test(String(job.id))) throw new Error('Oferta no válida.');
+  return linkedin.track(ctxRW, job, ['saved', 'applied', 'viewed', 'interview', 'offer', 'rejected'].includes(status) ? status : null);
+});
+ipcMain.handle('li:prefs', (_e, p) => linkedin.savePrefs(ctxRW, p || {}));
 function casaTick() {
   for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
 }

@@ -240,6 +240,10 @@ Tres apartados para el trabajo, en la sección **Resto Experience** del menú.
 
 **Websites**: revisa cada carpeta de `Escritorio\Vincenzo\Resto Experience\Webs` (se puede cambiar). *Revisar con GitHub* hace `git fetch` en cada repo con tus credenciales de git y te dice cuáles necesitan `git pull`, cuáles tienen cambios sin commit o commits sin subir, si tu rama va por detrás de main y cuál fue el último commit en GitHub. *Hacer git pull* solo aparece cuando la carpeta está limpia (usa `--ff-only`, así nunca pisa tu trabajo), y avisa si cambiaron las dependencias.
 
+## LinkedIn
+
+**ViperTech → LinkedIn** tiene tres pestañas. *Buscar ofertas*: busca con tus preferencias (puestos o tecnologías, lugares, modalidad y si son del último día, semana o mes) en el buscador público de empleos de LinkedIn, sin usar tu cuenta; marca las nuevas desde la última búsqueda y, al abrir una, muestra la descripción, el tipo de empleo, el nivel y cuántos se postularon. *Recomendadas para ti* y *Mis postulaciones* leen esas páginas de tu cuenta: la primera vez se abre LinkedIn en una ventana de la app y entras tú, y desde ahí la app solo las lee cuando pulsas «Leer de LinkedIn» (dónde te postulaste, cuándo y si vieron tu solicitud o descargaron tu CV). También puedes llevar el seguimiento de cada oferta (guardada, postulé, entrevista, oferta…). ViperTeca no postula ni escribe en LinkedIn. LinkedIn limita las búsquedas seguidas: si corta, espera unos minutos.
+
 ## Novedades: juegos, anime y Nintendo
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
