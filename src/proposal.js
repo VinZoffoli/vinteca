@@ -15,6 +15,10 @@ const PORTFOLIO = [
   { name: 'Lateralia', tags: ['blog', 'contenido', 'editorial', 'wordpress'], about: 'un sitio de contenido y escritura creativa' },
 ];
 
+// Línea fija del portafolio: va siempre en la propuesta, tal cual, y las reglas
+// de abajo no la tocan.
+const PORTFOLIO_LINE = '📂 Portafolio: vipertechcr(.)com/proyectos (quita los paréntesis para acceder)';
+
 const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
 const hash = (s) => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7);
 const has = (t, re) => re.test(t);
@@ -96,7 +100,8 @@ function build(p, opts = {}) {
 
   // Referencias del portafolio (visibles en el perfil de Workana)
   const refs = references(a);
-  if (refs.length) parts.push(`Tengo experiencia en proyectos similares, como ${refs.map((r) => `${r.name}, ${r.about}`).join(', y ')}. Puede verlos en mi perfil, en la sección de proyectos destacados.`);
+  if (refs.length) parts.push(`Tengo experiencia en proyectos similares, como ${refs.map((r) => `${r.name}, ${r.about}`).join(', y ')}. Puede ver estos y otros trabajos en mi portafolio.`);
+  parts.push(PORTFOLIO_LINE);
 
   if (a.kind !== 'soporte') parts.push('Además, ofrecemos hosting gratuito en Hostinger, incluyendo la configuración y puesta en producción.');
   parts.push(pick(['Quedo atento para conversar los detalles y ajustar la propuesta a lo que necesita.', 'Con gusto conversamos los detalles por aquí para ajustar la propuesta a sus objetivos.'], s >> 7));
@@ -121,6 +126,7 @@ const RULES = [
 ];
 
 function check(text) {
+  text = String(text).split(PORTFOLIO_LINE).join(' ');
   const out = [];
   for (const r of RULES) {
     const m = text.match(r.re);
@@ -131,9 +137,15 @@ function check(text) {
 
 /** Aplica las reglas: corrige lo que se puede y quita lo que no. */
 function clean(text) {
-  let t = text;
-  for (const r of RULES) t = t.replace(r.re, r.fix);
-  return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([,.])/g, '$1').replace(/\n{3,}/g, '\n\n').trim();
+  return String(text)
+    .split(PORTFOLIO_LINE)
+    .map((part) => {
+      let t = part;
+      for (const r of RULES) t = t.replace(r.re, r.fix);
+      return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([,.])/g, '$1').replace(/\n{3,}/g, '\n\n');
+    })
+    .join(PORTFOLIO_LINE)
+    .trim();
 }
 
-module.exports = { build, check, clean, analyze, PORTFOLIO };
+module.exports = { build, check, clean, analyze, PORTFOLIO, PORTFOLIO_LINE };
