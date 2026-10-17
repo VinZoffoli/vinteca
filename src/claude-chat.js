@@ -28,6 +28,8 @@ function findClaude() {
 const MODES = {
   read: { mode: 'default', tools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'] },
   edit: { mode: 'acceptEdits', tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'WebSearch', 'WebFetch', 'TodoWrite'] },
+  // Asistente general: solo lee su carpeta (el resumen de tus datos) y busca en la web
+  ask: { mode: 'default', tools: ['Read', 'Glob', 'Grep', 'WebSearch', 'WebFetch'] },
   run: { mode: 'acceptEdits', tools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'WebSearch', 'WebFetch', 'TodoWrite', 'Bash', 'PowerShell'] },
 };
 
@@ -45,6 +47,7 @@ function send(opts, onEvent) {
   if (opts.model) args.push('--model', opts.model);
   if (opts.effort) args.push('--effort', opts.effort);
   if (opts.session) args.push('--resume', opts.session);
+  if (opts.system) args.push('--append-system-prompt', String(opts.system).slice(0, 4000));
   const child = spawn(exe, args, { cwd: opts.cwd, windowsHide: true, env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'viperteca' } });
   running.set(opts.chatId, child);
   let buf = '';

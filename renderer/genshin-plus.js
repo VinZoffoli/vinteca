@@ -187,6 +187,7 @@
     return h('div', { class: 'gf' },
       extraCards(),
       resinCardSafe(),
+      window.gatherCard?.(F.result),
       F.error && h('p', { class: 'hint bad', text: F.error }),
       h('section', { class: 'rx-card' },
         h('h3', { text: 'Personajes que quieres subir' }),

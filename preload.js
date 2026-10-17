@@ -197,6 +197,12 @@ contextBridge.exposeInMainWorld('api', {
     run: (items) => ipcRenderer.invoke('anime:translate', items),
   },
   day: () => ipcRenderer.invoke('day:summary'),
+  fx: (force) => ipcRenderer.invoke('fx:get', force),
+  dnd: { missed: () => ipcRenderer.invoke('dnd:missed'), clear: () => ipcRenderer.invoke('dnd:clear'), onMissed: (cb) => ipcRenderer.on('dnd:missed', () => cb()) },
+  gather: { get: () => ipcRenderer.invoke('gather:get'), set: (list) => ipcRenderer.invoke('gather:set', list) },
+  weekAhead: () => ipcRenderer.invoke('week:ahead'),
+  assist: { send: (o) => ipcRenderer.invoke('assist:send', o), stop: () => ipcRenderer.invoke('assist:stop'), history: () => ipcRenderer.invoke('assist:history'), save: (h) => ipcRenderer.invoke('assist:save', h) },
+  wkBrave: (url, text) => ipcRenderer.invoke('wk:brave', url, text),
   searchIndex: () => ipcRenderer.invoke('search:index'),
   family: {
     status: () => ipcRenderer.invoke('family:status'),

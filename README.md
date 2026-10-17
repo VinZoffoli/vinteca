@@ -258,6 +258,20 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.17
+
+- **Rendimiento por juego**: en la ficha de cada juego, el FPS medio, el 1 % bajo y la temperatura máxima de CPU y GPU de cada partida medida con el modo enfoque, con un gráfico de las últimas 24.
+- **No molestar mientras juegas** (Ajustes → Partidas): con el modo enfoque activo, los avisos esperan y al terminar llega uno solo («Mientras jugabas: N avisos»); quedan en Mi día. Las reuniones a punto de empezar y las temperaturas altas avisan siempre.
+- **Genshin → Calculadora de tiradas**: con tus protogemas, destinos, brillos, lo que ganas al día (con o sin Bendición de la Luna) y la fecha (por defecto, la próxima versión), la probabilidad de conseguir el personaje o el arma (también constelaciones y refinamientos), con la tirada actual y el 50/50 leídos de tu historial de deseos.
+- **Genshin → Especialidades y minerales** (en Farmeo): «Ya recogí» al pasar por la ruta y aviso cuando vuelven a salir (48 h las especialidades, 72 h los minerales); las especialidades de tu plan salen como accesos rápidos.
+- **Casa → Trámites**: marchamo, revisión técnica (calcula el mes por el último dígito de la placa), licencia, cédula y pasaporte, con aviso un mes antes, una semana antes y el día. «Hecho» lo pasa al año siguiente.
+- **Tipo de cambio**: el dólar del día del Banco Central en Mi día y en Presupuesto, con conversor; los pagos en dólares ya se suman al presupuesto en colones.
+- **Pregúntale a ViperTeca**: un chat con tu Claude Code que conoce tu agenda, pagos, presupuesto, trámites, compras, cumpleaños, juegos, Genshin y anime, y busca en la web si hace falta. Solo lee: no cambia nada.
+- **Mi día en el celular**: con el acceso desde el celular encendido, un QR en Mi día abre tu día en el teléfono (misma wifi), actualizado cada minuto.
+- **Resumen del domingo**: los domingos desde las 18:00, un aviso con lo que viene la semana siguiente; los domingos y lunes, Mi día lo muestra arriba.
+- **Cumpleaños renovado**: el próximo en grande, tu año mes a mes, personas con sus ideas de regalo y gatitos ordenados del mayor al menor (pon el año en que nació cada uno).
+- **Workana en Brave**: «Postular en Brave» copia la propuesta y abre el proyecto en Brave, donde ya tienes la sesión; la ventana de la app queda como opción.
+
 ## Novedades de la 1.16
 
 - **Mi día** es la pantalla de inicio: reuniones de hoy, pagos de la semana, cumpleaños, recordatorios, cuidados de los gatitos, tickets que vencen, correos sin leer, anime que sale, resina y reinicios de Genshin, presupuesto del mes y juegos gratis. Abajo, la copia en OneDrive.

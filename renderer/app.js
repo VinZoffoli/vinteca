@@ -1127,6 +1127,8 @@ function showView(view) {
   $('#calView').hidden = view !== 'cal';
   $('#dayView').hidden = view !== 'day';
   if (view === 'day') window.dayUI?.show();
+  $('#assistView').hidden = view !== 'assist';
+  if (view === 'assist') window.assistUI?.show();
   $('#linkedinView').hidden = view !== 'linkedin';
   $('#mailView').hidden = view !== 'mail';
   if (view === 'mail') window.mailUI?.show();
@@ -2023,9 +2025,9 @@ function openPick() {
 const VIEWS = [
   ['library', 'Juegos'], ['sagas', 'Sagas'], ['ach', 'Logros'], ['stats', 'Estadísticas'],
   ['news', 'Novedades'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
-  ['day', 'Mi día'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
+  ['day', 'Mi día'], ['assist', 'Pregúntale a ViperTeca'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
   ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
-  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
+  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
 ];
 let palIndex = 0;
 let palItems = [];
@@ -2375,6 +2377,7 @@ const GI_TABS = [
   ['notas', 'Notas de HoYoLAB'],
   ['deseos', 'Deseos'],
   ['farmeo', 'Farmeo'],
+  ['tiradas', 'Calculadora de tiradas'],
   ['codigos', 'Códigos'],
 ];
 function genshinTabs() {
@@ -2387,6 +2390,7 @@ function genshinTabs() {
 function setGenshinTab(k) {
   gi.tab = k;
   if (k === 'noticias' && !gi.news && !gi.newsBusy) loadGnews(false);
+  if (k === 'tiradas' && !gi.news && !gi.newsBusy) loadGnews(false);
   if (k === 'deseos' && !gi.wish) window.api.gwish().then((w) => { gi.wish = w; renderGenshin(); });
   if ((k === 'notas' || k === 'prioridades' || k === 'farmeo') && !gi.hoyo && !gi.hoyoBusy) loadHoyo(false);
   if (k === 'prioridades' && !gi.tasks) {
@@ -2401,6 +2405,7 @@ function genshinOtherTab() {
   if (gi.tab === 'notas') return renderHoyo();
   if (gi.tab === 'farmeo') return window.gplusUI?.renderFarm();
   if (gi.tab === 'codigos') return window.gplusUI?.renderCodes();
+  if (gi.tab === 'tiradas') return window.gcalcUI?.render();
   return renderPriorities();
 }
 
@@ -3421,6 +3426,7 @@ function fillGameExtras(g) {
   fillGameTrailers(g);
   fillGameSimilar(g);
   fillGameSessions(g);
+  window.fillGamePerf?.(g);
   fillGameNews(g);
   fillGameShots(g);
   fillGameSaves(g);
@@ -3874,6 +3880,7 @@ function renderGame() {
         {},
         slot('gameCanRun'),
         slot('gameSessions'),
+        slot('gamePerf'),
         h('h3', { class: 'sheet-h', text: 'Modo enfoque en este juego' }),
         h('label', { class: 'field-stack' }, h('span', { class: 'hint', text: 'Qué hacer con Discord mientras juegas a este' }), discord)
       )
@@ -4039,7 +4046,7 @@ async function openSettings() {
   $('#legendaryPath').value = s.legendaryPath || '';
   $('#focusPower').checked = s.focus?.powerPlan !== false;
   $('#trackSessions').checked = s.trackSessions !== false;
-  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts']) $(`#set-${k}`).checked = s[k] !== false;
+  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary']) $(`#set-${k}`).checked = s[k] !== false;
   $('#set-dailyLimitMin').value = String(s.dailyLimitMin || 0);
   $('#set-remindEveryMin').value = String(s.remindEveryMin || 0);
   $('#keepTracking').checked = s.keepTracking !== false;
@@ -4075,7 +4082,7 @@ async function saveSettings(ev) {
       steamKey: steamKey || undefined,
       legendaryPath: $('#legendaryPath').value,
       trackSessions: $('#trackSessions').checked,
-      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts'].map((k) => [k, $(`#set-${k}`).checked])),
+      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary'].map((k) => [k, $(`#set-${k}`).checked])),
       dailyLimitMin: Number($('#set-dailyLimitMin').value),
       remindEveryMin: Number($('#set-remindEveryMin').value),
       keepTracking: $('#keepTracking').checked,

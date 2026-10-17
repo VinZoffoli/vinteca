@@ -18,7 +18,7 @@
     if (!W.state) {
       W.state = await api.state();
       W.list = W.state.last?.list || null;
-      $('#wkOpenDash').addEventListener('click', () => window.api.open('https://www.workana.com/dashboard'));
+      $('#wkOpenDash').addEventListener('click', () => window.api.wkBrave('https://www.workana.com/dashboard'));
     }
     render();
   }
@@ -118,9 +118,14 @@
       render();
       return toast('La propuesta tiene cosas que Workana no permite: corrígelas antes de copiarla.', true);
     }
-    await api.copy(text);
-    window.api.open(p.url);
-    toast(`Propuesta copiada. Pégala en Workana y pon ${W.prices[p.slug]} como precio.`);
+    const ok = await window.api.wkBrave(p.url, text);
+    if (!ok) {
+      await api.copy(text);
+      window.api.open(p.url);
+    }
+    W.bid[p.slug] = { state: 'brave', open: false, ask: true };
+    render();
+    toast(`Propuesta copiada y proyecto abierto en Brave. Pégala con Ctrl+V y pon ${W.prices[p.slug] || 'tu precio'} como precio.`);
   }
 
   // ---- vista ----
@@ -167,7 +172,7 @@
         : list.length
           ? h('div', { class: 'wk-list' }, list.map(card))
           : h('p', { class: 'hint', text: W.filter === 'done' ? 'Aún no has marcado ninguno como postulado.' : 'No hay proyectos en este filtro.' }),
-      h('p', { class: 'hint wk-note', text: 'ViperTeca no envía propuestas por ti (Workana no permite postular con programas automáticos): con «Postular» la deja escrita en la ventana de Workana y la envías tú.' })
+      h('p', { class: 'hint wk-note', text: 'ViperTeca no envía propuestas por ti (Workana no permite postular con programas automáticos): con «Postular en Brave» la copia y abre el proyecto en Brave para que la pegues y la envíes tú.' })
     );
   }
 
@@ -217,7 +222,7 @@
       h('p', { class: 'hint', text: insight }),
       h('ul', { class: 'wk-track' }, rows.map((r) => h('li', { class: `wk-trow o-${r.outcome}` },
         h('div', { class: 'wk-tmain' },
-          r.url ? h('button', { class: 'link-title', text: r.title || r.slug, onclick: () => window.api.open(r.url) }) : h('b', { text: r.title || r.slug }),
+          r.url ? h('button', { class: 'link-title', text: r.title || r.slug, onclick: () => window.api.wkBrave(r.url) }) : h('b', { text: r.title || r.slug }),
           h('p', { class: 'wk-meta' }, h('span', { text: `Postulaste ${relTime((r.at || Date.now()) / 1000)}` }), r.price && h('span', { text: `Tu precio: ${r.price}${r.budget?.currency ? ' ' + r.budget.currency : ''}` }), r.budget?.text && h('span', { text: `Cliente: ${r.budget.text}` }), r.bids != null && h('span', { text: `${r.bids} propuestas` }))
         ),
         h('select', { class: 'sn-select', 'aria-label': 'Cómo fue', onchange: (e) => setOutcome(r.slug, e.target.value) }, OUTCOMES.map(([k, l]) => h('option', { value: k, selected: r.outcome === k, text: l })))
@@ -239,7 +244,7 @@
       h(
         'div',
         { class: 'wk-top' },
-        h('div', { class: 'wk-main' }, h('h3', {}, h('button', { class: 'link-title', text: p.title, onclick: () => window.api.open(p.url) })), h('p', { class: 'wk-meta' }, h('span', { text: p.posted }), h('span', { text: p.country }), h('span', { class: `wk-comp ${c.comp[0]}`, text: `${p.bids} propuestas` }), p.urgent && h('span', { class: 'wk-urgent', text: 'Urgente' }))),
+        h('div', { class: 'wk-main' }, h('h3', {}, h('button', { class: 'link-title', text: p.title, onclick: () => window.api.wkBrave(p.url) })), h('p', { class: 'wk-meta' }, h('span', { text: p.posted }), h('span', { text: p.country }), h('span', { class: `wk-comp ${c.comp[0]}`, text: `${p.bids} propuestas` }), p.urgent && h('span', { class: 'wk-urgent', text: 'Urgente' }))),
         h('div', { class: 'wk-budget' }, h('b', { text: budgetTxt(p.budget) }), h('span', { text: p.hourly ? 'por hora' : 'precio fijo' }))
       ),
       h(
@@ -282,8 +287,8 @@
       h(
         'div',
         { class: 'row' },
-        h('button', { class: 'btn primary', text: 'Postular', onclick: () => postular(p) }),
-        h('button', { class: 'btn ghost small', text: 'Copiar y abrir en el navegador', onclick: () => copyAndOpen(p) }),
+        h('button', { class: 'btn primary', text: 'Postular en Brave', title: 'Copia la propuesta y abre el proyecto en Brave, donde ya tienes la sesión', onclick: () => copyAndOpen(p) }),
+        h('button', { class: 'btn ghost small', text: 'Rellenar en una ventana de la app', onclick: () => postular(p) }),
         h('button', { class: 'btn ghost small', text: 'Solo copiar', onclick: async () => { const probs = await api.check(W.drafts[p.slug]); if (probs.length) return toast('Corrige primero lo marcado en rojo.', true); await api.copy(W.drafts[p.slug]); toast('Propuesta copiada.'); } })
       )
     );

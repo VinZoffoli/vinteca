@@ -27,8 +27,9 @@ const same = (a, b) => {
 
 class LanServer {
   /** @param games () => juegos  @param launch (id) => abre el juego en el PC */
-  constructor({ games, launch, token, shopping }) {
+  constructor({ games, launch, token, shopping, day }) {
     this.shopping = shopping || null;
+    this.day = day || null;
     this.games = games;
     this.launch = launch;
     this.token = token || crypto.randomBytes(12).toString('hex');
@@ -61,7 +62,17 @@ class LanServer {
       q2.make();
       shopQr = 'data:image/svg+xml;base64,' + Buffer.from(q2.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
     }
-    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr };
+    // Mi día: misma dirección con /dia
+    let dayUrl = null;
+    let dayQr = null;
+    if (ip && this.day) {
+      dayUrl = `http://${ip}:${this.port}/dia?t=${this.token}`;
+      const q3 = qrcode(0, 'M');
+      q3.addData(dayUrl);
+      q3.make();
+      dayQr = 'data:image/svg+xml;base64,' + Buffer.from(q3.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
+    }
+    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr };
   }
 
   start() {
@@ -125,6 +136,16 @@ class LanServer {
       if (req.method === 'GET' && u.pathname === '/api/compras') return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(this.shopping.get()));
       if (req.method === 'POST' && u.pathname === '/api/compras/toggle') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.toggle(String(u.searchParams.get('id') || '')) }));
       if (req.method === 'POST' && u.pathname === '/api/compras/add') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.add(u.searchParams.get('name'), u.searchParams.get('qty')) }));
+    }
+    if (this.day) {
+      if (req.method === 'GET' && u.pathname === '/dia') return this.send(res, 200, 'text/html; charset=utf-8', DAY_PAGE);
+      if (req.method === 'GET' && u.pathname === '/api/dia') {
+        try {
+          return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(await this.day()));
+        } catch (e) {
+          return this.send(res, 500, 'application/json', JSON.stringify({ error: e.message }));
+        }
+      }
     }
     this.send(res, 404, 'text/plain; charset=utf-8', 'No existe.');
   }
@@ -209,6 +230,66 @@ function row(x){return '<label class="'+(x.done?'done':'')+'"><input type="check
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();const n=document.getElementById('n'),c=document.getElementById('c');if(!n.value.trim())return;
 await api('/api/compras/add?name='+encodeURIComponent(n.value)+'&qty='+encodeURIComponent(c.value),'POST');n.value='';c.value='';load()};
 load();setInterval(load,15000);
+</script></body></html>`;
+
+
+// Mi día en el celular (lo mismo que la pantalla de inicio, en corto)
+const DAY_PAGE = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16122a">
+<title>Mi día</title>
+<style>
+:root{--night:#16122a;--n2:#1c1734;--s:#211b3d;--line:#3a3166;--text:#f1edff;--muted:#a39cc3;--amber:#ffb547;--rose:#ff6b9a;--cyan:#5ce1e6;--ink:#2a1800}
+*{box-sizing:border-box}body{margin:0;background:var(--night);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:20px 16px 8px}h1{margin:0;font-size:24px}header p{margin:2px 0 0;color:var(--muted)}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 16px}
+.strip div{background:var(--n2);border:1px solid var(--line);border-radius:12px;padding:10px}
+.strip dt{font-size:12px;color:var(--muted)}.strip dd{margin:2px 0 0;font-size:22px;font-weight:700}.hot{color:var(--rose)}
+.next{margin:8px 16px;padding:14px;border-radius:14px;background:linear-gradient(135deg,#2b2152,#1c1734);border:1px solid var(--line)}
+.next small{color:var(--amber)}.next h2{margin:4px 0;font-size:19px}.next a{display:inline-block;margin-top:6px;padding:9px 14px;border-radius:10px;background:var(--amber);color:var(--ink);font-weight:600;text-decoration:none}
+section{margin:12px 16px;padding:12px 14px;background:var(--n2);border:1px solid var(--line);border-radius:14px}
+section h3{margin:0 0 6px;font-size:15px;color:var(--cyan)}
+ul{list-style:none;margin:0;padding:0}li{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #2c2550}li:last-child{border:0}
+li span{min-width:0;overflow-wrap:anywhere}li b{flex:none;font-weight:600;color:var(--muted);font-size:14px}li.hot b{color:var(--rose)}li.past span{color:var(--muted);text-decoration:line-through}
+.bar{height:8px;border-radius:4px;background:#2c2550;overflow:hidden;margin-top:6px}.bar i{display:block;height:100%;background:var(--amber)}.bar i.hot{background:var(--rose)}
+.big{font-size:20px;font-weight:700;margin:0}footer{padding:8px 16px 40px;color:var(--muted);font-size:13px}footer a{color:var(--amber)}
+</style></head><body>
+<header><h1 id="h">Mi día</h1><p id="d"></p></header>
+<main id="m"><p style="padding:0 16px;color:var(--muted)">Cargando…</p></main>
+<footer><a id="shop" href="#">Lista de compras</a> · se actualiza sola cada minuto</footer>
+<script>
+const t=new URLSearchParams(location.search).get('t');
+document.getElementById('shop').href='/compras?t='+encodeURIComponent(t);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hm=x=>new Date(x).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+const when=d=>d===0?'hoy':d===1?'mañana':d<0?'atrasado':'en '+d+' días';
+const money=(v,c)=>Number(v).toLocaleString('es')+' '+(c||'');
+const li=(a,b,cls)=>'<li class="'+(cls||'')+'"><span>'+esc(a)+'</span>'+(b?'<b>'+esc(b)+'</b>':'')+'</li>';
+const sec=(title,rows)=>rows.length?'<section><h3>'+esc(title)+'</h3><ul>'+rows.join('')+'</ul></section>':'';
+async function load(){
+  const r=await fetch('/api/dia?t='+encodeURIComponent(t));if(!r.ok)return;const d=await r.json();
+  const now=new Date();const hello=now.getHours()<12?'Buenos días':now.getHours()<19?'Buenas tardes':'Buenas noches';
+  document.getElementById('h').textContent=hello+', Vincenzo';
+  document.getElementById('d').textContent=now.toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'});
+  const meets=d.meetings.filter(x=>!x.allDay);const nx=meets.find(x=>x.end>Date.now());
+  let h='<div class="strip"><div><dt>Reuniones</dt><dd>'+meets.length+'</dd></div><div><dt>Pagos 7 días</dt><dd class="'+(d.pays.some(p=>p.days<=0)?'hot':'')+'">'+d.pays.length+'</dd></div><div><dt>Por comprar</dt><dd>'+d.shopping+'</dd></div></div>';
+  if(nx)h+='<div class="next"><small>'+(nx.start<=Date.now()?'Reunión en curso':'Próxima reunión')+'</small><h2>'+esc(nx.title)+'</h2><div>'+hm(nx.start)+' – '+hm(nx.end)+'</div>'+(nx.link&&String(nx.link).startsWith('https://meet.google.com/')?'<a href="'+esc(nx.link)+'">Unirse</a>':'')+'</div>';
+  h+=sec('Agenda de hoy',d.meetings.map(m=>li(m.title,m.allDay?'Todo el día':hm(m.start),m.end<Date.now()?'past':'')));
+  h+=sec('Pagos que vienen',d.pays.map(p=>li(p.name+(p.group&&p.group!=='Personal'?' ('+p.group+')':'')+(p.amount?' · '+money(p.amount,p.currency):''),when(p.days),p.days<=0?'hot':'')));
+  h+=sec('Trámites',(d.tramites||[]).map(x=>li(x.name,when(x.days),x.days<=7?'hot':'')));
+  h+=sec('Cumpleaños',d.bdays.map(b=>li(b.name+(b.kind==='gato'?' (gatito)':''),when(b.days),b.days===0?'hot':'')));
+  h+=sec('Recordatorios',d.rems.map(r=>li(r.title,when(r.days))));
+  h+=sec('Gatitos',d.cats.map(c=>li(c.cat+': '+c.type,when(c.days),c.days<=0?'hot':'')));
+  h+=sec('Tickets de Notion',d.tickets.slice(0,8).map(x=>li(x.title,x.late?'Vencido':x.deadline,x.late?'hot':'')));
+  h+=sec('Anime',d.anime.map(a=>li(a.title+' · '+a.what,hm(a.at))));
+  const b=d.budget;
+  if(b&&b.limit)h+='<section><h3>Presupuesto del mes</h3><p class="big">'+money(b.spent,b.currency)+' de '+money(b.limit,b.currency)+'</p><div class="bar"><i class="'+(b.spent>b.limit?'hot':'')+'" style="width:'+Math.min(100,b.spent/b.limit*100)+'%"></i></div></section>';
+  if(d.fx)h+='<section><h3>Dólar hoy</h3><p class="big">₡'+esc(d.fx.sell)+' <small style="font-size:14px;color:var(--muted)">venta · compra ₡'+esc(d.fx.buy)+'</small></p></section>';
+  if(d.resin)h+='<section><h3>Genshin</h3><p class="big '+(d.resin.value>=d.resin.max?'hot':'')+'">Resina '+d.resin.value+'/'+d.resin.max+'</p></section>';
+  document.getElementById('m').innerHTML=h;
+}
+load();setInterval(load,60000);
 </script></body></html>`;
 
 module.exports = { LanServer, localIp };

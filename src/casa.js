@@ -67,7 +67,32 @@ function load({ read, write }) {
     d.giftPeople = ['Emi'];
     write('casa.json', d);
   }
+  if (!d.tramites) {
+    d.tramites = seedTramites();
+    write('casa.json', d);
+  }
   return d;
+}
+
+// Trámites de Costa Rica: marchamo, Riteve, licencia y cédula
+const TRAMITES = {
+  marchamo: { label: 'Marchamo', renew: 1 },
+  riteve: { label: 'Revisión técnica (Riteve)', renew: 1 },
+  licencia: { label: 'Licencia de conducir', renew: null },
+  cedula: { label: 'Cédula de identidad', renew: 10 },
+  pasaporte: { label: 'Pasaporte', renew: 6 },
+  otro: { label: 'Otro trámite', renew: null },
+};
+function seedTramites() {
+  const y = new Date().getFullYear();
+  const t = (kind, due = null) => ({ id: id(), kind, name: TRAMITES[kind].label, due, plate: '', note: '', lastDone: null });
+  return [t('marchamo', `${y}-12-31`), t('riteve'), t('licencia'), t('cedula')];
+}
+/** Mes de la revisión técnica según el último dígito de la placa (1 = enero … 9 = setiembre, 0 = octubre). */
+function riteveMonth(plate) {
+  const m = String(plate || '').match(/(\d)\D*$/);
+  if (!m) return null;
+  return m[1] === '0' ? 10 : Number(m[1]);
 }
 
 // Foto de un regalo: una imagen pequeña en data: (elegida o pegada) o un enlace https
@@ -96,6 +121,7 @@ function save({ write }, d) {
     },
     // Cuidados de los gatitos: vacunas, desparasitación, veterinario…
     catCare: (d.catCare || []).slice(0, 1000).map((x) => ({ id: str(x.id, 20) || id(), cat: str(x.cat, 60), type: ['vacuna', 'desparasitacion', 'pulgas', 'veterinario', 'otro'].includes(x.type) ? x.type : 'otro', date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, next: /^\d{4}-\d{2}-\d{2}$/.test(x.next || '') ? x.next : null, note: str(x.note, 300), done: !!x.done })).filter((x) => x.cat),
+    tramites: (d.tramites || []).slice(0, 100).map((x) => ({ id: str(x.id, 20) || id(), kind: TRAMITES[x.kind] ? x.kind : 'otro', name: str(x.name, 120) || TRAMITES[x.kind]?.label || 'Trámite', due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || '') ? x.due : null, plate: str(x.plate, 12).toUpperCase(), note: str(x.note, 400), lastDone: /^\d{4}-\d{2}-\d{2}$/.test(x.lastDone || '') ? x.lastDone : null })).filter((x) => x.name),
     payments: (d.payments || []).slice(0, 200).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), group: str(x.group, 40) || 'Personal', day: intOr(x.day, 1, 31), amount: x.amount === '' || x.amount == null ? null : Number(x.amount) || null, currency: str(x.currency, 5) || 'CRC', notifyDays: intOr(x.notifyDays, 0, 30) ?? 3, note: str(x.note, 300), paid: Object.fromEntries(Object.entries(x.paid || {}).filter(([k]) => /^\d{4}-\d{2}$/.test(k)).slice(-36)) })).filter((x) => x.name),
     reminders: (d.reminders || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), title: str(x.title, 160), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', note: str(x.note, 500), notifyDays: intOr(x.notifyDays, 0, 60) ?? 1, done: !!x.done })).filter((x) => x.title && x.date),
     birthdays: (d.birthdays || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 80), kind: x.kind === 'gato' ? 'gato' : 'persona', day: intOr(x.day, 1, 31), month: intOr(x.month, 1, 12), year: intOr(x.year, 1900, 2100), note: str(x.note, 200) })).filter((x) => x.name && x.month),
@@ -229,8 +255,18 @@ function dueNotices({ read, write }) {
     if (days === 3) once(`cat:${c.id}:3`, { title: `En 3 días: ${what} de ${c.cat}`, body: c.note || 'Revisa Casa → Gatitos.' });
     if (days === 0) once(`cat:${c.id}:0`, { title: `Hoy toca ${what} de ${c.cat}`, body: c.note || 'Cuando lo hagas, márcalo en Casa → Gatitos.' });
   }
+  // Trámites: 30 días, 7 días y el mismo día del vencimiento
+  for (const t of d.tramites || []) {
+    if (!t.due) continue;
+    const days = Math.round((new Date(t.due + 'T00:00:00').getTime() - startOfDay(now)) / DAY);
+    const fecha = new Date(t.due + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long' });
+    if (days === 30) once(`tram:${t.id}:${t.due}:30`, { title: `${t.name}: falta un mes`, body: `Vence el ${fecha}. Mejor sacar la cita con tiempo.` });
+    else if (days === 7) once(`tram:${t.id}:${t.due}:7`, { title: `${t.name} vence en una semana`, body: `El ${fecha}. Cuando lo hagas, márcalo en Casa → Trámites.` });
+    else if (days === 0) once(`tram:${t.id}:${t.due}:0`, { title: `Hoy vence: ${t.name}`, body: t.note || 'Márcalo como hecho en Casa → Trámites.' });
+    else if (days < 0 && days >= -3) once(`tram:${t.id}:${t.due}:late`, { title: `${t.name} está vencido`, body: `Venció el ${fecha}.` });
+  }
   // Presupuesto del mes: aviso al 90 % y al pasarse
-  const b = budgetStatus(d, now);
+  const b = budgetStatus(d, now, read('fx.json', null)?.sell);
   if (b.limit) {
     if (b.spent >= b.limit) once(`budget:${b.month}:100`, { title: 'Te pasaste del presupuesto del mes', body: `Llevas ${b.spent.toLocaleString('es')} de ${b.limit.toLocaleString('es')} ${b.currency}.` });
     else if (b.spent >= b.limit * 0.9) once(`budget:${b.month}:90`, { title: 'Llevas el 90 % del presupuesto del mes', body: `Te quedan ${(b.limit - b.spent).toLocaleString('es')} ${b.currency}.` });
@@ -243,7 +279,7 @@ function dueNotices({ read, write }) {
 }
 
 /** Gasto del mes: pagos marcados como pagados + compras con precio + gastos sueltos. */
-function budgetStatus(d, now = Date.now()) {
+function budgetStatus(d, now = Date.now(), rate = null) {
   const dt = new Date(now);
   const month = ym(dt);
   const lines = [];
@@ -251,12 +287,25 @@ function budgetStatus(d, now = Date.now()) {
   for (const s of d.shopping || []) if (s.price && s.done && s.boughtAt && ym(new Date(s.boughtAt)) === month) lines.push({ kind: 'Compras', name: s.name, amount: s.price });
   for (const e of d.budget?.expenses || []) if (e.date.startsWith(month)) lines.push({ kind: e.cat || 'Otros', name: e.note || e.cat, amount: e.amount, id: e.id, date: e.date });
   const currency = d.budget?.currency || 'CRC';
+  // con el tipo de cambio del día, los dólares se pasan a colones (y al revés)
+  const conv = (amount, cur) => {
+    if (!cur || cur === currency) return amount;
+    if (!rate) return null;
+    if (cur === 'USD' && currency === 'CRC') return Math.round(amount * rate);
+    if (cur === 'CRC' && currency === 'USD') return Math.round((amount / rate) * 100) / 100;
+    return null;
+  };
+  for (const l of lines) {
+    if (!l.currency || l.currency === currency) continue;
+    const v = conv(l.amount, l.currency);
+    if (v != null) Object.assign(l, { original: `${l.amount.toLocaleString('es')} ${l.currency}`, amount: v, currency });
+  }
   const same = lines.filter((l) => !l.currency || l.currency === currency);
   const spent = same.reduce((a, l) => a + l.amount, 0);
-  const planned = (d.payments || []).filter((p) => p.amount && (!p.currency || p.currency === currency)).reduce((a, p) => a + p.amount, 0);
+  const planned = (d.payments || []).filter((p) => p.amount).reduce((a, p) => a + (conv(p.amount, p.currency || currency) || 0), 0);
   const byKind = {};
   for (const l of same) byKind[l.kind] = (byKind[l.kind] || 0) + l.amount;
-  return { month, limit: d.budget?.limit || null, currency, spent, planned, lines: same, byKind, other: lines.filter((l) => l.currency && l.currency !== currency) };
+  return { month, limit: d.budget?.limit || null, currency, spent, planned, lines: same, byKind, rate, other: lines.filter((l) => l.currency && l.currency !== currency) };
 }
 
-module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, budgetStatus, COUNTRIES };
+module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, budgetStatus, riteveMonth, TRAMITES, COUNTRIES };

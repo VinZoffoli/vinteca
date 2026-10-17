@@ -17,7 +17,7 @@
   const D = { data: null, backup: null };
   async function dayShow() {
     try {
-      [D.data, D.backup] = await Promise.all([window.api.day(), window.api.backup.status().catch(() => null)]);
+      [D.data, D.backup, D.lan] = await Promise.all([window.api.day(), window.api.backup.status().catch(() => null), window.api.lanStatus().catch(() => null)]);
     } catch (e) {
       D.error = errMsg(e);
     }
@@ -47,7 +47,24 @@
         h('div', {}, h('dt', { text: 'Pagos esta semana' }), h('dd', { class: d.pays.some((p) => p.days <= 0) ? 'hot' : '', text: String(d.pays.length) })),
         h('div', {}, h('dt', { text: 'Correos sin leer' }), h('dd', { text: d.mail ? String(d.mail.count) : '—' })),
         h('div', {}, h('dt', { text: 'Tickets que vencen' }), h('dd', { class: d.tickets.some((t) => t.late) ? 'hot' : '', text: String(d.tickets.length) })),
-        h('div', {}, h('dt', { text: 'Por comprar' }), h('dd', { text: String(d.shopping) }))
+        h('div', {}, h('dt', { text: 'Por comprar' }), h('dd', { text: String(d.shopping) })),
+        d.fx && h('div', { title: `Compra ₡${d.fx.buy} · tipo de cambio del Banco Central` }, h('dt', { text: 'Dólar hoy' }), h('dd', { text: `₡${Math.round(d.fx.sell)}` }))
+      ),
+      d.missed?.length ? h('section', { class: 'dy-missed' },
+        h('div', { class: 'dy-head' }, h('h3', { text: `Mientras jugabas · ${plural(d.missed.length, 'aviso', 'avisos')}` }), h('button', { class: 'btn subtle small', text: 'Ya los vi', onclick: async () => { await window.api.dnd.clear(); D.data.missed = []; dayRender(); } })),
+        h('ul', { class: 'dy-list' }, d.missed.slice(0, 8).map((m) => h('li', {}, h('span', { text: m.body ? `${m.title} · ${m.body.split('\n')[0]}` : m.title }), h('b', { text: hm(m.at) }))))
+      ) : null,
+      d.week && h('section', { class: 'dy-week' },
+        h('p', { class: 'dy-kicker', text: new Date().getDay() === 0 ? 'La semana que viene' : 'Esta semana' }),
+        h('div', { class: 'dy-week-grid' },
+          h('div', {}, h('b', { text: String(d.week.meetings.length) }), h('span', { text: d.week.meetings.length === 1 ? 'reunión' : 'reuniones' })),
+          h('div', {}, h('b', { text: String(d.week.pays.length) }), h('span', { text: d.week.pays.length === 1 ? 'pago' : 'pagos' })),
+          h('div', {}, h('b', { text: String(d.week.bdays.length) }), h('span', { text: 'cumpleaños' })),
+          h('div', {}, h('b', { text: String(d.week.rems.length + d.week.tramites.length) }), h('span', { text: 'recordatorios y trámites' }))
+        ),
+        [...d.week.bdays.map((b) => `cumple de ${b.name} ${when(b.days)}`), ...d.week.tramites.map((t) => `vence ${t.name} ${when(t.days)}`), ...d.week.premieres.map((a) => `estreno de ${a.title}`)].length
+          ? h('p', { class: 'hint', text: [...d.week.bdays.map((b) => `cumple de ${b.name} ${when(b.days)}`), ...d.week.tramites.map((t) => `vence ${t.name} ${when(t.days)}`), ...d.week.premieres.map((a) => `estreno de ${a.title}`)].join(' · ') })
+          : null
       ),
       nextMeet && h('section', { class: 'dy-next' },
         h('p', { class: 'dy-kicker', text: nextMeet.start <= Date.now() ? 'Reunión en curso' : `Próxima reunión · ${until(nextMeet.start)}` }),
@@ -60,6 +77,7 @@
         card('Pagos que vienen', 'casa-pagos', d.pays.length ? h('ul', { class: 'dy-list' }, d.pays.map((p) => li(`${p.name}${p.group && p.group !== 'Personal' ? ` (${p.group})` : ''}${p.amount ? ` · ${money(p.amount, p.currency)}` : ''}`, p.days < 0 ? 'Atrasado' : when(p.days), p.days <= 0 ? 'hot' : ''))) : null),
         card('Cumpleaños', 'casa-cumples', d.bdays.length ? h('ul', { class: 'dy-list' }, d.bdays.map((x) => li(`${x.name}${x.kind === 'gato' ? ' (gatito)' : ''}${x.age ? ` · cumple ${x.age}` : ''}`, when(x.days), x.days === 0 ? 'hot' : ''))) : null),
         card('Recordatorios', 'casa-recordatorios', d.rems.length ? h('ul', { class: 'dy-list' }, d.rems.map((r) => li(r.title, when(r.days)))) : null),
+        card('Trámites', 'casa-tramites', d.tramites?.length ? h('ul', { class: 'dy-list' }, d.tramites.map((t) => li(t.name, t.days < 0 ? 'Vencido' : when(t.days), t.days <= 7 ? 'hot' : ''))) : null),
         card('Gatitos', 'casa-gatitos', d.cats.length ? h('ul', { class: 'dy-list' }, d.cats.map((c) => li(`${c.cat}: ${{ vacuna: 'vacuna', desparasitacion: 'desparasitación', pulgas: 'antipulgas', veterinario: 'veterinario', otro: c.note || 'cuidado' }[c.type]}`, when(c.days), c.days <= 0 ? 'hot' : ''))) : null),
         card('Tickets de Notion', 'notion', d.tickets.length ? [h('ul', { class: 'dy-list' }, d.tickets.slice(0, 6).map((t) => li(t.title, t.late ? 'Vencido' : t.deadline, t.late ? 'hot' : ''))), d.tickets.length > 6 && h('p', { class: 'hint', text: `y ${d.tickets.length - 6} más` })] : null),
         card('Correo', 'mail', d.mail?.count ? h('ul', { class: 'dy-list' }, d.mail.last.map((m) => li(m.subject, m.from))) : null),
@@ -67,6 +85,7 @@
         card('Genshin', 'genshin', [
           d.resin && h('p', { class: `dy-big ${d.resin.value >= d.resin.max ? 'hot' : ''}`, text: `Resina ${d.resin.value}/${d.resin.max}` }),
           h('ul', { class: 'dy-list' }, d.resets.map((r) => li(r.name, until(r.at)))),
+          d.gather?.length && h('ul', { class: 'dy-list' }, d.gather.map((g) => li(g.name, g.readyAt <= Date.now() ? 'Listo para recoger' : until(g.readyAt), g.readyAt <= Date.now() ? 'hot' : ''))),
         ]),
         card('Presupuesto del mes', 'casa-presupuesto', b.limit ? [h('p', { class: 'dy-big', text: `${money(b.spent, b.currency)} de ${money(b.limit, b.currency)}` }), h('div', { class: 'dy-bar' }, h('i', { class: b.spent > b.limit ? 'hot' : '', style: { width: `${Math.min(100, (b.spent / b.limit) * 100)}%` } }))] : h('p', { class: 'hint', text: 'Pon un límite en Casa → Presupuesto para ver cuánto llevas.' })),
         card('Juegos gratis ahora', 'news', d.giveaways.length ? h('ul', { class: 'dy-list' }, d.giveaways.map((g) => li(g.title, g.store))) : null),
@@ -76,6 +95,16 @@
         D.backup.available ? `Copia en OneDrive: ${D.backup.last ? `la última es del ${D.backup.last}` : 'todavía ninguna'}. ` : 'No encuentro OneDrive en este PC. ',
         D.backup.available && h('button', { class: 'btn subtle small', text: 'Hacer copia ahora', onclick: async () => { try { D.backup = await window.api.backup.run(); toast('Copia guardada en OneDrive.'); dayRender(); } catch (e) { toast(errMsg(e), true); } } }),
         D.backup.available && D.backup.last && h('button', { class: 'btn subtle small', text: 'Abrir carpeta', onclick: () => window.api.backup.open() })
+      ),
+      h('section', { class: 'dy-phone' },
+        D.lan?.dayQr ? h('img', { src: D.lan.dayQr, alt: 'Código QR de Mi día para el celular' }) : null,
+        h('div', {},
+          h('h3', { text: 'Mi día en el celular' }),
+          D.lan?.dayQr
+            ? h('p', { class: 'hint', text: 'Escanéalo con la cámara del celular (en la misma wifi) y tendrás esta pantalla allí, actualizada cada minuto.' })
+            : h('p', { class: 'hint', text: 'Enciende el acceso desde el celular y te doy un código QR para ver tu día desde el teléfono, en la misma wifi.' }),
+          !D.lan?.dayQr && h('button', { class: 'btn ghost small', text: 'Encender acceso desde el celular', onclick: async () => { try { D.lan = await window.api.lanStart(); dayRender(); } catch (e) { toast(errMsg(e), true); } } })
+        )
       )
     );
   }

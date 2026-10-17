@@ -179,6 +179,7 @@
         s.limit ? h('div', { class: 'dy-bar' }, h('i', { class: s.spent > s.limit ? 'hot' : '', style: { width: `${pct}%` } })) : h('p', { class: 'hint', text: 'Pon un límite para el mes y te aviso al llegar al 90 % y si te pasas.' }),
         s.limit && h('p', { class: 'hint', text: s.spent > s.limit ? `Te pasaste por ${money(s.spent - s.limit, s.currency)}.` : `Te quedan ${money(s.limit - s.spent, s.currency)}. Pagos fijos del mes: ${money(s.planned, s.currency)}.` })
       ),
+      fxCard(s),
       h('div', { class: 'toolbar flat' }, h('span', { class: 'hint', text: 'Límite del mes:' }), limitIn, h('button', { class: 'btn ghost small', text: 'Guardar límite', onclick: () => { d.budget.limit = limitIn.value ? Number(limitIn.value) : null; BUD.st = null; commit(); toast('Límite guardado.'); } })),
       h('section', { class: 'rx-card' },
         h('h3', { text: 'Anotar un gasto' }),
@@ -186,9 +187,33 @@
         h('p', { class: 'hint', text: 'Los pagos que marcas como pagados (con monto) y las compras con precio que tachas se suman solos.' })
       ),
       kinds.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'En qué se va' }), h('ul', { class: 'bu-kinds' }, kinds.map(([k2, v]) => h('li', {}, h('span', { text: k2 }), h('div', { class: 'dy-bar' }, h('i', { style: { width: `${(v / (s.spent || 1)) * 100}%` } })), h('b', { text: money(v, s.currency) }))))) : null,
-      s.lines.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'Movimientos del mes' }), h('ul', { class: 'dy-list' }, s.lines.slice().reverse().map((l) => h('li', {}, h('span', { text: `${l.kind} · ${l.name}` }), h('b', { text: money(l.amount, s.currency) }), l.id && h('button', { class: 'btn subtle small', text: 'Quitar', onclick: () => { d.budget.expenses = d.budget.expenses.filter((x) => x.id !== l.id); BUD.st = null; commit(); } }))))) : null,
-      s.other.length ? h('p', { class: 'hint', text: `Hay ${s.other.length} pagos en otra moneda que no se suman (${[...new Set(s.other.map((o) => o.currency))].join(', ')}).` }) : null,
+      s.lines.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'Movimientos del mes' }), h('ul', { class: 'dy-list' }, s.lines.slice().reverse().map((l) => h('li', {}, h('span', { text: `${l.kind} · ${l.name}${l.original ? ` (${l.original})` : ''}` }), h('b', { text: money(l.amount, s.currency) }), l.id && h('button', { class: 'btn subtle small', text: 'Quitar', onclick: () => { d.budget.expenses = d.budget.expenses.filter((x) => x.id !== l.id); BUD.st = null; commit(); } }))))) : null,
+      s.other.length ? h('p', { class: 'hint', text: `Hay ${s.other.length} pagos en otra moneda que no se pudieron convertir (${[...new Set(s.other.map((o) => o.currency))].join(', ')}).` }) : null,
     ];
+  }
+
+  // Dólar del día (Banco Central, vía Hacienda) y conversor rápido
+  const FX = { d: null, busy: false };
+  function fxCard(s) {
+    if (!FX.d && !FX.busy) {
+      FX.busy = true;
+      window.api.fx(false).then((d) => { FX.d = d; FX.busy = false; render(); }).catch(() => { FX.busy = false; });
+    }
+    const f = FX.d;
+    if (!f) return null;
+    const usd = h('input', { class: 'rx-input', type: 'number', placeholder: 'Dólares', step: 1 });
+    const crc = h('input', { class: 'rx-input', type: 'number', placeholder: 'Colones', step: 1000 });
+    usd.addEventListener('input', () => { crc.value = usd.value ? Math.round(Number(usd.value) * f.sell) : ''; });
+    crc.addEventListener('input', () => { usd.value = crc.value ? (Number(crc.value) / f.sell).toFixed(2) : ''; });
+    const diff = f.prev?.sell ? f.sell - f.prev.sell : 0;
+    return h('section', { class: 'rx-card fx-card' },
+      h('div', { class: 'fx-rate' },
+        h('div', {}, h('small', { text: 'Dólar hoy · venta' }), h('b', { text: `₡${f.sell.toLocaleString('es', { minimumFractionDigits: 2 })}` }), diff ? h('em', { class: diff > 0 ? 'up' : 'down', text: `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(2)}` }) : null),
+        h('div', {}, h('small', { text: 'Compra' }), h('b', { text: `₡${f.buy.toLocaleString('es', { minimumFractionDigits: 2 })}` }))
+      ),
+      h('div', { class: 'fx-conv' }, usd, h('span', { text: '=' }), crc),
+      h('p', { class: 'hint', text: `Tipo de cambio de referencia del Banco Central${f.date ? ` del ${dShort(new Date(f.date + 'T12:00:00'))}` : ''}${f.stale ? ' (sin conexión: es el último que guardé)' : ''}. Los pagos en dólares se suman al presupuesto con este valor.` })
+    );
   }
 
   // =========================================================== GATITOS
@@ -232,6 +257,99 @@
           ))) : null
         );
       })) : h('p', { class: 'empty', text: 'Añade tus gatitos en Cumpleaños y aquí podrás llevar sus vacunas y visitas.' }),
+    ];
+  }
+
+  // =========================================================== TRÁMITES (Costa Rica)
+  const TRAM = [['marchamo', 'Marchamo'], ['riteve', 'Revisión técnica (Riteve)'], ['licencia', 'Licencia de conducir'], ['cedula', 'Cédula de identidad'], ['pasaporte', 'Pasaporte'], ['otro', 'Otro trámite']];
+  const TRAM_RENEW = { marchamo: 1, riteve: 1, cedula: 10, pasaporte: 6 };
+  const TRAM_INFO = {
+    marchamo: ['Se paga cada año, hasta el 31 de diciembre.', 'https://www.grupoins.com/'],
+    riteve: ['El mes depende del último dígito de la placa: 1 enero, 2 febrero… 9 setiembre y 0 octubre.', 'https://www.rtv.co.cr/'],
+    licencia: ['Se renueva en el COSEVI o en bancos autorizados, con el dictamen médico digital.', 'https://www.csv.go.cr/'],
+    cedula: ['Dura 10 años. Se renueva en el TSE o en bancos autorizados.', 'https://www.tse.go.cr/'],
+    pasaporte: ['Se renueva en Migración o en el Banco de Costa Rica.', 'https://www.migracion.go.cr/'],
+  };
+  const MONTHS_CR = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre'];
+  const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  // Riteve: último día del mes que toca según la placa (este año o el siguiente si ya pasó)
+  function riteveDue(plate, fromYear) {
+    const m = String(plate || '').match(/(\d)\D*$/);
+    if (!m) return null;
+    const month = m[1] === '0' ? 10 : Number(m[1]);
+    let y = fromYear || new Date().getFullYear();
+    let due = new Date(y, month, 0);
+    if (!fromYear && due < new Date(startOfDay())) due = new Date(++y, month, 0);
+    return { month, due: iso(due) };
+  }
+  function tramForm(t) {
+    const d = K.d;
+    const isNew = !t;
+    form(isNew ? 'Nuevo trámite' : `Editar: ${t.name}`, [
+      { key: 'kind', label: 'Tipo', type: 'select', value: t?.kind || 'otro', options: TRAM },
+      { key: 'name', label: 'Nombre', value: t?.name || '', placeholder: 'Ej.: Marchamo del carro, licencia de moto…' },
+      { key: 'plate', label: 'Placa (para marchamo y Riteve)', value: t?.plate || '', placeholder: 'Ej.: BCD123', hint: 'Con la placa calculo el mes de la revisión técnica.' },
+      { key: 'due', label: 'Vence el', type: 'date', value: t?.due || '' },
+      { key: 'note', label: 'Nota', value: t?.note || '', placeholder: 'Cita, sucursal, papeles que necesitas…' },
+    ], (v) => {
+      const row = { kind: v.kind, name: v.name || TRAM.find((x) => x[0] === v.kind)[1], plate: v.plate.toUpperCase(), due: v.due || null, note: v.note };
+      if (row.kind === 'riteve' && !row.due && row.plate) row.due = riteveDue(row.plate)?.due || null;
+      if (row.kind === 'marchamo' && !row.due) row.due = `${new Date().getFullYear()}-12-31`;
+      if (isNew) d.tramites.push({ id: uid(), lastDone: null, ...row });
+      else Object.assign(t, row);
+      commit();
+    }, isNew ? null : () => { d.tramites = d.tramites.filter((x) => x !== t); commit(); });
+  }
+  function tramDone(t) {
+    const years = TRAM_RENEW[t.kind];
+    t.lastDone = iso(new Date());
+    if (years && t.due) {
+      const dt = new Date(t.due + 'T12:00:00');
+      if (t.kind === 'riteve' && t.plate) t.due = riteveDue(t.plate, dt.getFullYear() + 1).due;
+      else t.due = iso(new Date(dt.getFullYear() + years, dt.getMonth(), dt.getDate()));
+      commit();
+      toast(`Listo. El próximo vence el ${dLong(new Date(t.due + 'T12:00:00'))}.`);
+    } else {
+      commit();
+      tramForm(t);
+      toast('Pon la nueva fecha de vencimiento.');
+    }
+  }
+  function tramites() {
+    const d = K.d;
+    d.tramites ||= [];
+    const today = startOfDay();
+    const left = (t) => (t.due ? Math.round((new Date(t.due + 'T00:00:00') - today) / DAY) : null);
+    const list = d.tramites.slice().sort((a, b) => (left(a) ?? 99999) - (left(b) ?? 99999));
+    const plate = d.tramites.find((t) => t.plate)?.plate;
+    const rt = plate ? riteveDue(plate) : null;
+    return [
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary small', text: 'Añadir trámite', onclick: () => tramForm(null) }),
+        h('span', { class: 'hint', text: 'Te aviso un mes antes, una semana antes y el día que vence.' })
+      ),
+      rt && h('p', { class: 'hint', text: `Con la placa ${plate}, tu revisión técnica toca en ${MONTHS_CR[rt.month - 1]}.` }),
+      h('div', { class: 'tr-grid' }, list.map((t) => {
+        const n = left(t);
+        const info = TRAM_INFO[t.kind];
+        const cls = n == null ? 'none' : n < 0 ? 'late' : n <= 30 ? 'soon' : 'ok';
+        return h('section', { class: `rx-card tr-card ${cls}` },
+          h('div', { class: 'tr-head' },
+            h('h3', { text: t.name }),
+            h('span', { class: 'tr-left', text: n == null ? 'Sin fecha' : n < 0 ? `Vencido hace ${plural(-n, 'día', 'días')}` : n === 0 ? 'Vence hoy' : n <= 60 ? `Faltan ${plural(n, 'día', 'días')}` : `Faltan ${Math.round(n / 30)} meses` })
+          ),
+          h('p', { class: 'tr-date', text: t.due ? `Vence el ${dLong(new Date(t.due + 'T12:00:00'))}` : t.kind === 'riteve' ? 'Pon la placa y calculo el mes.' : 'Pon la fecha de vencimiento.' }),
+          (t.plate || t.note) && h('p', { class: 'hint', text: [t.plate && `Placa ${t.plate}`, t.note].filter(Boolean).join(' · ') }),
+          info && h('p', { class: 'hint', text: info[0] }),
+          t.lastDone && h('p', { class: 'hint', text: `Última vez: ${dShort(new Date(t.lastDone + 'T12:00:00'))}` }),
+          h('div', { class: 'tr-actions' },
+            t.due && h('button', { class: 'btn ghost small', text: 'Hecho', title: TRAM_RENEW[t.kind] ? `Pasa al ${TRAM_RENEW[t.kind] === 1 ? 'próximo año' : `dentro de ${TRAM_RENEW[t.kind]} años`}` : 'Te pido la nueva fecha', onclick: () => tramDone(t) }),
+            h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => tramForm(t) }),
+            info && h('button', { class: 'btn subtle small', text: 'Web oficial', onclick: () => window.api.open(info[1]) })
+          )
+        );
+      })),
+      !list.length && h('p', { class: 'empty', text: 'Añade el marchamo, la revisión técnica, la licencia o la cédula y te aviso antes de que venzan.' }),
     ];
   }
 
@@ -360,22 +478,111 @@
   }
   function cumpleanos() {
     const d = K.d;
-    const rows = d.birthdays.map((b) => ({ b, n: nextBirthday(b) })).sort((a, b) => a.n.days - b.n.days);
-    const row = ({ b, n }) => h('li', { class: `ks-bd ${n.days === 0 ? 'today' : n.days <= 7 ? 'soon' : ''}` },
-      h('div', { class: 'ks-when' }, h('b', { text: b.day || '?' }), h('span', { text: MONTHS[b.month - 1].slice(0, 3) })),
-      h('div', { class: 'ks-pay-main' }, h('b', { text: b.name }), h('p', { class: 'hint', text: [b.day ? `${b.day} de ${MONTHS[b.month - 1]}` : `En ${MONTHS[b.month - 1]} (día por confirmar)`, n.age ? `cumple ${n.age}` : null, b.note].filter(Boolean).join(' · ') })),
-      h('span', { class: 'ks-days', text: n.days === 0 ? (n.monthOnly ? 'Este mes' : '¡Hoy!') : daysText(n.days) }),
-      h('button', { class: 'btn ghost small', text: 'Editar', onclick: () => birthdayForm(b) })
-    );
+    const plain = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const ideasFor = (name) => {
+      const who = plain(name);
+      return (d.gifts || []).filter((g) => g.status === 'idea' && (plain(g.for) === who || who.startsWith(plain(g.for)) || plain(g.for).startsWith(who.split(' ')[0]))).length;
+    };
+    const rows = d.birthdays.map((b) => ({ b, n: nextBirthday(b) })).sort((a, b) => a.n.days - b.n.days || (a.b.day || 0) - (b.b.day || 0));
     const people = rows.filter((x) => x.b.kind !== 'gato');
     const cats = rows.filter((x) => x.b.kind === 'gato');
-    const next = rows.slice(0, 3);
+    const dateText = (b) => (b.day ? `${b.day} de ${MONTHS[b.month - 1]}` : `${MONTHS[b.month - 1][0].toUpperCase() + MONTHS[b.month - 1].slice(1)}, día por confirmar`);
+    const leftText = (n) => (n.days === 0 ? (n.monthOnly ? 'Este mes' : '¡Hoy!') : daysText(n.days));
+    const initials = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+    // --- el próximo, en grande, y los siguientes al lado
+    const [first, ...rest] = rows;
+    const hero = first && h('section', { class: `bd-hero ${first.n.days === 0 ? 'party' : ''} ${first.b.kind === 'gato' ? 'cat' : ''}` },
+      h('div', { class: 'bd-hero-count' }, h('b', { text: first.n.days === 0 ? '¡Hoy!' : String(first.n.days) }), first.n.days ? h('span', { text: first.n.days === 1 ? 'día' : 'días' }) : null),
+      h('div', { class: 'bd-hero-main' },
+        h('p', { class: 'ks-kicker', text: first.n.days === 0 ? 'Hoy es el cumple de' : first.b.kind === 'gato' ? 'Próximo cumple gatuno' : 'Próximo cumpleaños' }),
+        h('h2', { text: first.b.name }),
+        h('p', { class: 'hint', text: [first.b.day ? dLong(first.n.date) : dateText(first.b), first.n.age ? `cumple ${first.n.age}` : null].filter(Boolean).join(' · ') }),
+        first.b.kind !== 'gato' && (() => {
+          const n = ideasFor(first.b.name);
+          return h('button', { class: 'btn ghost small', text: n ? `Ver ${plural(n, 'idea', 'ideas')} de regalo` : 'Anotar una idea de regalo', onclick: () => showView('casa-regalos') });
+        })()
+      )
+    );
+    const later = h('ol', { class: 'bd-later' }, rest.slice(0, 5).map(({ b, n }) => h('li', { class: b.kind === 'gato' ? 'cat' : '' },
+      h('span', { class: 'bd-later-d', text: b.day ? `${b.day} ${MONTHS[b.month - 1].slice(0, 3)}` : MONTHS[b.month - 1].slice(0, 3) }),
+      h('b', { text: b.name }),
+      h('span', { class: 'bd-later-left', text: leftText(n) })
+    )));
+
+    // --- el año entero, mes a mes
+    const thisMonth = new Date().getMonth();
+    const year = h('div', { class: 'bd-year' }, MONTHS.map((m, i) => {
+      const inMonth = d.birthdays.filter((b) => b.month === i + 1).sort((x, y) => (x.day || 99) - (y.day || 99));
+      return h('div', { class: `bd-month ${i === thisMonth ? 'now' : ''} ${inMonth.length ? '' : 'empty'}` },
+        h('h4', { text: m.slice(0, 3) }),
+        inMonth.map((b) => {
+          const n = nextBirthday(b);
+          return h('button', { class: `bd-chip ${b.kind === 'gato' ? 'cat' : ''} ${n.days === 0 && !n.monthOnly ? 'today' : ''}`, title: `${b.name} · ${dateText(b)}`, onclick: () => birthdayForm(b) },
+            h('span', { text: b.day || '?' }), b.name);
+        })
+      );
+    }));
+
+    // --- personas
+    const personRow = ({ b, n }) => {
+      const ideas = ideasFor(b.name);
+      return h('li', { class: `bd-person ${n.days === 0 ? 'today' : n.days <= 7 ? 'soon' : ''}` },
+        h('span', { class: 'bd-avatar', style: { '--hue': String((b.month * 30) % 360) }, text: initials(b.name) }),
+        h('div', { class: 'bd-person-main' }, h('b', { text: b.name }), h('span', { class: 'hint', text: [dateText(b), n.age ? `cumple ${n.age}` : null, b.note].filter(Boolean).join(' · ') })),
+        ideas ? h('button', { class: 'bd-ideas', text: plural(ideas, 'idea', 'ideas'), title: 'Ideas de regalo', onclick: () => showView('casa-regalos') }) : h('span'),
+        h('span', { class: 'bd-left', text: leftText(n) }),
+        h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => birthdayForm(b) })
+      );
+    };
+
+    // --- gatitos, del mayor al menor (los que no tienen año van al final)
+    const born = (b) => (b.year ? b.year * 10000 + b.month * 100 + (b.day || 15) : Infinity);
+    const catsByAge = cats.slice().sort((x, y) => born(x.b) - born(y.b) || x.b.name.localeCompare(y.b.name));
+    const withYear = catsByAge.filter((x) => x.b.year);
+    const ageNow = (b) => {
+      if (!b.year) return null;
+      const today = new Date();
+      let age = today.getFullYear() - b.year;
+      if (today.getMonth() + 1 < b.month || (today.getMonth() + 1 === b.month && b.day && today.getDate() < b.day)) age--;
+      return Math.max(0, age);
+    };
+    const catCard = ({ b, n }) => {
+      const age = ageNow(b);
+      const yearIn = h('input', { class: 'rx-input bd-year-in', type: 'number', min: 1990, max: new Date().getFullYear(), placeholder: 'Año', 'aria-label': `Año en que nació ${b.name}` });
+      const setYear = () => {
+        const y = Number(yearIn.value);
+        if (!y || y < 1990 || y > new Date().getFullYear()) return yearIn.focus();
+        b.year = y;
+        commit();
+      };
+      yearIn.addEventListener('keydown', (e) => e.key === 'Enter' && setYear());
+      const rank = withYear.length > 1 && b.year ? (b === withYear[0].b ? 'El mayor' : b === withYear[withYear.length - 1].b ? 'El menor' : null) : null;
+      return h('li', { class: `bd-cat ${n.days === 0 && !n.monthOnly ? 'today' : n.days <= 7 ? 'soon' : ''}` },
+        rank && h('span', { class: 'bd-rank', text: rank }),
+        h('div', { class: 'bd-cat-age' }, age != null ? [h('b', { text: String(age) }), h('span', { text: age === 1 ? 'año' : 'años' })] : h('span', { class: 'hint', text: 'Edad sin anotar' })),
+        h('h4', { text: b.name }),
+        h('p', { class: 'hint', text: [dateText(b), b.year ? `nació en ${b.year}` : null].filter(Boolean).join(' · ') }),
+        h('p', { class: 'bd-cat-left', text: n.days === 0 ? (n.monthOnly ? 'Cumple este mes' : '¡Hoy cumple!') : `Cumple ${daysText(n.days).toLowerCase()}` }),
+        b.year ? h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => birthdayForm(b) }) : h('div', { class: 'bd-year-set' }, yearIn, h('button', { class: 'btn ghost small', text: 'Guardar', onclick: setYear }))
+      );
+    };
+
     return [
-      h('div', { class: 'ks-upcoming' }, next.map(({ b, n }) => h('section', { class: `ks-next ${n.days === 0 ? 'party' : ''}` }, h('p', { class: 'ks-kicker', text: b.kind === 'gato' ? 'Gatito' : 'Cumpleaños' }), h('h2', { text: b.name }), h('p', { class: 'ks-big' }, h('b', { text: n.days === 0 ? '¡Hoy!' : String(n.days) }), n.days ? h('span', { text: n.days === 1 ? ' día' : ' días' }) : null), h('p', { class: 'hint', text: b.day ? dLong(n.date) : `En ${MONTHS[b.month - 1]}` })))),
-      h('div', { class: 'toolbar flat' }, h('button', { class: 'btn primary small', text: 'Añadir persona', onclick: () => birthdayForm(null, 'persona') }), h('button', { class: 'btn ghost small', text: 'Añadir gatito', onclick: () => birthdayForm(null, 'gato') }), h('span', { class: 'hint', text: 'Te aviso el día antes y el mismo día.' })),
-      h('div', { class: 'ks-two' },
-        h('section', {}, h('h3', { class: 'rx-squad-h' }, 'Personas', h('span', { class: 'count', text: String(people.length) })), h('ul', { class: 'ks-rems' }, people.map(row))),
-        h('section', {}, h('h3', { class: 'rx-squad-h' }, 'Gatitos', h('span', { class: 'count', text: String(cats.length) })), h('ul', { class: 'ks-rems' }, cats.map(row)))
+      h('div', { class: 'bd-top' }, hero, rest.length ? h('section', { class: 'bd-next' }, h('h3', { class: 'rx-squad-h', text: 'Después' }), later) : null),
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary small', text: 'Añadir persona', onclick: () => birthdayForm(null, 'persona') }),
+        h('button', { class: 'btn ghost small', text: 'Añadir gatito', onclick: () => birthdayForm(null, 'gato') }),
+        h('span', { class: 'hint', text: 'Te aviso el día antes y el mismo día; con ideas de regalo, también 14 y 3 días antes.' })
+      ),
+      h('section', { class: 'bd-sec' }, h('h3', { class: 'rx-squad-h', text: 'Tu año en cumpleaños' }), year),
+      h('div', { class: 'bd-cols' },
+        h('section', { class: 'bd-sec' }, h('h3', { class: 'rx-squad-h' }, 'Personas', h('span', { class: 'count', text: String(people.length) })), h('ul', { class: 'bd-people' }, people.map(personRow))),
+        h('section', { class: 'bd-sec' },
+          h('h3', { class: 'rx-squad-h' }, 'Gatitos, del mayor al menor', h('span', { class: 'count', text: String(cats.length) })),
+          cats.length > withYear.length && h('p', { class: 'hint', text: withYear.length ? 'Los que no tienen año van al final: pon el año en que nació cada uno para ordenarlos.' : 'Pon el año en que nació cada uno y los ordeno del mayor al menor.' }),
+          h('ul', { class: 'bd-cats' }, catsByAge.map(catCard))
+        )
       ),
     ];
   }
@@ -650,7 +857,7 @@
     ];
   }
 
-  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
+  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['tramites', 'Trámites'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
   const SUB = {
     compras: 'Lo que falta en la casa, por categoría. Marca lo que vas comprando.',
     pagos: 'Alquiler, servicios y demás pagos de cada mes, con cuánto falta para el próximo.',
@@ -659,6 +866,7 @@
     regalos: 'Ideas de regalos para cada persona, con su foto y dónde comprarlos.',
     presupuesto: 'Cuánto llevas gastado este mes frente a tu límite: pagos, compras y gastos sueltos.',
     gatitos: 'Vacunas, desparasitación y visitas al veterinario de cada gatito, con recordatorio.',
+    tramites: 'Marchamo, revisión técnica, licencia y cédula: cuándo vence cada uno, con aviso antes.',
     feriados: 'Feriados nacionales de Estados Unidos, Argentina y Costa Rica.',
     alquileres: 'Casas y apartamentos en alquiler de Facebook Marketplace, con tu precio y tu lugar.',
   };
@@ -668,7 +876,7 @@
     $('#casaTitle').textContent = TABS.find((t) => t[0] === K.tab)[1];
     $('#casaSub').textContent = SUB[K.tab];
     if (!K.d) return fill(body, skeleton());
-    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos, feriados, alquileres };
+    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos, tramites, feriados, alquileres };
     fill(body, views[K.tab]());
   }
   const skeleton = () => h('div', { class: 'rx-skel' }, [1, 2, 3].map(() => h('div', { class: 'skel rx-skel-row' }, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }))));
@@ -695,6 +903,7 @@
     set('countPagos', K.d.payments.filter((p) => { const n = nextDue(p); return n && n.days <= (p.notifyDays ?? 3); }).length);
     set('countCumples', K.d.birthdays.filter((b) => b.day && nextBirthday(b).days <= 7).length);
     set('countRegalos', (K.d.gifts || []).filter((g) => g.status === 'idea').length);
+    set('countTramites', (K.d.tramites || []).filter((t) => t.due && new Date(t.due + 'T00:00:00').getTime() - startOfDay() <= 30 * DAY).length);
     set('countRecordatorios', K.d.reminders.filter((r) => !r.done && Math.round((new Date(r.date + 'T00:00:00').getTime() - startOfDay()) / DAY) <= 7 && new Date(r.date + 'T00:00:00').getTime() >= startOfDay()).length);
   }
   setTimeout(updateBadge, 3000);
