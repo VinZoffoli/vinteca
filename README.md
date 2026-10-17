@@ -222,6 +222,14 @@ La sección Genshin tiene además estas pestañas:
 
 En **Música → Spotify** vinculas tu cuenta con el inicio de sesión oficial de Spotify (necesitas crear una vez una app gratuita en [developer.spotify.com](https://developer.spotify.com/dashboard) y pegar su *Client ID*; la app lo explica paso a paso). Verás tus playlists, *Canciones que te gustan*, lo que más escuchas, lo reciente, tus artistas y **Para ti** (lo más escuchado de tus artistas favoritos que aún no oyes). Con **Premium** puedes reproducir y cambiar de playlist desde ViperTeca: suena en tu app de Spotify (Spotify Connect) y abajo aparece una barra con pausa, siguiente, aleatorio, volumen y dónde suena.
 
+## Workana
+
+**ViperTech → Workana** busca proyectos nuevos en Workana con tus palabras clave (por defecto: wordpress, elementor, woocommerce, landing page, página web, desarrollo web) y te los comenta uno a uno: qué piden, la tecnología, el presupuesto del cliente, cuántas propuestas tiene y si el cliente tiene el pago verificado y buena valoración. Puedes filtrar por pago verificado y ordenar por los más nuevos, el mayor presupuesto o los que tienen menos propuestas.
+
+Escribes tu precio y pulsas **Preparar propuesta**: la app la redacta con tu estructura de siempre, elige como referencia dos de tus proyectos destacados del perfil (Silkglobal, Butori Insumet, Salva Vidrios…) y aplica las reglas de Workana: sin enlaces ni dominios, sin números, sin palabras de contacto (correo, teléfono, WhatsApp…) y «Nextjs» sin punto. Si editas el texto y algo no cumple, lo marca y puede corregirlo.
+
+**Copiar y abrir en Workana** copia la propuesta y abre el proyecto en tu navegador: la pegas, pones tu precio y la envías tú. ViperTeca no postula por ti, porque Workana no permite enviar propuestas con programas automáticos. Marca *Ya postulé* para que no vuelva a salir. La búsqueda lee la página pública de trabajos de Workana con una ventana oculta de la app, solo cuando pulsas *Buscar*.
+
 ## Trucos
 
 **Tu biblioteca → Trucos** es un motor de trucos propio, como los de Wand o Cheat Engine, para juegos **de un jugador**:

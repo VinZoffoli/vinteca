@@ -36,6 +36,16 @@ contextBridge.exposeInMainWorld('api', {
   walletCached: () => ipcRenderer.invoke('wallet:cached'),
   walletRefresh: (key, interactive) => ipcRenderer.invoke('wallet:refresh', key, interactive),
   walletLogout: (key) => ipcRenderer.invoke('wallet:logout', key),
+  workana: {
+    state: () => ipcRenderer.invoke('wk:state'),
+    saveState: (s) => ipcRenderer.invoke('wk:saveState', s),
+    search: (opts) => ipcRenderer.invoke('wk:search', opts),
+    build: (p) => ipcRenderer.invoke('wk:build', p),
+    check: (t) => ipcRenderer.invoke('wk:check', t),
+    clean: (t) => ipcRenderer.invoke('wk:clean', t),
+    copy: (t) => ipcRenderer.invoke('wk:copy', t),
+    onProgress: (cb) => ipcRenderer.on('wk:progress', (_e, t) => cb(t)),
+  },
   cheats: {
     procs: () => ipcRenderer.invoke('trainer:procs'),
     attach: (p) => ipcRenderer.invoke('trainer:attach', p),

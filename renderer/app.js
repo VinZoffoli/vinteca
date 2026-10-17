@@ -1099,6 +1099,8 @@ function showView(view) {
   $('#musicView').hidden = view !== 'music';
   $('#rgbView').hidden = view !== 'rgb';
   $('#cheatsView').hidden = view !== 'cheats';
+  $('#workanaView').hidden = view !== 'workana';
+  if (view === 'workana') window.workanaUI?.show();
   if (view === 'cheats') window.cheats?.show();
   if (view === 'rgb') loadRgb();
   if (view === 'music') window.music?.show();

@@ -26,6 +26,8 @@ const wallets = require('./src/wallets');
 const genshinNews = require('./src/genshin-news');
 const rgb = require('./src/rgb');
 const trainer = require('./src/trainer');
+const workana = require('./src/workana');
+const proposal = require('./src/proposal');
 const spotify = require('./src/spotify');
 const recs = require('./src/recs');
 const storeinfo = require('./src/storeinfo');
@@ -181,6 +183,22 @@ function snapshot(dir) {
       await wait(1200);
     }
     await shot('biblioteca.png');
+    if (process.env.BJ_SNAPSHOT_ONLY === 'workana') {
+      await js(`showView('workana')`);
+      await wait(2000);
+      await js(`document.querySelector('#workanaBody .btn.primary').click()`);
+      for (let i = 0; i < 90 && !(await js(`!!document.querySelector('.wk-card')`)); i++) await wait(1000);
+      await wait(1500);
+      log(`WORKANA tarjetas=${await js(`document.querySelectorAll('.wk-card').length`)}`);
+      await shot('workana.png');
+      await js(`(() => { const i = document.querySelector('.wk-price'); i.value = '350'; i.dispatchEvent(new Event('input')); document.querySelector('.wk-act .btn.primary').click(); })()`);
+      await wait(2500);
+      await js(`document.querySelector('.wk-card.open')?.scrollIntoView()`);
+      await wait(800);
+      await shot('workana-propuesta.png');
+      log(`PROPUESTA ${JSON.stringify(await js(`document.querySelector('.wk-draft')?.value`))}`);
+      return app.quit();
+    }
     if (process.env.BJ_SNAPSHOT_ONLY === 'genshin') {
       await js(`showView('genshin')`);
       await wait(1500);
@@ -371,7 +389,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -1458,6 +1476,31 @@ ipcMain.handle('wallet:logout', async (_e, key) => {
   delete all[key];
   store.write('wallets.json', all);
   return all;
+});
+
+// ---------- Workana ----------
+ipcMain.handle('wk:state', () => store.read('workana.json', { queries: ['wordpress', 'elementor', 'woocommerce', 'landing page', 'pagina web', 'desarrollo web'], publication: '3d', done: {}, last: null }));
+ipcMain.handle('wk:saveState', (_e, patchState) => {
+  const s = store.read('workana.json', { done: {} });
+  const next = { ...s, ...patchState };
+  store.write('workana.json', next);
+  return next;
+});
+ipcMain.handle('wk:search', async (e, opts) => {
+  const queries = (Array.isArray(opts?.queries) ? opts.queries : []).map((q) => String(q).trim()).filter(Boolean).slice(0, 8);
+  if (!queries.length) throw new Error('Añade al menos una palabra para buscar.');
+  const list = await workana.search({ queries, publication: ['1d', '3d', '1w', '1m'].includes(opts?.publication) ? opts.publication : '3d', pages: 2, onProgress: (t) => !e.sender.isDestroyed() && e.sender.send('wk:progress', t) });
+  const s = store.read('workana.json', { done: {} });
+  s.last = { at: Date.now(), list };
+  store.write('workana.json', s);
+  return s.last;
+});
+ipcMain.handle('wk:build', (_e, p) => proposal.build(p || {}));
+ipcMain.handle('wk:check', (_e, text) => proposal.check(String(text || '')));
+ipcMain.handle('wk:clean', (_e, text) => proposal.clean(String(text || '')));
+ipcMain.handle('wk:copy', (_e, text) => {
+  require('electron').clipboard.writeText(String(text || ''));
+  return true;
 });
 
 // ---------- Motor de trucos ----------

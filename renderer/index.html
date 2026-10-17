@@ -49,6 +49,8 @@
       <button class="tab" data-view="recs" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg><span class="tab-lbl">Para ti</span></button>
       <button class="tab" data-view="friends" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M15.5 5.6a3.2 3.2 0 0 1 0 6M17.5 14.2a5.5 5.5 0 0 1 3 4.8"/></svg><span class="tab-lbl">Amigos</span><span id="countFriends" class="count"></span></button>
       <button class="tab" data-view="deals" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.5 3.5H20v8.5l-8.5 8.5-8.5-8.5z"/><circle cx="15.5" cy="8" r="1.4"/></svg><span class="tab-lbl">Ofertas</span><span id="countDeals" class="count sale"></span></button>
+      <p class="side-h">ViperTech</p>
+      <button class="tab" data-view="workana" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="7" width="17" height="12.5" rx="2"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3.5 12.5h17"/></svg><span class="tab-lbl">Workana</span><span id="countWorkana" class="count"></span></button>
       <p class="side-h">Música</p>
       <button class="tab" data-view="music" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 9.6c3-1 6.4-.8 9.2.7M8 12.6c2.5-.7 5.3-.5 7.6.7M8.6 15.4c2-.5 4.1-.3 5.9.6"/></svg><span class="tab-lbl">Spotify</span><span id="countMusic" class="count"></span></button>
       <p class="side-h">Tu PC</p>
@@ -198,6 +200,18 @@
     <!-- Spotify -->
     <section id="musicView" class="view" hidden>
       <div id="musicBody"></div>
+    </section>
+
+    <!-- Workana -->
+    <section id="workanaView" class="view" hidden>
+      <div class="view-head split">
+        <div>
+          <h1>Workana</h1>
+          <p class="sub">Proyectos nuevos de WordPress y desarrollo web, con su presupuesto y un comentario de cada uno. Pones tu precio y la propuesta queda lista para copiar y postular.</p>
+        </div>
+        <button id="wkOpenDash" class="btn ghost small">Abrir mi Workana</button>
+      </div>
+      <div id="workanaBody"></div>
     </section>
 
     <!-- Trucos -->
@@ -502,6 +516,7 @@
   <script src="app.js"></script>
   <script src="music.js"></script>
   <script src="cheats.js"></script>
+  <script src="workana.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>
