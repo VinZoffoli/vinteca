@@ -30,6 +30,9 @@ const workana = require('./src/workana');
 const proposal = require('./src/proposal');
 const spotify = require('./src/spotify');
 const recs = require('./src/recs');
+const notion = require('./src/notion');
+const repos = require('./src/repos');
+const calendar = require('./src/calendar');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -197,6 +200,39 @@ function snapshot(dir) {
       await wait(800);
       await shot('workana-propuesta.png');
       log(`PROPUESTA ${JSON.stringify(await js(`document.querySelector('.wk-draft')?.value`))}`);
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'resto') {
+      // BJ_RESTO_FIXTURE: módulo con datos de prueba (así no hacen falta tus cuentas)
+      if (process.env.BJ_RESTO_FIXTURE) {
+        const fx = require(process.env.BJ_RESTO_FIXTURE)(calendar);
+        for (const ch of ['re:notionStatus', 're:notion', 're:ticketChat', 'cal:status', 'cal:get']) ipcMain.removeHandler(ch);
+        ipcMain.handle('re:notionStatus', () => ({ linked: true }));
+        ipcMain.handle('re:notion', () => fx.notion);
+        ipcMain.handle('re:ticketChat', (_e, id) => fx.chat(id));
+        ipcMain.handle('cal:status', () => ({ linked: true }));
+        ipcMain.handle('cal:get', () => fx.cal);
+      }
+      await js(`showView('cal')`);
+      await wait(2500);
+      await shot('calendario.png');
+      await js(`showView('notion')`);
+      await wait(4000);
+      await shot('notion-tickets.png');
+      await js(`document.querySelector('.rx-tk')?.click()`);
+      await wait(1500);
+      await shot('notion-ticket.png');
+      await js(`document.querySelector('dialog[open]')?.close()`);
+      await js(`document.querySelectorAll('.rx-tabs button')[1]?.click()`);
+      await wait(2500);
+      await shot('notion-pipeline.png');
+      await js(`showView('webs')`);
+      for (let i = 0; i < 60 && !(await js(`!!document.querySelector('.rx-repo')`)); i++) await wait(1000);
+      await wait(1000);
+      await js(`document.querySelector('.rx-repo-head')?.click()`);
+      await wait(800);
+      await shot('webs.png');
+      log(`WEBS filas=${await js(`document.querySelectorAll('.rx-repo').length`)} contadores=${await js(`[...document.querySelectorAll('#countCal,#countNotion,#countWebs')].map((x) => x.textContent).join('|')`)}`);
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'genshin') {
@@ -389,7 +425,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -464,6 +500,9 @@ app.whenReady().then(() => {
     setInterval(priceAlerts, 6 * 3600000);
     setTimeout(friendAlerts, 20000);
     setInterval(friendAlerts, 5 * 60000);
+    setTimeout(() => calendarTick(false), 15000);
+    setInterval(() => calendarTick(true), 5 * 60000);
+    setInterval(calendarReminders, 30000);
   }
   createWindow();
   updateJumpList();
@@ -877,6 +916,9 @@ ipcMain.handle('data:export', async () => {
   delete settings.steamKeyEnc; // la clave cifrada solo sirve en este usuario de Windows
   delete settings.hoyolabEnc; // la sesión de HoYoLAB tampoco sale del PC
   delete settings.spotifyEnc;
+  delete settings.notionEnc;
+  delete settings.notionClientId;
+  delete settings.calIcsEnc;
   const data = {
     app: 'biblioteca-juegos',
     version: 1,
@@ -1630,6 +1672,121 @@ ipcMain.handle('sp:state', () => spotify.state(sp));
 ipcMain.handle('sp:devices', () => spotify.devices(sp));
 ipcMain.handle('sp:control', (_e, action, arg) => spotify.control(sp, String(action), arg || {}));
 ipcMain.handle('sp:liked', (_e, ids) => spotify.isLiked(sp, Array.isArray(ids) ? ids.map(String) : []));
+
+// ---------- Resto Experience: Notion, webs y calendario ----------
+const rx = { read: store.read, write: store.write };
+const webRoot = () => store.read('settings.json', {}).websDir || repos.DEFAULT_DIR;
+const inWebRoot = (dir) => {
+  const p = require('path');
+  const rel = p.relative(webRoot(), p.resolve(String(dir || '')));
+  return !!rel && !rel.startsWith('..') && !p.isAbsolute(rel);
+};
+ipcMain.handle('re:notionStatus', () => ({ linked: notion.linked(store.read) }));
+ipcMain.handle('re:notionLogin', () => notion.login(rx));
+ipcMain.handle('re:notionLogout', () => notion.logout(rx));
+ipcMain.handle('re:notion', (_e, force) => notion.overview(rx, !!force));
+ipcMain.handle('re:ticketChat', (_e, id, t) => {
+  if (!/^[0-9a-f-]{32,36}$/i.test(String(id))) throw new Error('Ticket no válido.');
+  return notion.ticketChat(rx, String(id), t || null);
+});
+ipcMain.handle('re:openNotion', (_e, url) => {
+  const u = String(url || '');
+  if (!/^https:\/\/(www\.)?(app\.)?notion\.(so|com)\/[\w\-/?=&.%]+$/.test(u)) return false;
+  shell.openExternal(u.replace('://www.notion.so/', '://app.notion.com/p/'));
+  return true;
+});
+// abre staging/producción solo si la URL viene del pipeline de Notion
+ipcMain.handle('re:openSite', (_e, url) => {
+  const u = String(url || '');
+  const c = store.read('notion-cache.json', null);
+  const known = (c?.data?.pipeline?.rows || []).some((r) => [r.staging, r.production, r.repo].includes(u));
+  if (!known || !/^https:\/\//.test(u)) return false;
+  shell.openExternal(u);
+  return true;
+});
+ipcMain.handle('re:webs', () => ({ dir: webRoot(), last: store.read('webs.json', null) }));
+ipcMain.handle('re:scan', async (e, fetchRemote) => {
+  const r = await repos.scan(webRoot(), { fetch: fetchRemote !== false, onProgress: (d, n, name) => !e.sender.isDestroyed() && e.sender.send('re:scanProgress', { done: d, total: n, name }) });
+  store.write('webs.json', r);
+  return r;
+});
+ipcMain.handle('re:pull', async (_e, dir) => {
+  if (!inWebRoot(dir)) throw new Error('Esa carpeta no está dentro de tus webs.');
+  const r = await repos.pull(require('path').resolve(dir));
+  const last = store.read('webs.json', null);
+  if (last) {
+    last.repos = last.repos.map((x) => (x.dir === r.dir ? r : x));
+    store.write('webs.json', last);
+  }
+  return r;
+});
+ipcMain.handle('re:openDir', (_e, dir, how) => {
+  if (!inWebRoot(dir)) return false;
+  const p = require('path').resolve(dir);
+  if (how === 'code') shell.openExternal('vscode://file/' + p.replace(/\\/g, '/'));
+  else shell.openPath(p);
+  return true;
+});
+ipcMain.handle('re:pickDir', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Carpeta donde tienes tus webs', defaultPath: webRoot(), properties: ['openDirectory'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  const s = store.read('settings.json', {});
+  s.websDir = r.filePaths[0];
+  store.write('settings.json', s);
+  store.write('webs.json', null);
+  return s.websDir;
+});
+
+ipcMain.handle('cal:status', () => ({ linked: calendar.linked(store.read) }));
+ipcMain.handle('cal:setUrl', (_e, url) => {
+  const ok = calendar.setUrl(rx, url);
+  if (ok) calendarTick(true).catch(() => {});
+  return ok;
+});
+ipcMain.handle('cal:get', async (_e, force) => {
+  const c = await calendar.load(rx, !!force);
+  return c;
+});
+ipcMain.handle('cal:open', (_e, url) => {
+  const u = String(url || '');
+  if (!/^https:\/\/(meet\.google\.com\/[a-z-]+|[\w.-]*zoom\.us\/[jw]\/|teams\.(microsoft|live)\.com\/|calendar\.google\.com\/calendar\/)/i.test(u)) return false;
+  shell.openExternal(u);
+  return true;
+});
+
+// Avisos del calendario: reunión nueva y "empieza en 5 minutos"
+const calReminded = new Set();
+async function calendarTick(force) {
+  if (!calendar.linked(store.read)) return;
+  let c;
+  try {
+    c = await calendar.load(rx, !!force);
+  } catch {
+    return;
+  }
+  if (force !== 'quiet' && store.read('settings.json', {}).calNewAlerts !== false) {
+    const { fresh, moved } = calendar.diffNew(rx, c.events);
+    const when = (t) => new Date(t).toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    if (fresh.length === 1) notify('Te agendaron una reunión', `${fresh[0].title} · ${when(fresh[0].start)}`, 'https://calendar.google.com/calendar/r');
+    else if (fresh.length > 1) notify(`Te agendaron ${fresh.length} reuniones`, fresh.slice(0, 3).map((e) => `${e.title} (${when(e.start)})`).join('\n'), 'https://calendar.google.com/calendar/r');
+    for (const m of moved.slice(0, 3)) notify('Cambió una reunión', `${m.title} ahora es el ${when(m.start)}`, 'https://calendar.google.com/calendar/r');
+    if ((fresh.length || moved.length) && win && !win.isDestroyed()) win.webContents.send('cal:changed');
+  }
+}
+function calendarReminders() {
+  if (store.read('settings.json', {}).calReminders === false) return;
+  const c = store.read('calendar-cache.json', null);
+  if (!c?.events) return;
+  const now = Date.now();
+  for (const e of c.events) {
+    if (e.allDay || e.myStatus === 'DECLINED' || calReminded.has(e.id)) continue;
+    const mins = (e.start - now) / 60000;
+    if (mins > 0 && mins <= 5) {
+      calReminded.add(e.id);
+      notify(`En ${Math.max(1, Math.round(mins))} min: ${e.title}`, e.link ? 'Haz clic para entrar a la reunión.' : e.location || 'Reunión', e.link && /^https:\/\/meet\.google\.com\//.test(e.link) ? e.link : null);
+    }
+  }
+}
 
 ipcMain.handle('genshin:get', (_e, force, uid) => {
   const id = uid || store.getSettings().genshinUid;

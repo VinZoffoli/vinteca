@@ -75,7 +75,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});

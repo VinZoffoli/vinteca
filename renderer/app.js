@@ -1101,6 +1101,12 @@ function showView(view) {
   $('#cheatsView').hidden = view !== 'cheats';
   $('#workanaView').hidden = view !== 'workana';
   if (view === 'workana') window.workanaUI?.show();
+  $('#calView').hidden = view !== 'cal';
+  $('#notionView').hidden = view !== 'notion';
+  $('#websView').hidden = view !== 'webs';
+  if (view === 'cal') window.resto?.calShow();
+  if (view === 'notion') window.resto?.notionShow();
+  if (view === 'webs') window.resto?.websShow();
   if (view === 'cheats') window.cheats?.show();
   if (view === 'rgb') loadRgb();
   if (view === 'music') window.music?.show();

@@ -230,6 +230,16 @@ Escribes tu precio y pulsas **Preparar propuesta**: la app la redacta con tu est
 
 **Copiar y abrir en Workana** copia la propuesta y abre el proyecto en tu navegador: la pegas, pones tu precio y la envías tú. ViperTeca no postula por ti, porque Workana no permite enviar propuestas con programas automáticos. Marca *Ya postulé* para que no vuelva a salir. La búsqueda lee la página pública de trabajos de Workana con una ventana oculta de la app, solo cuando pulsas *Buscar*.
 
+## Resto Experience
+
+Tres apartados para el trabajo, en la sección **Resto Experience** del menú.
+
+**Calendario**: tus próximas reuniones de Google Calendar, la siguiente con su botón para unirte a Meet, tu día en una franja horaria, tus dailys y la agenda de las próximas dos semanas. Marca las reuniones nuevas y las que aún no respondiste. Cada 5 minutos revisa el calendario y te avisa si te agendan una reunión o si cambia una hora, y también 5 minutos antes de cada reunión (los dos avisos se apagan en *Avisos*). Para conectarlo pegas tú la **dirección secreta en formato iCal** de tu calendario (Google Calendar → Configuración → tu calendario → Integrar el calendario). Es de solo lectura y se guarda cifrada con tu usuario de Windows. Si tu cuenta de empresa no muestra esa opción, la tiene desactivada el administrador de Google Workspace.
+
+**Notion**: pulsas *Conectar con Notion*, aceptas en tu navegador y listo (OAuth con el servidor oficial de Notion; la app nunca ve tu contraseña y solo lee). Verás tus tickets de *Tickets General* donde eres responsable, en tres columnas (por hacer, en curso y cerrados el último mes), con prioridad, fecha límite (vencidos en rojo), fecha de creación y el resumen. La app lee el chat de cada ticket abierto y te dice si **queda algo pendiente**, si estás esperando respuesta o si parece listo; al abrir un ticket ves el chat completo. La pestaña *Pipeline de webs* muestra todas las webs por estado (tus webs o todo el equipo) con tipo, tecnología, entrega, enlaces a GitHub, staging y producción, y el estado de tu copia local.
+
+**Websites**: revisa cada carpeta de `Escritorio\Vincenzo\Resto Experience\Webs` (se puede cambiar). *Revisar con GitHub* hace `git fetch` en cada repo con tus credenciales de git y te dice cuáles necesitan `git pull`, cuáles tienen cambios sin commit o commits sin subir, si tu rama va por detrás de main y cuál fue el último commit en GitHub. *Hacer git pull* solo aparece cuando la carpeta está limpia (usa `--ff-only`, así nunca pisa tu trabajo), y avisa si cambiaron las dependencias.
+
 ## Trucos
 
 **Tu biblioteca → Trucos** es un motor de trucos propio, como los de Wand o Cheat Engine, para juegos **de un jugador**:
