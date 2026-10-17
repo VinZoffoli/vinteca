@@ -45,6 +45,7 @@ const codeedit = require('./src/codeedit');
 const claudeChat = require('./src/claude-chat');
 const marketplace = require('./src/marketplace');
 const mail = require('./src/mail');
+const steamfamily = require('./src/steamfamily');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -218,6 +219,15 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'family') {
+      const s = store.read('settings.json', {});
+      const r = await require('./src/steamfamily').load(ctxRW, { steamId: s.steamId || store.getSettings().steamId, apiKey: null }).catch((e) => ({ error: e.message }));
+      log(`FAMILY ${JSON.stringify({ login: r.login, none: r.none, error: r.error, group: r.group, members: r.members?.length, apps: r.apps?.length, sample: (r.apps || []).filter((a) => /bioshock|final fantasy|devil may cry|hylics|little nightmares/i.test(a.name)).map((a) => a.name) })}`);
+      await js(`showView('sagas')`);
+      await wait(2000);
+      await shot('sagas.png');
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v114') {
@@ -1368,6 +1378,32 @@ ipcMain.handle('settings:save', (_e, data) => {
   return s;
 });
 
+// Conectar la biblioteca familiar: inicias sesión en Steam en una ventana de la app
+ipcMain.handle('family:status', () => {
+  const f = store.read('steam-family.json', null);
+  return f ? { linked: true, group: f.group, games: f.apps.length, members: f.members, at: f.at } : { linked: false };
+});
+ipcMain.handle('family:login', () => new Promise((resolve) => {
+  const w = new BrowserWindow({ width: 900, height: 780, title: 'Steam · ViperTeca', autoHideMenuBar: true, parent: win, backgroundColor: '#1b2838', webPreferences: { session: session.fromPartition(steamfamily.PART), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  w.on('page-title-updated', (e) => e.preventDefault());
+  w.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  let done = false;
+  const check = async () => {
+    if (done || w.isDestroyed()) return;
+    const ses = session.fromPartition(steamfamily.PART);
+    const r = await ses.fetch('https://store.steampowered.com/pointssummary/ajaxgetasyncconfig').then((x) => x.json()).catch(() => null);
+    if (r?.data?.webapi_token) {
+      done = true;
+      w.close();
+      resolve(true);
+    }
+  };
+  w.webContents.on('did-navigate', check);
+  w.webContents.on('did-finish-load', check);
+  w.on('closed', () => !done && resolve(false));
+  w.loadURL('https://store.steampowered.com/login/?redir=account%2F');
+}));
+
 ipcMain.handle('library:cached', () => {
   const lib = store.read('library.json', null);
   return lib ? { ...lib, purchaseInfo: store.read('purchase-dates.json', {}).info || null } : null;
@@ -1381,12 +1417,24 @@ ipcMain.handle('library:refresh', async () => {
     steam.setRegion(settings.country);
     const previous = store.read('library.json', null);
     const purchases = store.read('purchase-dates.json', {});
+    // Biblioteca del grupo familiar de Steam (si la sesión de Steam de la app está iniciada)
+    let family = null;
+    try {
+      const sid = settings.steamId || steam.detectSteamId(await steam.findSteamPath());
+      if (sid) {
+        const f = await steamfamily.load({ read: store.read, write: store.write }, { steamId: sid, apiKey: store.getSteamKey() });
+        family = f?.apps ? f : f?.cached || null;
+      }
+    } catch {
+      family = store.read('steam-family.json', null);
+    }
     const result = await library.refresh({
       apiKey: store.getSteamKey(),
       settings,
       previous,
       purchaseDates: purchases.dates || {},
       cache: { read: store.read, write: store.write },
+      family,
     });
     try {
       const map = await trainers.catalog({ read: store.read, write: store.write });

@@ -189,6 +189,7 @@ function metaLine(g, mode) {
   const st = STATUS_LABEL[state.user[g.id]?.status];
   if (g.installed && g.updatePending) return h('span', { class: 'warn', text: g.updateText || 'Actualización pendiente' });
   if (g.installed) return h('span', {}, st ? `${st}, ` : '', h('span', { class: 'on', text: st ? 'instalado' : 'Instalado' }));
+  if (g.familyOwners?.length) return h('span', { title: `Te lo comparte ${g.familyOwners.join(' y ')} (grupo familiar de Steam)`, text: st ? `${st}, de ${g.familyOwners[0]}` : `De ${g.familyOwners[0]} (familia)` });
   return h('span', { text: st ? `${st}, sin instalar` : 'Sin instalar' });
 }
 
@@ -419,7 +420,29 @@ function sagaGroups() {
     .sort((a, b) => b.list.length - a.list.length || collator.compare(a.name, b.name));
 }
 
+// Aviso para sumar la biblioteca del grupo familiar de Steam
+async function familyNotice() {
+  const box = $('#familyNotice');
+  if (!box) return;
+  const st = await window.api.family.status().catch(() => ({ linked: false }));
+  if (st.linked) {
+    fill(box, h('p', { class: 'hint', text: `Incluye ${plural(st.games, 'juego', 'juegos')} que te comparte tu grupo familiar de Steam (${st.members.map((m) => m.name).join(', ')}).` }));
+    return;
+  }
+  fill(box, h('div', { class: 'notice' },
+    h('span', { text: 'Faltan los juegos de tu grupo familiar de Steam (por eso no salen algunas sagas). Conecta tu sesión de Steam una vez y se suman a tu biblioteca.' }),
+    h('button', { class: 'btn primary small', text: 'Conectar con Steam', onclick: async () => {
+      const ok = await window.api.family.login();
+      if (!ok) return toast('No se completó el inicio de sesión en Steam.', true);
+      toast('Steam conectado: actualizando la biblioteca con los juegos de tu familia…');
+      $('#refreshBtn')?.click();
+      familyNotice();
+    } })
+  ));
+}
+
 function renderSagas() {
+  familyNotice();
   const groups = sagaGroups();
   $('#countSagas').textContent = groups.length || '';
   const current = state.saga && groups.find((s) => s.name === state.saga);

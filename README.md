@@ -258,6 +258,10 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Biblioteca familiar de Steam
+
+La biblioteca incluye también los juegos que te comparte tu **grupo familiar de Steam**, así salen completas las sagas. En **Sagas**, pulsa «Conectar con Steam»: se abre Steam en una ventana de la app, inicias sesión tú y, desde ahí, cada vez que actualizas la biblioteca se suman los juegos de la familia (solo lectura). En cada juego compartido verás de quién es.
+
 ## Casa
 
 Sección **Casa** del menú, todo guardado en este PC y editable (crear, editar y eliminar):

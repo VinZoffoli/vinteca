@@ -8,7 +8,7 @@ const stores = require('./stores');
 // 3 película, 7 vídeo, 8 serie, 9 episodio, 10 hardware, 11 música.
 const NON_GAME_TYPES = new Set([3, 6, 7, 8, 9, 10, 11, 13]);
 
-function steamGame(appid, { name, installed, lastPlayed, playtime, playtime2w, store, purchased }) {
+function steamGame(appid, { name, installed, lastPlayed, playtime, playtime2w, store, purchased, familyOwners }) {
   const inst = installed || null;
   const fallbacks = steam.fallbackCovers(appid);
   return {
@@ -34,6 +34,8 @@ function steamGame(appid, { name, installed, lastPlayed, playtime, playtime2w, s
     launchUrl: `steam://rungameid/${appid}`,
     installUrl: `steam://install/${appid}`,
     storeUrl: `https://store.steampowered.com/app/${appid}/`,
+    // juegos que te presta tu grupo familiar de Steam: quién los tiene
+    familyOwners: familyOwners || null,
   };
 }
 
@@ -78,7 +80,7 @@ function short(v) {
   return m ? m[1] : String(v).length > 18 ? String(v).slice(0, 16) + '…' : v;
 }
 
-async function loadSteam({ apiKey, steamId, purchaseDates, warnings }) {
+async function loadSteam({ apiKey, steamId, purchaseDates, warnings, family }) {
   const steamPath = await steam.findSteamPath();
   if (!steamPath) {
     warnings.push('No se ha encontrado la instalación de Steam.');
@@ -107,6 +109,11 @@ async function loadSteam({ apiKey, steamId, purchaseDates, warnings }) {
       playtime: g.playtime_forever || 0,
       playtime2w: g.playtime_2weeks || 0,
     });
+  }
+  // Biblioteca del grupo familiar (lo que te comparten los demás)
+  for (const f of family?.apps || []) {
+    if (entries.has(f.appid)) continue;
+    entries.set(f.appid, { name: f.name, lastPlayed: localPlayed.get(f.appid) || f.lastPlayed || null, familyOwners: f.owners });
   }
   for (const [appid, inst] of installed) {
     if (!entries.has(appid)) entries.set(appid, { name: inst.name, lastPlayed: localPlayed.get(appid) || null });
@@ -195,10 +202,10 @@ async function loadOthers(previous) {
   }));
 }
 
-async function refresh({ apiKey, settings, previous, purchaseDates, cache }) {
+async function refresh({ apiKey, settings, previous, purchaseDates, cache, family }) {
   const warnings = [];
   const [s, e] = await Promise.all([
-    loadSteam({ apiKey, steamId: settings.steamId, purchaseDates, warnings }),
+    loadSteam({ apiKey, steamId: settings.steamId, purchaseDates, warnings, family }),
     loadEpic({ legendaryPath: settings.legendaryPath, warnings, previous }),
   ]);
   const others = await loadOthers(previous);

@@ -174,6 +174,10 @@ contextBridge.exposeInMainWorld('api', {
     openWeb: () => ipcRenderer.invoke('mail:openWeb'),
     onChanged: (cb) => ipcRenderer.on('mail:changed', (_e, d) => cb(d)),
   },
+  family: {
+    status: () => ipcRenderer.invoke('family:status'),
+    login: () => ipcRenderer.invoke('family:login'),
+  },
   market: {
     state: () => ipcRenderer.invoke('mk:state'),
     search: () => ipcRenderer.invoke('mk:search'),
