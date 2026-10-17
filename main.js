@@ -19,6 +19,12 @@ const { FpsMeter, presentMonPath } = require('./src/fps');
 const caches = require('./src/caches');
 const trainers = require('./src/trainers');
 const genshin = require('./src/genshin');
+const genshinWish = require('./src/genshin-wish');
+const hoyolab = require('./src/hoyolab');
+const ocr = require('./src/ocr');
+const wallets = require('./src/wallets');
+const genshinNews = require('./src/genshin-news');
+const spotify = require('./src/spotify');
 const recs = require('./src/recs');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
@@ -177,16 +183,54 @@ function snapshot(dir) {
       await js(`showView('genshin')`);
       await wait(1500);
       await shot('genshin-uid.png');
-      await js(`loadGenshin(false, '618285856')`);
-      for (let i = 0; i < 40 && !(await js(`!!document.querySelector('.gi-char')`)); i++) await wait(1000);
+      for (let i = 0; i < 40 && !(await js(`!!document.querySelector('.gi-head')`)); i++) await wait(1000);
       await wait(3000);
       await shot('genshin.png');
-      await js(`document.querySelector('.gi-char').scrollIntoView()`);
+      await js(`document.querySelector('.gi-roster')?.scrollIntoView()`);
       await wait(1500);
-      await shot('genshin-personaje.png');
-      await js(`document.querySelectorAll('.gi-chip')[2]?.click()`);
+      await shot('genshin-vitrina.png');
+      for (const tab of ['noticias', 'prioridades', 'notas', 'deseos']) {
+        await js(`setGenshinTab('${tab}')`);
+        await wait(3500);
+        await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
+        await wait(800);
+        await shot(`genshin-${tab}.png`);
+      }
+      // Prioridades con una lista de ejemplo (no se guarda) y misiones leídas de ejemplo
+      await js(`gi.tasks = [{ id: 'a', text: 'Una luz en la oscuridad', kind: 'Arconte', done: false }, { id: 'b', text: 'Subir a Skirk al nivel 90', kind: 'Personaje', done: false }, { id: 'c', text: 'Pétalos al viento', kind: 'Mundo', done: true }]; gi.found = { quests: [{ text: 'El canto de las mareas', kind: 'Leyenda' }, { text: 'El secreto del bosque perdido', kind: 'Mundo' }] }; setGenshinTab('prioridades')`);
+      await wait(1500);
+      await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
+      await wait(800);
+      await shot('genshin-prioridades-ejemplo.png');
+      // Deseos y notas con datos de ejemplo (solo en pantalla)
+      await js(`gi.wish = { total: 812, importedAt: Date.now() - 3600000, pools: [{ key: 'character', name: 'Personaje de evento', total: 540, pity5: 63, pity4: 3, hardPity: 90, guaranteed: true, avg5: 71, fives: [{ name: 'Qiqi', pity: 78, lost: true }, { name: 'Furina', pity: 74, lost: false }, { name: 'Mavuika', pity: 52, lost: null }] }, { key: 'weapon', name: 'Arma de evento', total: 120, pity5: 12, pity4: 1, hardPity: 80, guaranteed: false, avg5: 60, fives: [{ name: 'Espada de la Luz', pity: 60, lost: null }] }] }; setGenshinTab('deseos')`);
+      await wait(1500);
+      await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
+      await wait(800);
+      await shot('genshin-deseos-ejemplo.png');
+      await js(`gi.hoyo = { linked: true, fetchedAt: Date.now(), notes: { resin: 182, maxResin: 200, resinFullAt: Date.now() + 2.5 * 3600000, commissionsDone: 2, commissionsTotal: 4, commissionReward: false, weeklyLeft: 2, weeklyTotal: 3, realmCoins: 2300, realmMax: 2400, realmFullAt: Date.now() + 3600000, expeditions: [{ done: true }, { done: false }, { done: true }], maxExpeditions: 5, transformerReady: true }, stats: { days: 1200, characters: 92, oculi: 1300, chests: 4500, waypoints: 400, domains: 60, regions: [{ name: 'Natlan', pct: 72 }, { name: 'Nod-Krai', pct: 85.5 }, { name: 'Mondstadt', pct: 100 }] }, characters: [{ name: 'Skirk', rarity: 5, level: 90, constellation: 0 }, { name: 'Bennett', rarity: 4, level: 80, constellation: 6 }] }; setGenshinTab('notas')`);
+      await wait(1500);
+      await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
+      await wait(800);
+      await shot('genshin-notas-ejemplo.png');
+      // Ficha de personaje de HoYoLAB con datos de ejemplo
+      await js(`gi.hoyo.characters = [{ id: 1, name: 'Zibai', rarity: 5, level: 90, constellation: 0, icon: '' }, { id: 2, name: 'Furina', rarity: 5, level: 90, constellation: 1, icon: '' }]; gi.hoyoPick = 1; gi.hoyoDetail = { 1: { id: 1, name: 'Zibai', element: 'Geo', rarity: 5, level: 90, friendship: 3, constellation: 0, image: '', constellations: [1,2,3,4,5,6].map((i) => ({ name: 'C' + i, active: false })), skills: [{ name: 'Ataque', level: 4 }, { name: 'E', level: 8 }, { name: 'Q', level: 5 }], passives: [], weapon: { name: 'Espada Negra', rarity: 5, level: 90, refinement: 1, main: { name: 'ATQ Básico', final: '510' }, sub: { name: 'Prob. CRIT', final: '27.6%' } }, properties: [{ name: 'Vida Máx.', base: '12919', add: '10177', final: '23097' }, { name: 'ATQ', base: '734', add: '420', final: '1154' }, { name: 'DEF', base: '957', add: '1176', final: '2133' }, { name: 'Maestría Elemental', final: '80' }, { name: 'Prob. CRIT', final: '67.2%' }, { name: 'Daño CRIT', final: '208.1%' }, { name: 'Recarga de Energía', final: '116.2%' }, { name: 'Bono de Daño Geo', final: '0.0%' }], artifacts: ['Flor Anhelaverdad', 'Pluma del Pecado', 'Momento Olvidado', 'Cáliz Rebosante', 'Corona Aciaga'].map((n, i) => ({ name: n, level: 20, rarity: 5, set: 'Conjunto de ejemplo', main: { name: ['Vida', 'ATQ', 'DEF', 'DEF', 'Daño CRIT'][i], final: ['4780', '311', '58.3%', '58.3%', '62.2%'][i] }, subs: [{ name: 'Daño CRIT', final: '14.0%', times: 1 }, { name: 'Prob. CRIT', final: '7.4%', times: 1 }, { name: 'Vida', final: '14.6%', times: 2 }, { name: 'DEF', final: '37', times: 0 }] })) } }; renderGenshin(); document.querySelector('.hc')?.scrollIntoView()`);
+      await wait(1500);
+      await shot('genshin-ficha-personaje.png');
+      await js(`showView('music')`);
       await wait(2500);
-      await shot('genshin-personaje-2.png');
+      await shot('spotify.png');
+      await js(`showView('deals')`);
+      await wait(3000);
+      await shot('ofertas-saldo.png');
+      await js(`showView('sagas')`);
+      await wait(3000);
+      await shot('sagas-banner.png');
+      await js(`setGenshinTab('prioridades')`);
+      await wait(1200);
+      await js(`document.querySelector('.gi-tabs')?.scrollIntoView()`);
+      await wait(800);
+      await shot('genshin-prioridades-auto.png');
       return app.quit();
     }
     await js(`document.querySelector('#scroller').scrollTo({top: 560, behavior: 'instant'})`);
@@ -314,7 +358,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -800,6 +844,8 @@ ipcMain.handle('data:export', async () => {
   if (r.canceled || !r.filePath) return null;
   const settings = { ...store.read('settings.json', {}) };
   delete settings.steamKeyEnc; // la clave cifrada solo sirve en este usuario de Windows
+  delete settings.hoyolabEnc; // la sesión de HoYoLAB tampoco sale del PC
+  delete settings.spotifyEnc;
   const data = {
     app: 'biblioteca-juegos',
     version: 1,
@@ -1044,6 +1090,7 @@ async function toggleFocus() {
 function registerHotkey() {
   globalShortcut.unregisterAll();
   if (store.getSettings().hotkey === false) return false;
+  if (store.getSettings().genshinUid) globalShortcut.register('CommandOrControl+Alt+M', questHotkey);
   return globalShortcut.register('CommandOrControl+Alt+F', toggleFocus);
 }
 app.on('will-quit', () => globalShortcut.unregisterAll());
@@ -1107,7 +1154,7 @@ ipcMain.handle('settings:basic', () => store.getSettings());
 
 ipcMain.handle('settings:save', (_e, data) => {
   const s = store.saveSettings(data || {});
-  if (data && 'hotkey' in data && !process.env.BJ_SNAPSHOT) registerHotkey();
+  if (data && ('hotkey' in data || 'genshinUid' in data) && !process.env.BJ_SNAPSHOT) registerHotkey();
   return s;
 });
 
@@ -1310,6 +1357,119 @@ ipcMain.handle('deals:get', async () => {
 ipcMain.handle('deals:cached', () => store.read('wishlist.json', null));
 ipcMain.handle('wand:installed', () => trainers.installed());
 // Perfil de Genshin: con el UID guardado (o uno para probar sin guardarlo)
+// ---------- Genshin: deseos, HoYoLAB, prioridades y misiones ----------
+const gUid = () => store.getSettings().genshinUid;
+ipcMain.handle('gwish:get', () => genshinWish.summary(store.read('genshin-wishes.json', { items: {} })));
+ipcMain.handle('gwish:import', (e) => genshinWish.importHistory({ read: store.read, write: store.write, onProgress: (t) => !e.sender.isDestroyed() && e.sender.send('gwish:progress', t) }));
+ipcMain.handle('hoyo:status', () => ({ linked: hoyolab.linked(store.read) }));
+ipcMain.handle('hoyo:login', async () => {
+  const ok = await hoyolab.login(win, { read: store.read, write: store.write });
+  return { linked: ok };
+});
+ipcMain.handle('hoyo:get', (_e, force) => (gUid() ? hoyolab.overview(gUid(), { read: store.read, write: store.write, force: !!force }) : { linked: hoyolab.linked(store.read) }));
+ipcMain.handle('hoyo:logout', () => hoyolab.logout({ read: store.read, write: store.write }));
+ipcMain.handle('hoyo:details', (_e, ids) => hoyolab.details(gUid(), (Array.isArray(ids) ? ids : []).slice(0, 10), { read: store.read }));
+ipcMain.handle('gnews:get', (_e, force) => genshinNews.overview(gUid(), { read: store.read, write: store.write, force: !!force }));
+ipcMain.handle('gtasks:get', () => store.read('genshin-tasks.json', []));
+ipcMain.handle('gtasks:save', (_e, list) => {
+  const clean = (Array.isArray(list) ? list : []).slice(0, 300).map((t) => ({
+    id: String(t.id || '').slice(0, 40) || Math.random().toString(36).slice(2),
+    text: String(t.text || '').trim().slice(0, 160),
+    kind: String(t.kind || 'Otra').slice(0, 30),
+    done: !!t.done,
+    at: Number(t.at) || Date.now(),
+  })).filter((t) => t.text);
+  store.write('genshin-tasks.json', clean);
+  return clean;
+});
+// Misiones desde una captura del diario de misiones (OCR de Windows)
+async function questsFromFile(file) {
+  const res = await ocr.recognize(file);
+  return { quests: ocr.questsFromOcr(res), lines: (res.lines || []).length };
+}
+async function captureScreen() {
+  const { desktopCapturer, screen } = require('electron');
+  const d = screen.getPrimaryDisplay();
+  const size = { width: Math.round(d.size.width * d.scaleFactor), height: Math.round(d.size.height * d.scaleFactor) };
+  const [src] = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size });
+  if (!src) throw new Error('No se pudo capturar la pantalla.');
+  const file = path.join(app.getPath('temp'), `viperteca-misiones-${Date.now()}.png`);
+  require('fs').writeFileSync(file, src.thumbnail.toPNG());
+  try {
+    return await questsFromFile(file);
+  } finally {
+    require('fs').rmSync(file, { force: true });
+  }
+}
+ipcMain.handle('gquests:image', async () => {
+  const shots = genshinWish.screenshotDir();
+  const r = await dialog.showOpenDialog(win, { title: 'Captura del diario de misiones', defaultPath: shots || app.getPath('pictures'), filters: [{ name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'bmp'] }], properties: ['openFile'] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  return questsFromFile(r.filePaths[0]);
+});
+ipcMain.handle('gquests:capture', async (_e, delay) => {
+  await new Promise((res) => setTimeout(res, Math.max(0, Math.min(15, Number(delay) || 0)) * 1000));
+  return captureScreen();
+});
+ipcMain.handle('gquests:pending', () => {
+  const p = store.read('genshin-ocr-pending.json', null);
+  store.write('genshin-ocr-pending.json', null);
+  return p;
+});
+// Ctrl+Alt+M dentro del juego: captura el diario de misiones y lo deja listo en la app
+async function questHotkey() {
+  try {
+    const r = await captureScreen();
+    store.write('genshin-ocr-pending.json', { at: Date.now(), ...r });
+    notify(r.quests.length ? `${r.quests.length} misiones leídas` : 'No se encontraron misiones', r.quests.length ? 'Abre ViperTeca → Genshin → Prioridades para elegir cuáles guardar.' : 'Abre el diario de misiones (J) y vuelve a pulsar Ctrl+Alt+M.');
+    if (win && !win.isDestroyed()) win.webContents.send('gquests:pending');
+  } catch (e) {
+    notify('No se pudo leer la pantalla', e.message);
+  }
+}
+// ---------- Saldos de Steam y Epic ----------
+ipcMain.handle('wallet:cached', () => store.read('wallets.json', {}));
+ipcMain.handle('wallet:refresh', async (_e, key, interactive) => {
+  if (!['steam', 'epic'].includes(key)) throw new Error('Tienda desconocida.');
+  const r = await wallets.refresh(key, { parent: win, interactive: !!interactive });
+  const all = store.read('wallets.json', {});
+  if (r.ok) all[key] = { items: r.items, at: r.at };
+  else if (r.needsLogin && !interactive) all[key] = { ...(all[key] || {}), needsLogin: true };
+  store.write('wallets.json', all);
+  if (!r.ok && interactive) throw new Error(r.error || 'No se pudo leer el saldo.');
+  return all;
+});
+ipcMain.handle('wallet:logout', async (_e, key) => {
+  await wallets.logout(key);
+  const all = store.read('wallets.json', {});
+  delete all[key];
+  store.write('wallets.json', all);
+  return all;
+});
+
+// ---------- Spotify ----------
+const sp = { read: store.read, write: store.write };
+ipcMain.handle('sp:status', () => ({ linked: spotify.linked(store.read), clientId: store.read('settings.json', {}).spotifyClientId || '', redirect: spotify.REDIRECT }));
+ipcMain.handle('sp:setClient', (_e, id) => {
+  const v = String(id || '').trim();
+  if (v && !/^[0-9a-f]{32}$/i.test(v)) throw new Error('El Client ID de Spotify tiene 32 caracteres (números y letras de la a a la f).');
+  const s = store.read('settings.json', {});
+  if (v) s.spotifyClientId = v;
+  else delete s.spotifyClientId;
+  store.write('settings.json', s);
+  return true;
+});
+ipcMain.handle('sp:login', () => spotify.login(sp));
+ipcMain.handle('sp:logout', () => spotify.logout(sp));
+ipcMain.handle('sp:me', () => spotify.me(sp));
+ipcMain.handle('sp:playlists', () => spotify.playlists(sp));
+ipcMain.handle('sp:tracks', (_e, id) => (id === 'liked' ? spotify.liked(sp) : spotify.playlistTracks(sp, String(id))));
+ipcMain.handle('sp:home', () => spotify.home(sp));
+ipcMain.handle('sp:state', () => spotify.state(sp));
+ipcMain.handle('sp:devices', () => spotify.devices(sp));
+ipcMain.handle('sp:control', (_e, action, arg) => spotify.control(sp, String(action), arg || {}));
+ipcMain.handle('sp:liked', (_e, ids) => spotify.isLiked(sp, Array.isArray(ids) ? ids.map(String) : []));
+
 ipcMain.handle('genshin:get', (_e, force, uid) => {
   const id = uid || store.getSettings().genshinUid;
   if (!id) return null;

@@ -444,15 +444,15 @@ function renderSagas() {
   }
   box.replaceChildren(
     ...groups.map((s) => {
-      // La carátula del centro es la del último jugado de la saga
-      const front = [...s.list].sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+      // Arte apaisado oficial del juego más reciente de la saga (el "hero" de la tienda)
+      const byNew = [...s.list].sort((x, y) => (y.released || 0) - (x.released || 0) || (y.lastPlayed || 0) - (x.lastPlayed || 0));
+      const art = byNew.find((g) => g.hero) || byNew.find((g) => g.cover);
       const inst = s.list.filter((g) => g.installed).length;
+      const img = art && h('img', { src: art.hero || art.cover, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer', class: art.hero ? '' : 'blur' });
       return h(
         'button',
         { class: 'saga', onclick: () => openSaga(s.name), 'aria-label': `${s.name}, ${s.list.length} juegos` },
-        h('div', { class: 'stack' }, front.slice(0, 3).filter((g) => g.cover).map((g) => coverImg(g))),
-        h('h3', { text: s.name }),
-        h('p', { text: `${plural(s.list.length, 'juego', 'juegos')}${inst ? `, ${inst} ${inst === 1 ? 'instalado' : 'instalados'}` : ''}` })
+        h('div', { class: 'saga-art' }, img, h('div', { class: 'saga-txt' }, h('h3', { text: s.name }), h('p', { text: `${plural(s.list.length, 'juego', 'juegos')}${inst ? `, ${inst} ${inst === 1 ? 'instalado' : 'instalados'}` : ''}` })))
       );
     })
   );
@@ -543,6 +543,63 @@ function renderDeals() {
         if (Object.keys(canRunCache).length) renderDeals();
       });
   }
+}
+
+// ---------- Tu saldo en Steam y Epic ----------
+const wal = { data: null, busy: {} };
+async function loadWallets() {
+  if (!wal.data) wal.data = (await window.api.walletCached().catch(() => ({}))) || {};
+  renderWallets();
+  // Actualiza en silencio lo que ya está conectado (una vez por sesión)
+  for (const k of ['steam', 'epic']) if (wal.data[k]?.items && !wal.silent?.[k]) {
+    wal.silent = { ...(wal.silent || {}), [k]: true };
+    refreshWallet(k, false);
+  }
+}
+async function refreshWallet(key, interactive) {
+  wal.busy[key] = true;
+  renderWallets();
+  try {
+    wal.data = await window.api.walletRefresh(key, interactive);
+  } catch (e) {
+    if (interactive) toast(errMsg(e), true);
+  }
+  wal.busy[key] = false;
+  renderWallets();
+}
+function renderWallets() {
+  const box = $('#walletBox');
+  if (!box) return;
+  const card = (key, name, hint) => {
+    const d = wal.data?.[key];
+    const busy = wal.busy[key];
+    return h(
+      'div',
+      { class: `wallet ${key}` },
+      h('p', { class: 'wallet-store', text: name }),
+      d?.items?.length
+        ? h('dl', {}, d.items.map((i) => h('div', {}, h('dt', { text: i.label }), h('dd', { text: i.value }))))
+        : h('p', { class: 'hint', text: d?.needsLogin ? 'La sesión caducó: vuelve a conectar.' : hint }),
+      h(
+        'div',
+        { class: 'row' },
+        h('button', { class: `btn small ${d?.items ? 'ghost' : 'primary'}`, disabled: busy, text: busy ? 'Leyendo…' : d?.items ? 'Actualizar' : 'Conectar', onclick: () => refreshWallet(key, true) }),
+        d?.items && h('button', { class: 'btn small ghost subtle', text: 'Desconectar', onclick: async () => { wal.data = await window.api.walletLogout(key); renderWallets(); } }),
+        d?.at && h('span', { class: 'hint', text: relTime(d.at / 1000) })
+      )
+    );
+  };
+  fill(
+    box,
+    h('h2', { class: 'section-h', text: 'Tu saldo' }),
+    h(
+      'div',
+      { class: 'wallets' },
+      card('steam', 'Steam', 'Inicias sesión tú en la tienda de Steam y la app lee tu cartera.'),
+      card('epic', 'Epic Games', 'Inicias sesión tú en Epic y la app lee tus Epic Rewards y el saldo de la cuenta.')
+    ),
+    h('p', { class: 'hint', text: 'Ninguna tienda da el saldo a otros programas, así que se lee de sus webs oficiales. La sesión se guarda como en un navegador, cifrada con tu usuario de Windows; «Desconectar» la borra.' })
+  );
 }
 
 // ---------- DLC rebajados de tus juegos (idea 4) ----------
@@ -896,7 +953,10 @@ function showView(view) {
   $('#libraryView').hidden = view !== 'library';
   $('#sagasView').hidden = view !== 'sagas';
   $('#dealsView').hidden = view !== 'deals';
-  if (view === 'deals') loadDlcDeals(false);
+  if (view === 'deals') {
+    loadDlcDeals(false);
+    loadWallets();
+  }
   $('#achView').hidden = view !== 'ach';
   $('#statsView').hidden = view !== 'stats';
   $('#newsView').hidden = view !== 'news';
@@ -904,6 +964,8 @@ function showView(view) {
   $('#recsView').hidden = view !== 'recs';
   $('#lanView').hidden = view !== 'lan';
   $('#genshinView').hidden = view !== 'genshin';
+  $('#musicView').hidden = view !== 'music';
+  if (view === 'music') window.music?.show();
   if (view === 'genshin') loadGenshin(false);
   if (view === 'lan') loadLan();
   if (view === 'recs') loadRecs(false);
@@ -1969,7 +2031,7 @@ function skeletonDeals(n) {
 }
 
 // ---------- Genshin Impact (Enka.Network) ----------
-const gi = { data: null, loading: false, error: null, pick: 0, preview: null };
+const gi = { data: null, loading: false, error: null, pick: 0, preview: null, tab: 'perfil', wish: null, wishBusy: null, hoyo: null, hoyoBusy: false, hoyoError: null, tasks: null, found: null, foundBusy: null, showDone: false };
 
 async function loadGenshin(force, previewUid) {
   if (previewUid) gi.preview = previewUid;
@@ -2070,6 +2132,8 @@ function renderGenshin() {
         )
       )
     ),
+    genshinTabs(),
+    gi.tab !== 'perfil' ? genshinOtherTab() : [
     h('dl', { class: 'stat-strip gi-strip' }, facts.map(([k, v]) => h('div', {}, h('dt', { text: k }), h('dd', { text: String(v) })))),
     d.stale && h('p', { class: 'hint bad', text: `Se muestran los datos guardados: ${d.stale}` }),
     d.detailsHidden &&
@@ -2108,8 +2172,489 @@ function renderGenshin() {
             ),
           ]
         : h('p', { class: 'hint', text: 'Tu vitrina está vacía. Añade personajes en el juego (menú de Paimon → tu perfil) para verlos aquí.' }),
-    h('p', { class: 'hint gi-src', text: `Datos de Enka.Network, leídos ${relTime(d.fetchedAt / 1000)}. El inventario y los personajes fuera de la vitrina no son públicos, así que no se pueden ver.` })
+    h('p', { class: 'hint gi-src', text: `Datos de Enka.Network, leídos ${relTime(d.fetchedAt / 1000)}. El inventario y los personajes fuera de la vitrina no son públicos, así que no se pueden ver.` }),
+    ]
   );
+}
+
+// ---- pestañas de Genshin ----
+const GI_TABS = [
+  ['perfil', 'Perfil'],
+  ['noticias', 'Noticias y eventos'],
+  ['prioridades', 'Prioridades'],
+  ['notas', 'Notas de HoYoLAB'],
+  ['deseos', 'Deseos'],
+];
+function genshinTabs() {
+  return h(
+    'div',
+    { class: 'seg gi-tabs', role: 'tablist', 'aria-label': 'Secciones de Genshin' },
+    GI_TABS.map(([k, t]) => h('button', { class: gi.tab === k ? 'on' : '', role: 'tab', 'aria-selected': String(gi.tab === k), text: t, onclick: () => setGenshinTab(k) }))
+  );
+}
+function setGenshinTab(k) {
+  gi.tab = k;
+  if (k === 'noticias' && !gi.news && !gi.newsBusy) loadGnews(false);
+  if (k === 'deseos' && !gi.wish) window.api.gwish().then((w) => { gi.wish = w; renderGenshin(); });
+  if ((k === 'notas' || k === 'prioridades') && !gi.hoyo && !gi.hoyoBusy) loadHoyo(false);
+  if (k === 'prioridades' && !gi.tasks) {
+    window.api.gtasks().then((t) => { gi.tasks = t; renderGenshin(); });
+    window.api.gquestsPending().then((p) => { if (p?.quests?.length) { gi.found = p; renderGenshin(); } });
+  }
+  renderGenshin();
+}
+function genshinOtherTab() {
+  if (gi.tab === 'deseos') return renderWishes();
+  if (gi.tab === 'noticias') return renderGnews();
+  if (gi.tab === 'notas') return renderHoyo();
+  return renderPriorities();
+}
+
+// ---- noticias y eventos ----
+async function loadGnews(force) {
+  gi.newsBusy = true;
+  renderGenshin();
+  try {
+    gi.news = await window.api.gnews(force);
+    gi.newsError = null;
+  } catch (e) {
+    gi.newsError = errMsg(e);
+  }
+  gi.newsBusy = false;
+  renderGenshin();
+}
+const dayFmt = new Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long' });
+function daysLeft(ms) {
+  const d = Math.ceil((ms - Date.now()) / 86400000);
+  return d <= 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`;
+}
+function renderGnews() {
+  const n = gi.news;
+  if (!n) return gi.newsError ? h('p', { class: 'hint bad', text: gi.newsError }) : skeletonDeals(4);
+  const days = n.next?.at ? Math.max(0, Math.ceil((n.next.at - Date.now()) / 86400000)) : null;
+  const span = n.version?.start && n.version?.end ? n.version.end - n.version.start : null;
+  const done = span ? Math.min(100, Math.max(0, ((Date.now() - n.version.start) / span) * 100)) : 0;
+  const banners = n.events.filter((e) => e.kind === 'Gachapón');
+  const events = n.events.filter((e) => e.kind !== 'Gachapón');
+  return [
+    h(
+      'section',
+      { class: 'gn-hero' },
+      h(
+        'div',
+        { class: 'gn-count' },
+        h('p', { class: 'gn-k', text: n.version ? `Versión ${n.version.number}: «${n.version.name}»` : 'Versión actual' }),
+        days != null ? h('p', { class: 'gn-big' }, h('b', { text: String(days) }), h('span', { text: days === 1 ? 'día para la versión ' + n.next.number : 'días para la versión ' + n.next.number })) : null,
+        n.next?.at && h('p', { class: 'hint', text: `Sale el ${dayFmt.format(n.next.at)} (la actualización empieza a las ${clock(n.next.at)}).` }),
+        span && h('div', { class: 'bar wide' }, h('i', { style: { width: `${done.toFixed(1)}%` } }))
+      ),
+      h(
+        'div',
+        { class: 'gn-side' },
+        h(
+          'div',
+          { class: 'gn-card' },
+          h('p', { class: 'gn-k', text: `Directo de la versión ${n.next?.number || ''}` }),
+          n.livestream?.confirmed
+            ? [h('b', { text: 'Anunciado' }), h('button', { class: 'link-btn', text: n.livestream.title, onclick: () => window.api.open(n.livestream.url) })]
+            : n.livestream?.at
+              ? [h('b', { text: `Hacia el ${dayFmt.format(n.livestream.at)}` }), h('span', { class: 'hint', text: `Estimado (${daysLeft(n.livestream.at)}). Suele ser unos 12 días antes de cada versión; se confirmará aquí cuando HoYoverse lo anuncie.` })]
+              : h('span', { class: 'hint', text: 'Sin fecha todavía.' })
+        ),
+        h(
+          'div',
+          { class: 'gn-card' },
+          h('p', { class: 'gn-k', text: `Personajes de la versión ${n.next?.number || ''}` }),
+          n.reveals.length
+            ? h('ul', {}, n.reveals.map((r) => h('li', {}, h('button', { class: 'link-btn', text: r.title, onclick: () => window.api.open(r.url) }))))
+            : h('span', { class: 'hint', text: 'Aún no se han presentado. HoYoverse suele enseñarlos en las semanas previas al directo; aparecerán aquí en cuanto se publiquen.' })
+        )
+      )
+    ),
+    banners.length > 0 && [
+      h('h2', { class: 'section-h', text: 'Gachapones ahora' }),
+      h('div', { class: 'gn-banners' }, banners.map((b) => h('div', { class: 'gn-banner' }, b.image && h('img', { src: b.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }), h('div', {}, h('b', { text: b.title }), h('span', { class: 'hint', text: `Termina ${daysLeft(b.end)}, el ${dateTimeFmt.format(b.end)}` }))))),
+    ],
+    h('h2', { class: 'section-h', text: `Eventos en curso (${events.length})` }),
+    h(
+      'ul',
+      { class: 'gn-events' },
+      events.map((e) => {
+        const total = e.end - (e.start || e.end);
+        const left = Math.max(0, e.end - Date.now());
+        const soon = left < 3 * 86400000;
+        return h(
+          'li',
+          { class: soon ? 'soon' : '' },
+          h('span', { class: 'gi-kind', text: e.kind }),
+          h('span', { class: 'gn-ev-t', text: e.short }),
+          h('span', { class: 'gn-ev-bar' }, h('i', { style: { width: `${total > 0 ? Math.min(100, (left / total) * 100) : 0}%` } })),
+          h('span', { class: 'gn-ev-d', text: `Termina ${daysLeft(e.end)}` })
+        );
+      })
+    ),
+    h('div', { class: 'row gi-wish-head' }, h('h2', { class: 'section-h', text: 'Noticias oficiales' }), h('button', { class: 'btn ghost small', disabled: gi.newsBusy, text: gi.newsBusy ? 'Actualizando…' : 'Actualizar', onclick: () => loadGnews(true) })),
+    h('div', { class: 'nin-grid' }, n.news.map((x) => h('button', { class: 'nin-card', onclick: () => window.api.open(x.url), title: 'Abrir en HoYoLAB' }, h('div', { class: 'nin-art' }, h('span', { class: 'nin-ph', text: 'HoYoLAB' }), x.image && h('img', { src: x.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() })), h('div', { class: 'nin-body' }, h('div', { class: 'news-meta' }, h('span', { class: 'kind', text: x.type }), h('span', { text: relTime(x.date / 1000) })), h('h3', { text: x.title }))))),
+    h('p', { class: 'hint gi-src', text: 'Datos de los anuncios del juego y de las noticias oficiales de HoYoLAB.' }),
+  ];
+}
+
+// ---- deseos ----
+async function importWishes() {
+  gi.wishBusy = 'Buscando el enlace del historial…';
+  renderGenshin();
+  try {
+    const r = await window.api.gwishImport();
+    gi.wish = r;
+    toast(r.added ? `Importadas ${plural(r.added, 'tirada nueva', 'tiradas nuevas')}.` : 'No había tiradas nuevas.');
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+  gi.wishBusy = null;
+  renderGenshin();
+}
+function renderWishes() {
+  const w = gi.wish;
+  const how = h(
+    'ol',
+    { class: 'steps' },
+    h('li', {}, h('b', { text: 'Abre el historial en el juego.' }), ' En Genshin: Deseos → Historial. Así el juego guarda un enlace con tu historial (vale 24 horas).'),
+    h('li', {}, h('b', { text: 'Pulsa «Importar historial».' }), ' La app lee ese enlace de tu PC, descarga tus tiradas y las guarda. Las anteriores se conservan aunque el juego solo enseñe 6 meses.')
+  );
+  const btn = h('button', { class: 'btn primary', disabled: !!gi.wishBusy, text: gi.wishBusy || (w?.total ? 'Actualizar historial' : 'Importar historial'), onclick: importWishes });
+  if (!w) return h('p', { class: 'hint', text: 'Cargando…' });
+  if (!w.total) return h('div', { class: 'gi-setup' }, how, h('div', { class: 'row' }, btn));
+  const pityCls = (n, hard) => (n >= hard * 0.83 ? 'hot' : n >= hard * 0.66 ? 'warm' : '');
+  return [
+    h('div', { class: 'row gi-wish-head' }, h('p', { class: 'hint', text: `${w.total.toLocaleString('es')} tiradas guardadas${w.importedAt ? `, la última importación ${relTime(w.importedAt / 1000)}` : ''}.` }), btn),
+    h(
+      'div',
+      { class: 'gi-pools' },
+      w.pools.map((p) =>
+        h(
+          'section',
+          { class: 'gi-pool' },
+          h('h3', { text: p.name }),
+          h('div', { class: 'gi-pity' }, h('b', { class: pityCls(p.pity5, p.hardPity), text: String(p.pity5) }), h('span', { text: `de ${p.hardPity} para el próximo 5★` })),
+          h('div', { class: 'bar wide' }, h('i', { style: { width: `${Math.min(100, (p.pity5 / p.hardPity) * 100)}%` } })),
+          h('p', { class: 'gi-pool-meta' }, h('span', { text: `4★: ${p.pity4} de 10` }), p.key === 'character' && h('span', { class: p.guaranteed ? 'ok' : '', text: p.guaranteed ? 'Próximo 5★ garantizado' : 'Próximo 5★: 50/50' }), h('span', { text: `${p.total} tiradas` }), p.avg5 && h('span', { text: `media ${p.avg5} por 5★` })),
+          p.fives.length
+            ? h('ul', { class: 'gi-fives' }, p.fives.slice(0, 12).map((f) => h('li', {}, h('span', { text: f.name }), f.lost === true && h('em', { text: 'perdió el 50/50' }), h('b', { class: pityCls(f.pity, p.hardPity), text: String(f.pity) }))))
+            : h('p', { class: 'hint', text: 'Aún sin 5★ en este banner.' })
+        )
+      )
+    ),
+  ];
+}
+
+// ---- notas de HoYoLAB ----
+async function loadHoyo(force) {
+  gi.hoyoBusy = true;
+  renderGenshin();
+  try {
+    gi.hoyo = await window.api.hoyo(force);
+    gi.hoyoError = null;
+  } catch (e) {
+    gi.hoyoError = errMsg(e);
+    const st = await window.api.hoyoStatus().catch(() => ({ linked: false }));
+    if (!st.linked) gi.hoyo = { linked: false };
+  }
+  gi.hoyoBusy = false;
+  renderGenshin();
+}
+async function hoyoLogin() {
+  gi.hoyoBusy = true;
+  renderGenshin();
+  try {
+    const r = await window.api.hoyoLogin();
+    if (!r.linked) toast('No se completó el inicio de sesión.', true);
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+  gi.hoyoBusy = false;
+  loadHoyo(true);
+}
+const clock = (ms) => new Date(ms).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const untilTxt = (ms) => {
+  const m = Math.max(0, Math.round((ms - Date.now()) / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+};
+function renderHoyo() {
+  const o = gi.hoyo;
+  if (gi.hoyoBusy && !o) return h('p', { class: 'hint', text: 'Leyendo HoYoLAB…' });
+  if (!o?.linked)
+    return h(
+      'div',
+      { class: 'gi-setup' },
+      gi.hoyoError && h('p', { class: 'hint bad', text: gi.hoyoError }),
+      h('p', { text: 'Con tu cuenta de HoYoLAB la app ve tu resina, los encargos diarios, los jefes semanales, las expediciones, la exploración de cada región y todos tus personajes (no solo la vitrina).' }),
+      h(
+        'ol',
+        { class: 'steps' },
+        h('li', {}, h('b', { text: 'Inicias sesión tú en la web de HoYoLAB.' }), ' Se abre en una ventana de la app; la app nunca ve tu contraseña.'),
+        h('li', {}, h('b', { text: 'La app guarda solo la sesión de lectura,' }), ' cifrada con tu usuario de Windows. La ventana se borra al cerrarla. Puedes cerrar la sesión cuando quieras.'),
+        h('li', {}, h('b', { text: 'Activa tus notas en HoYoLAB.' }), ' Battle Chronicle → ajustes: «Notas en tiempo real» y que tu Battle Chronicle sea visible.')
+      ),
+      h('p', { class: 'hint', text: 'Ten en cuenta que esa sesión da acceso a tu cuenta de HoYoLAB (no a tu contraseña) y que la API no es oficial: HoYoverse puede cambiarla.' }),
+      h('div', { class: 'row' }, h('button', { class: 'btn primary', disabled: gi.hoyoBusy, text: gi.hoyoBusy ? 'Esperando el inicio de sesión…' : 'Iniciar sesión en HoYoLAB', onclick: hoyoLogin }))
+    );
+  const n = o.notes;
+  const resinFull = n.resin >= n.maxResin;
+  const cards = [
+    ['Resina', `${n.resin}/${n.maxResin}`, resinFull ? 'Llena: estás perdiendo resina' : n.resinFullAt ? `Llena a las ${clock(n.resinFullAt)} (en ${untilTxt(n.resinFullAt)})` : '', resinFull || n.resin >= n.maxResin - 20 ? 'hot' : ''],
+    ['Encargos diarios', `${n.commissionsDone}/${n.commissionsTotal}`, n.commissionsDone >= n.commissionsTotal ? (n.commissionReward ? 'Recompensa cobrada' : 'Falta cobrar la recompensa con Catherine') : 'Pendientes hoy', n.commissionsDone < n.commissionsTotal || !n.commissionReward ? 'warm' : 'ok'],
+    ['Jefes semanales', `${n.weeklyLeft}/${n.weeklyTotal}`, n.weeklyLeft ? 'Descuentos de resina que te quedan esta semana' : 'Hechos esta semana', n.weeklyLeft ? 'warm' : 'ok'],
+    ['Moneda del reino', `${n.realmCoins}/${n.realmMax}`, n.realmFullAt ? `Llena en ${untilTxt(n.realmFullAt)}` : n.realmCoins >= n.realmMax ? 'Llena' : '', n.realmCoins >= n.realmMax * 0.9 ? 'hot' : ''],
+    ['Expediciones', `${n.expeditions.filter((x) => x.done).length}/${n.expeditions.length}`, n.expeditions.length < n.maxExpeditions ? `Puedes enviar ${n.maxExpeditions - n.expeditions.length} más` : 'Terminadas / enviadas', n.expeditions.some((x) => x.done) ? 'warm' : ''],
+    n.transformerReady != null && ['Transformador paramétrico', n.transformerReady ? 'Listo' : 'Recargando', n.transformerReady ? 'Úsalo para conseguir materiales' : '', n.transformerReady ? 'warm' : ''],
+  ].filter(Boolean);
+  const s = o.stats;
+  return [
+    gi.hoyoError && h('p', { class: 'hint bad', text: gi.hoyoError }),
+    (o.warnings || []).map((w) => h('p', { class: 'hint', text: w })),
+    h('div', { class: 'row gi-wish-head' }, h('p', { class: 'hint', text: `Leído de HoYoLAB ${relTime(o.fetchedAt / 1000)}.` }), h('button', { class: 'btn ghost small', disabled: gi.hoyoBusy, text: gi.hoyoBusy ? 'Actualizando…' : 'Actualizar', onclick: () => loadHoyo(true) }), h('button', { class: 'btn ghost small subtle', text: 'Cerrar sesión de HoYoLAB', onclick: async () => { gi.hoyo = await window.api.hoyoLogout(); renderGenshin(); } })),
+    h('div', { class: 'gi-notes' }, cards.map(([t, v, sub, cls]) => h('div', { class: `gi-note ${cls}` }, h('span', { class: 'gi-note-t', text: t }), h('b', { text: v }), sub && h('span', { class: 'hint', text: sub })))),
+    s && [
+      h('h2', { class: 'section-h', text: 'Resumen de la partida' }),
+      h('dl', { class: 'gi-summary' }, (s.summary || []).map(([k, v]) => h('div', {}, h('dd', { text: v }), h('dt', { text: k })))),
+      s.regions?.length > 0 && [
+        h('h2', { class: 'section-h', text: 'Exploración por región' }),
+        h('div', { class: 'gi-regions' }, s.regions.map((r) => h('div', { class: 'bar-row' }, h('span', { class: 'bar-label', text: r.name }), h('span', { class: 'bar-track' }, h('span', { class: 'bar-fill', style: { width: `${r.pct}%` } }), h('span', { class: 'bar-value', text: `${r.pct}%` }))))),
+      ],
+    ],
+    (o.characters || []).length > 0 && hoyoCharacters(o.characters),
+  ];
+}
+
+// ---- "Mis personajes" de HoYoLAB: lista y ficha completa ----
+function hoyoCharacters(list) {
+  const chars = [...list].sort((a, b) => b.level - a.level || b.rarity - a.rarity || b.constellation - a.constellation);
+  if (!gi.hoyoPick || !chars.some((c) => c.id === gi.hoyoPick)) gi.hoyoPick = chars[0]?.id;
+  const pick = (id) => {
+    gi.hoyoPick = id;
+    renderGenshin();
+    loadHoyoDetail(id);
+  };
+  if (gi.hoyoPick && !gi.hoyoDetail?.[gi.hoyoPick] && !gi.hoyoDetailBusy) loadHoyoDetail(gi.hoyoPick);
+  const d = gi.hoyoDetail?.[gi.hoyoPick];
+  return [
+    h('h2', { class: 'section-h', text: `Mis personajes (${chars.length})` }),
+    h(
+      'div',
+      { class: 'gi-faces', role: 'tablist', 'aria-label': 'Personajes' },
+      chars.map((c) =>
+        h(
+          'button',
+          { class: `gi-face-btn r${c.rarity}${c.id === gi.hoyoPick ? ' on' : ''}`, role: 'tab', 'aria-selected': String(c.id === gi.hoyoPick), title: `${c.name}, Nv. ${c.level}, C${c.constellation}`, onclick: () => pick(c.id) },
+          c.icon && h('img', { src: c.icon, alt: c.name, loading: 'lazy', referrerPolicy: 'no-referrer' })
+        )
+      )
+    ),
+    d ? hoyoCharacterCard(d) : h('p', { class: 'hint', text: gi.hoyoDetailError || 'Cargando la ficha…' }),
+  ];
+}
+
+async function loadHoyoDetail(id) {
+  if (gi.hoyoDetailBusy) return;
+  gi.hoyoDetailBusy = true;
+  try {
+    const [d] = await window.api.hoyoDetails([id]);
+    gi.hoyoDetail = { ...(gi.hoyoDetail || {}), [id]: d };
+    gi.hoyoDetailError = null;
+  } catch (e) {
+    gi.hoyoDetailError = errMsg(e);
+  }
+  gi.hoyoDetailBusy = false;
+  renderGenshin();
+}
+
+const ELEMENT_ES = { Anemo: 'Anemo', Geo: 'Geo', Electro: 'Electro', Dendro: 'Dendro', Hydro: 'Hydro', Pyro: 'Pyro', Cryo: 'Cryo' };
+const ELEMENT_COLOR = { Anemo: '#5fd1ac', Geo: '#f2b331', Electro: '#b07ce8', Dendro: '#9ccc32', Hydro: '#3fb6ef', Pyro: '#ef7a35', Cryo: '#8fd6ea' };
+function hoyoCharacterCard(c) {
+  const color = ELEMENT_COLOR[c.element] || 'var(--amber)';
+  const isCrit = (n) => /CRIT/i.test(n || '');
+  const props = (c.properties || []).filter((p) => p && p.final != null);
+  return h(
+    'section',
+    { class: 'hc', style: { '--el': color } },
+    h(
+      'div',
+      { class: 'hc-left' },
+      h('div', { class: 'hc-art' }, c.image && h('img', { src: c.image, alt: '', referrerPolicy: 'no-referrer' })),
+      h(
+        'ol',
+        { class: 'hc-cons', 'aria-label': `Constelación ${c.constellation}` },
+        c.constellations.map((k) => h('li', { class: k.active ? 'on' : '', title: `${k.name}${k.active ? '' : ' (bloqueada)'}\n${(k.effect || '').replace(/<[^>]+>/g, '')}` }, k.icon && h('img', { src: k.icon, alt: '', referrerPolicy: 'no-referrer' })))
+      ),
+      h('p', { class: 'hc-friend', text: `Amistad: ${c.friendship}` }),
+      h(
+        'div',
+        { class: 'hc-skills' },
+        c.skills.map((s) => h('span', { class: 'hc-skill', title: s.name }, s.icon && h('img', { src: s.icon, alt: '', referrerPolicy: 'no-referrer' }), h('b', { text: String(s.level) }))),
+        c.passives.map((s) => h('span', { class: 'hc-skill passive', title: s.name }, s.icon && h('img', { src: s.icon, alt: '', referrerPolicy: 'no-referrer' })))
+      )
+    ),
+    h(
+      'div',
+      { class: 'hc-right' },
+      h('div', { class: 'hc-title' }, h('h2', { text: c.name }), h('span', { class: 'hc-lv', text: `Nv. ${c.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(c.rarity || 4) }), h('span', { class: 'hc-el', text: ELEMENT_ES[c.element] || c.element || '' })),
+      h('h3', { class: 'hc-h', text: 'Atributos del personaje' }),
+      h(
+        'dl',
+        { class: 'hc-props' },
+        props.map((p) => h('div', {}, h('dt', {}, p.icon && h('img', { src: p.icon, alt: '', referrerPolicy: 'no-referrer' }), p.name), h('dd', {}, p.add && p.add !== '0' && p.base ? h('small', {}, p.base, h('i', { text: `+${p.add}` })) : null, h('b', { text: String(p.final) }))))
+      ),
+      c.weapon &&
+        h(
+          'div',
+          { class: 'hc-weapon' },
+          h('h3', { class: 'hc-h', text: 'Arma' }),
+          h(
+            'div',
+            { class: 'hc-weapon-row' },
+            h('div', { class: `gi-item r${c.weapon.rarity}` }, c.weapon.icon && h('img', { src: c.weapon.icon, alt: '', referrerPolicy: 'no-referrer' }), h('span', { class: 'gi-lv', text: `R${c.weapon.refinement}` })),
+            h('div', {}, h('b', { text: c.weapon.name }), h('span', { class: 'hc-lv', text: `Nv. ${c.weapon.level}` }), h('p', { class: 'hint', text: [c.weapon.main && `${c.weapon.main.name}: ${c.weapon.main.final}`, c.weapon.sub && `${c.weapon.sub.name}: ${c.weapon.sub.final}`].filter(Boolean).join(', ') }))
+          )
+        )
+    ),
+    c.artifacts.length > 0 &&
+      h(
+        'div',
+        { class: 'hc-arts' },
+        h('h3', { class: 'hc-h', text: 'Artefactos' }),
+        h(
+          'div',
+          { class: 'hc-art-row' },
+          c.artifacts.map((a) =>
+            h(
+              'div',
+              { class: 'hc-relic' },
+              h('div', { class: 'hc-relic-head' }, h('div', {}, h('b', { text: a.name }), h('span', { class: 'hc-lv', text: `Nv. ${a.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(a.rarity || 5) })), a.icon && h('img', { src: a.icon, alt: '', referrerPolicy: 'no-referrer' })),
+              a.main && h('div', { class: `hc-main${isCrit(a.main.name) ? ' crit' : ''}` }, h('span', { text: a.main.name }), h('b', { text: a.main.final })),
+              h(
+                'ul',
+                {},
+                a.subs.map((s) => h('li', { class: isCrit(s.name) ? 'crit' : '' }, h('span', {}, s.name, s.times > 0 && h('em', { title: `Mejorado ${s.times} ${s.times === 1 ? 'vez' : 'veces'}`, text: String(s.times) })), h('b', { text: `+${s.final}` })))
+              )
+            )
+          )
+        ),
+        h('p', { class: 'hint', text: [...new Set(c.artifacts.map((a) => a.set).filter(Boolean))].join(', ') })
+      )
+  );
+}
+
+// ---- prioridades ----
+const TASK_KINDS = ['Arconte', 'Leyenda', 'Mundo', 'Evento', 'Personaje', 'Farmeo', 'Exploración', 'Otra'];
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+async function saveTasks(list) {
+  gi.tasks = await window.api.gtasksSave(list);
+  renderGenshin();
+}
+async function readQuests(how) {
+  gi.foundBusy = how === 'capture' ? 'Cambia al juego con el diario de misiones abierto (J): capturo en 5 segundos…' : 'Leyendo la imagen…';
+  renderGenshin();
+  try {
+    const r = how === 'capture' ? await window.api.gquestsCapture(5) : await window.api.gquestsImage();
+    if (r) {
+      gi.found = r;
+      if (!r.quests.length) toast('No encontré misiones en esa imagen. Usa una captura del diario de misiones (tecla J).', true);
+    }
+  } catch (e) {
+    toast(errMsg(e), true);
+  }
+  gi.foundBusy = null;
+  renderGenshin();
+}
+function autoPriorities() {
+  const n = gi.hoyo?.linked && gi.hoyo.notes;
+  if (!n) return [];
+  const out = [];
+  if (n.resin >= n.maxResin) out.push(['hot', 'Gasta resina: está llena y no se acumula más.']);
+  else if (n.resin >= n.maxResin - 40) out.push(['warm', `Resina ${n.resin}/${n.maxResin}: se llena${n.resinFullAt ? ` a las ${clock(n.resinFullAt)}` : ' pronto'}.`]);
+  if (n.commissionsDone < n.commissionsTotal) out.push(['warm', `Haz los encargos diarios (${n.commissionsDone}/${n.commissionsTotal}).`]);
+  else if (!n.commissionReward) out.push(['warm', 'Cobra la recompensa de los encargos con Catherine.']);
+  if (n.weeklyLeft > 0) out.push(['', `Te quedan ${n.weeklyLeft} jefes semanales con descuento esta semana.`]);
+  const done = n.expeditions.filter((x) => x.done).length;
+  if (done) out.push(['warm', `Recoge ${plural(done, 'expedición terminada', 'expediciones terminadas')}.`]);
+  if (n.realmCoins >= n.realmMax * 0.9) out.push(['warm', 'Recoge la moneda del reino en la Tetera.']);
+  if (n.transformerReady) out.push(['', 'El transformador paramétrico está listo.']);
+  const low = (gi.hoyo.stats?.regions || []).filter((r) => r.pct < 100).slice(0, 2);
+  for (const r of low) out.push(['', `Explorar ${r.name} (${r.pct}%).`]);
+  return out;
+}
+function renderPriorities() {
+  const tasks = gi.tasks || [];
+  const pending = tasks.filter((t) => !t.done);
+  const doneList = tasks.filter((t) => t.done);
+  const auto = autoPriorities();
+  const text = h('input', { type: 'text', class: 'gi-task-input', placeholder: 'Añade una prioridad: una misión, subir a un personaje, farmear algo…', maxLength: 160, 'aria-label': 'Nueva prioridad' });
+  const kind = h('select', { 'aria-label': 'Tipo' }, TASK_KINDS.map((k) => h('option', { value: k, text: k })));
+  const add = () => {
+    const v = text.value.trim();
+    if (v) saveTasks([...tasks, { id: newId(), text: v, kind: kind.value, done: false, at: Date.now() }]);
+  };
+  text.addEventListener('keydown', (e) => e.key === 'Enter' && add());
+  const move = (t, step) => {
+    const list = [...tasks];
+    const i = list.indexOf(t);
+    const j = i + step;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    saveTasks(list);
+  };
+  const row = (t) =>
+    h(
+      'li',
+      { class: `gi-task${t.done ? ' done' : ''}` },
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: t.done, onchange: (e) => saveTasks(tasks.map((x) => (x === t ? { ...x, done: e.target.checked } : x))) }), h('span', { text: t.text })),
+      h('span', { class: 'gi-kind', text: t.kind }),
+      !t.done && h('button', { class: 'icon-btn', title: 'Subir', 'aria-label': `Subir ${t.text}`, text: '↑', onclick: () => move(t, -1) }),
+      !t.done && h('button', { class: 'icon-btn', title: 'Bajar', 'aria-label': `Bajar ${t.text}`, text: '↓', onclick: () => move(t, 1) }),
+      h('button', { class: 'icon-btn', title: 'Quitar', 'aria-label': `Quitar ${t.text}`, text: '×', onclick: () => saveTasks(tasks.filter((x) => x !== t)) })
+    );
+  const found = gi.found;
+  const picks = new Set((found?.quests || []).map((q) => q.text));
+  return [
+    auto.length > 0 && h('section', { class: 'gi-auto' }, h('h3', { class: 'sheet-h', text: 'Ahora mismo' }), h('ul', {}, auto.map(([cls, t]) => h('li', { class: cls, text: t })))),
+    !gi.hoyo?.linked && h('p', { class: 'hint', text: 'Si inicias sesión en HoYoLAB (pestaña Notas), aquí salen solas la resina, los encargos, los jefes semanales y las expediciones pendientes.' }),
+    h('h3', { class: 'sheet-h', text: 'Tus prioridades' }),
+    h('div', { class: 'row gi-add' }, text, kind, h('button', { class: 'btn primary', text: 'Añadir', onclick: add })),
+    pending.length ? h('ol', { class: 'gi-tasks' }, pending.map(row)) : h('p', { class: 'hint', text: 'Sin prioridades pendientes. Añade alguna o léelas de tu diario de misiones.' }),
+    doneList.length > 0 && h('button', { class: 'link-btn', text: gi.showDone ? 'Ocultar completadas' : `Ver completadas (${doneList.length})`, onclick: () => { gi.showDone = !gi.showDone; renderGenshin(); } }),
+    gi.showDone && h('ol', { class: 'gi-tasks' }, doneList.map(row)),
+    h(
+      'section',
+      { class: 'gi-ocr' },
+      h('h3', { class: 'sheet-h', text: 'Leer misiones del juego' }),
+      h('p', { class: 'hint', text: 'Genshin no comparte tus misiones con ningún programa, así que la app las lee de una captura del diario de misiones (tecla J) con el reconocimiento de texto de Windows, sin conexión. No toca el juego. Dentro del juego también puedes pulsar Ctrl+Alt+M con el diario abierto.' }),
+      h('div', { class: 'row' }, h('button', { class: 'btn ghost', disabled: !!gi.foundBusy, text: 'Capturar pantalla en 5 s', onclick: () => readQuests('capture') }), h('button', { class: 'btn ghost', disabled: !!gi.foundBusy, text: 'Desde una imagen…', onclick: () => readQuests('image') })),
+      gi.foundBusy && h('p', { class: 'hint', text: gi.foundBusy }),
+      found?.quests?.length > 0 &&
+        h(
+          'div',
+          { class: 'gi-found' },
+          h('p', { text: `Encontré ${plural(found.quests.length, 'posible misión', 'posibles misiones')}. Desmarca las que no lo sean:` }),
+          h('ul', {}, found.quests.map((q) => h('li', {}, h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: true, onchange: (e) => (e.target.checked ? picks.add(q.text) : picks.delete(q.text)) }), h('span', { text: q.text }), h('span', { class: 'gi-kind', text: q.kind }))))),
+          h(
+            'div',
+            { class: 'row' },
+            h('button', {
+              class: 'btn primary',
+              text: 'Añadir a mis prioridades',
+              onclick: () => {
+                const have = new Set(tasks.map((t) => t.text.toLowerCase()));
+                const fresh = found.quests.filter((q) => picks.has(q.text) && !have.has(q.text.toLowerCase())).map((q) => ({ id: newId(), text: q.text, kind: TASK_KINDS.includes(q.kind) ? q.kind : 'Otra', done: false, at: Date.now() }));
+                gi.found = null;
+                saveTasks([...tasks, ...fresh]);
+                toast(fresh.length ? `Añadidas ${plural(fresh.length, 'misión', 'misiones')}.` : 'Ya estaban en tu lista.');
+              },
+            }),
+            h('button', { class: 'btn ghost', text: 'Descartar', onclick: () => { gi.found = null; renderGenshin(); } })
+          )
+        )
+    ),
+  ];
 }
 
 function genshinCharacter(c) {
@@ -3417,6 +3962,18 @@ function bind() {
   $('#focusBtn').addEventListener('click', onFocusClick);
   $('#pickBtn').addEventListener('click', openPick);
   $('#recsRefresh').addEventListener('click', () => loadRecs(true));
+  window.api.onGwishProgress((t) => {
+    gi.wishBusy = t;
+    if (gi.tab === 'deseos') renderGenshin();
+  });
+  window.api.onGquestsPending(async () => {
+    const p = await window.api.gquestsPending();
+    if (p?.quests?.length) {
+      gi.found = p;
+      if (!gi.tasks) gi.tasks = await window.api.gtasks();
+      renderGenshin();
+    }
+  });
   $('#gameDlg').addEventListener('close', stopTrailer);
   for (const b of $$('#themeSeg button')) b.addEventListener('click', () => setTheme(b.dataset.v));
   $('#bgGame').addEventListener('change', (e) => setBackground(e.target.value));

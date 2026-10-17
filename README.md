@@ -211,6 +211,21 @@ Si tienes Genshin, en el menú aparece **Genshin**. Pega tu **UID** (9 o 10 cifr
 
 El UID no es una contraseña: no se inicia sesión en ningún sitio. Para que se vean armas y artefactos, en el juego activa *Menú de Paimon → tu perfil → Editar vitrina → Mostrar detalles de personajes*. El inventario y los personajes que no están en la vitrina no son públicos, así que no se pueden mostrar.
 
+La sección Genshin tiene además estas pestañas:
+
+- **Noticias y eventos**: días que faltan para la próxima versión, el directo que la presenta (estimado hasta que HoYoverse lo anuncia), los personajes nuevos en cuanto se presentan, los gachapones actuales, todos los eventos en curso con lo que les queda y las noticias oficiales de HoYoLAB. Sale de los anuncios del propio juego y de HoYoLAB, sin iniciar sesión.
+- **Prioridades**: tu lista de cosas por hacer (misiones, subir personajes, farmeo). Genshin no comparte tus misiones con ningún programa, así que la app las lee de una **captura del diario de misiones** con el reconocimiento de texto de Windows, sin conexión y sin tocar el juego (botón o **Ctrl+Alt+M** dentro del juego). Si vinculas HoYoLAB, aquí salen solas la resina, los encargos, los jefes semanales y las expediciones pendientes.
+- **Notas de HoYoLAB**: con tu cuenta de HoYoLAB (inicias sesión tú en una ventana de la app; se guarda solo la sesión de lectura, cifrada), la resina, los encargos, los jefes semanales, las expediciones, la moneda del reino, el resumen completo de la partida (cofres, óculos, teletransportes…), la exploración por región y la ficha completa de **todos** tus personajes: atributos, arma, constelaciones, talentos y artefactos con cuántas veces subió cada atributo. La API de HoYoLAB no es oficial y puede cambiar.
+- **Deseos**: abre *Deseos → Historial* en el juego y pulsa *Importar historial*. La app lee el enlace temporal que deja el juego en tu PC y guarda tus tiradas: pity de cada banner, si el próximo 5★ está garantizado y tus 5★ con el número de tiradas.
+
+## Spotify
+
+En **Música → Spotify** vinculas tu cuenta con el inicio de sesión oficial de Spotify (necesitas crear una vez una app gratuita en [developer.spotify.com](https://developer.spotify.com/dashboard) y pegar su *Client ID*; la app lo explica paso a paso). Verás tus playlists, *Canciones que te gustan*, lo que más escuchas, lo reciente, tus artistas y **Para ti** (lo más escuchado de tus artistas favoritos que aún no oyes). Con **Premium** puedes reproducir y cambiar de playlist desde ViperTeca: suena en tu app de Spotify (Spotify Connect) y abajo aparece una barra con pausa, siguiente, aleatorio, volumen y dónde suena.
+
+## Tu saldo en Steam y Epic
+
+En **Ofertas → Tu saldo**, *Conectar* abre la web oficial de Steam o de Epic para que inicies sesión tú, y la app lee tu cartera de Steam y tus **Epic Rewards** y saldo de Epic. Ninguna de las dos tiendas lo da a otros programas, así que se lee de su web; la sesión se guarda como en un navegador y *Desconectar* la borra.
+
 ## Instalador
 
 ```bash
