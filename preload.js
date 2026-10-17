@@ -128,6 +128,13 @@ contextBridge.exposeInMainWorld('api', {
     setTeam: (id) => ipcRenderer.invoke('vercel:setTeam', id),
     get: () => ipcRenderer.invoke('vercel:get'),
   },
+  anime: {
+    upcoming: (force) => ipcRenderer.invoke('anime:upcoming', force),
+    search: (q) => ipcRenderer.invoke('anime:search', q),
+    mine: (refresh) => ipcRenderer.invoke('anime:mine', refresh),
+    follow: (media, on) => ipcRenderer.invoke('anime:follow', media, on),
+    saveCustom: (list) => ipcRenderer.invoke('anime:custom', list),
+  },
   casa: {
     get: () => ipcRenderer.invoke('casa:get'),
     save: (d) => ipcRenderer.invoke('casa:save', d),

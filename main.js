@@ -39,6 +39,7 @@ const genshinFarm = require('./src/genshin-farm');
 const genshinCodes = require('./src/genshin-codes');
 const webhealth = require('./src/webhealth');
 const casa = require('./src/casa');
+const anime = require('./src/anime');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -212,6 +213,23 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'news') {
+      await js(`showView('news')`);
+      for (let i = 0; i < 40 && !(await js(`!!document.querySelector('.nw-card, .nw-feature')`)); i++) await wait(1000);
+      await wait(1500);
+      await shot('news-juegos.png');
+      await js(`state.newsTab = 'anime'; renderNews()`);
+      for (let i = 0; i < 30 && !(await js(`!!document.querySelector('.an-card')`)); i++) await wait(1000);
+      await wait(2500);
+      await shot('news-anime.png');
+      await js(`document.querySelectorAll('.an-groups .chip')[1]?.click()`);
+      await wait(2000);
+      await shot('news-anime-temporada.png');
+      await js(`[...document.querySelectorAll('.an-top .seg button')][1]?.click()`);
+      await wait(1500);
+      await shot('news-anime-mio.png');
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'casa') {
@@ -476,7 +494,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -565,6 +583,8 @@ app.whenReady().then(() => {
     setInterval(vercelTick, 10 * 60000);
     setTimeout(casaTick, 30000);
     setInterval(casaTick, 30 * 60000);
+    setTimeout(animeTick, 50000);
+    setInterval(animeTick, 30 * 60000);
     if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
     setInterval(() => calendarTick(true), 5 * 60000);
     setInterval(calendarReminders, 30000);
@@ -2177,6 +2197,18 @@ async function notionTick() {
 ipcMain.handle('casa:get', () => casa.load(ctxRW));
 ipcMain.handle('casa:save', (_e, d) => casa.save(ctxRW, d || {}));
 ipcMain.handle('casa:holidays', (_e, years) => casa.holidays(ctxRW, (Array.isArray(years) ? years : []).map(Number).filter((y) => y >= 2000 && y <= 2100).slice(0, 3)));
+ipcMain.handle('anime:upcoming', (_e, force) => anime.upcoming(ctxRW, !!force));
+ipcMain.handle('anime:search', (_e, q) => anime.search(String(q || '')));
+ipcMain.handle('anime:mine', async (_e, refresh) => (refresh ? anime.refreshFollows(ctxRW).catch(() => anime.mine(ctxRW)) : anime.mine(ctxRW)));
+ipcMain.handle('anime:follow', (_e, media, on) => {
+  if (!media || !Number(media.id)) throw new Error('Anime no válido.');
+  return anime.follow(ctxRW, media, !!on);
+});
+ipcMain.handle('anime:custom', (_e, list) => anime.saveCustom(ctxRW, list));
+async function animeTick() {
+  await anime.refreshFollows(ctxRW).catch(() => {});
+  for (const n of anime.notices(ctxRW)) notify(n.title, n.body, n.url && /^https:\/\/anilist\.co\/anime\/\d+/.test(n.url) ? n.url : null);
+}
 function casaTick() {
   for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
 }

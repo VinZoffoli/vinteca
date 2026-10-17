@@ -2075,59 +2075,57 @@ function renderNews() {
   $('#countNews').textContent = week || '';
   const box = $('#newsBody');
   if (!box || $('#newsView').hidden) return;
-  if (!n) return box.replaceChildren(h('div', { class: 'empty' }, h('b', { text: 'Buscando novedades de tus juegos…' })));
+  const tab = state.newsTab || 'juegos';
+  const tabs = h('div', { class: 'seg nw-tabs', role: 'tablist', 'aria-label': 'Novedades' },
+    [['juegos', 'Juegos'], ['anime', 'Anime'], ['nintendo', 'Nintendo']].map(([k, t]) => h('button', { class: tab === k ? 'on' : '', role: 'tab', 'aria-selected': String(tab === k), text: t, onclick: () => { state.newsTab = k; renderNews(); } })));
+  if (tab === 'anime') return fill(box, tabs, window.animeUI?.render() || null);
+  if (!n) return fill(box, tabs, h('div', { class: 'empty' }, h('b', { text: 'Buscando novedades de tus juegos…' })));
+  if (tab === 'nintendo') return fill(box, tabs, renderNintendo(n.nintendo || []));
+
+  const header = (appid) => `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`;
   const appGame = (appid) => findGame(`steam:${appid}`);
-  const newsList = n.items.slice(0, 40).map((it) => {
+  const filter = state.newsFilter || 'all';
+  const items = n.items.filter((it) => filter === 'all' || (filter === 'patch' ? it.patch : !it.patch)).slice(0, 40);
+  const [top, ...rest] = items;
+  const meta = (it, g) => h('div', { class: 'news-meta' }, h('b', { text: g?.title || '' }), h('span', { text: relTime(it.date) }), it.patch && h('span', { class: 'kind', text: 'Parche' }), g?.updatePending && h('span', { class: 'flag-inline', text: 'Actualización pendiente' }));
+  const img = (src, cls) => h('img', { class: cls, src, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() });
+  const feature = top && (() => {
+    const g = appGame(top.appid);
+    return h('button', { class: 'nw-feature', onclick: () => window.api.open(top.url), title: 'Abrir en Steam' },
+      img(g?.hero || header(top.appid), 'nw-feature-art'),
+      h('div', { class: 'nw-feature-body' }, meta(top, g), h('h2', { text: top.title }), top.text && h('p', { text: top.text }))
+    );
+  })();
+  const card = (it) => {
     const g = appGame(it.appid);
-    return h(
-      'button',
-      { class: 'news-item', onclick: () => window.api.open(it.url), title: 'Abrir en Steam' },
-      h('div', { class: 'ach-cover' }, g?.cover ? coverImg(g) : null),
-      h(
-        'div',
-        { class: 'news-body' },
-        h('div', { class: 'news-meta' }, h('b', { text: g?.title || '' }), h('span', { text: relTime(it.date) }), it.patch && h('span', { class: 'kind', text: 'Parche' }), g?.updatePending && h('span', { class: 'flag-inline', text: 'Actualización pendiente' })),
-        h('h3', { text: it.title }),
-        h('p', { class: 'hint', text: it.text })
+    return h('button', { class: 'nw-card', onclick: () => window.api.open(it.url), title: 'Abrir en Steam' },
+      h('div', { class: 'nw-card-art' }, img(header(it.appid))),
+      h('div', { class: 'nw-card-body' }, meta(it, g), h('h3', { text: it.title }), it.text && h('p', { class: 'hint', text: it.text }))
+    );
+  };
+  const rel = n.releases.map((r) => {
+    const days = r.date ? Math.ceil((r.date * 1000 - Date.now()) / 86400000) : null;
+    return h('button', { class: 'nw-rel', onclick: () => window.api.open(`https://store.steampowered.com/app/${r.appid}/`) },
+      img(r.header),
+      h('div', { class: 'nw-rel-body' },
+        h('b', { text: r.name }),
+        h('span', { text: r.date ? (r.exact ? dateFmt.format(r.date * 1000) : `Hacia ${monthFmt.format(r.date * 1000)}`) : r.label || 'Sin fecha' }),
+        days != null && days >= 0 && r.exact && h('em', { text: days === 0 ? 'Sale hoy' : `Faltan ${days} ${days === 1 ? 'día' : 'días'}` })
       )
     );
   });
-  const rel = n.releases.map((r) =>
-    h(
-      'button',
-      { class: 'deal', onclick: () => window.api.open(`https://store.steampowered.com/app/${r.appid}/`) },
-      h('img', { src: r.header, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }),
-      h(
-        'div',
-        {},
-        h('h3', { text: r.name }),
-        h('p', { class: 'free-when', text: r.date ? (r.exact ? dateFmt.format(r.date * 1000) : `Hacia ${monthFmt.format(r.date * 1000)}`) : r.label || 'Sin fecha' }),
-        r.date && h('p', { class: 'ends', text: relTime(r.date) })
-      )
-    )
-  );
   fill(
     box,
+    tabs,
     n.error ? h('p', { class: 'hint bad', text: n.error }) : null,
-    h(
-      'div',
-      { class: 'news-grid' },
-      h(
-        'section',
-        {},
-        h('h2', { class: 'section-h', text: 'Anuncios de tus juegos' }),
-        h('p', { class: 'hint', text: 'Anuncios oficiales en Steam de tus juegos instalados, favoritos y pendientes.' }),
-        newsList.length ? h('div', { class: 'news-list' }, newsList) : h('p', { class: 'hint', text: state.newsLoading ? 'Cargando…' : 'No hay anuncios recientes.' })
-      ),
-      h(
-        'section',
-        {},
-        h('h2', { class: 'section-h', text: 'Próximos lanzamientos' }),
-        h('p', { class: 'hint', text: 'Juegos de tu lista de deseados que aún no han salido.' }),
-        rel.length ? h('div', { class: 'rel-list' }, rel) : h('p', { class: 'hint', text: state.newsLoading ? 'Cargando…' : 'Nada de tu lista de deseados está por salir.' })
-      )
+    rel.length ? h('section', { class: 'nw-rels-wrap' }, h('h2', { class: 'section-h', text: 'Próximos lanzamientos de tu lista de deseados' }), h('div', { class: 'nw-rels' }, rel)) : null,
+    h('div', { class: 'toolbar flat nw-filter' },
+      h('h2', { class: 'section-h', text: 'Anuncios de tus juegos' }),
+      h('div', { class: 'seg' }, [['all', 'Todo'], ['patch', 'Parches'], ['news', 'Anuncios']].map(([k, t]) => h('button', { class: filter === k ? 'on' : '', text: t, onclick: () => { state.newsFilter = k; renderNews(); } })))
     ),
-    renderNintendo(n.nintendo || [])
+    items.length
+      ? [feature, h('div', { class: 'nw-grid' }, rest.map(card))]
+      : h('p', { class: 'hint', text: state.newsLoading ? 'Cargando…' : 'No hay anuncios recientes de tus juegos instalados, favoritos y pendientes.' })
   );
 }
 
