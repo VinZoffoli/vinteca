@@ -165,10 +165,28 @@ contextBridge.exposeInMainWorld('api', {
     follow: (media, on) => ipcRenderer.invoke('anime:follow', media, on),
     saveCustom: (list) => ipcRenderer.invoke('anime:custom', list),
   },
+  mail: {
+    account: () => ipcRenderer.invoke('mail:account'),
+    setAccount: (a) => ipcRenderer.invoke('mail:setAccount', a),
+    cached: () => ipcRenderer.invoke('mail:cached'),
+    inbox: () => ipcRenderer.invoke('mail:inbox'),
+    openWeb: () => ipcRenderer.invoke('mail:openWeb'),
+    onChanged: (cb) => ipcRenderer.on('mail:changed', (_e, d) => cb(d)),
+  },
+  market: {
+    state: () => ipcRenderer.invoke('mk:state'),
+    search: () => ipcRenderer.invoke('mk:search'),
+    savePrefs: (p) => ipcRenderer.invoke('mk:prefs', p),
+    star: (item, on) => ipcRenderer.invoke('mk:star', item, on),
+    openWindow: () => ipcRenderer.invoke('mk:window'),
+    openItem: (id) => ipcRenderer.invoke('mk:openItem', id),
+    onCity: (cb) => ipcRenderer.on('mk:city', (_e, id) => cb(id)),
+  },
   casa: {
     get: () => ipcRenderer.invoke('casa:get'),
     save: (d) => ipcRenderer.invoke('casa:save', d),
     holidays: (years) => ipcRenderer.invoke('casa:holidays', years),
+    openLink: (url) => ipcRenderer.invoke('casa:openLink', url),
   },
   onNotionChanged: (cb) => ipcRenderer.on('notion:changed', () => cb()),
   cal: {

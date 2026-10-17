@@ -47,14 +47,31 @@ function seed() {
   };
 }
 
+// Regalos que ya tenías pensados para Emi (se añaden una sola vez)
+function seedGifts() {
+  const g = (name, note = '') => ({ id: id(), name, for: 'Emi', note, link: '', price: null, image: '', status: 'idea', at: Date.now() });
+  return [
+    g('Sellador One Size', 'On ’Til Dawn, spray fijador mate'),
+    g('Set de brochas Beauty Creations', 'En el estuche negro'),
+    g('Bronzer Lys', 'Tono Harmony'),
+    g('Blush Patrick Ta', 'Tono Just Enough'),
+    g('Polvo Huda Beauty', 'Tono Pound Cake'),
+  ];
+}
+
 function load({ read, write }) {
   let d = read('casa.json', null);
-  if (!d) {
-    d = seed();
+  if (!d) d = seed();
+  if (!d.gifts) {
+    d.gifts = seedGifts();
+    d.giftPeople = ['Emi'];
     write('casa.json', d);
   }
   return d;
 }
+
+// Foto de un regalo: una imagen pequeña en data: (elegida o pegada) o un enlace https
+const okImage = (v) => (typeof v === 'string' && ((/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < 700000) || /^https:\/\/\S{8,1500}$/.test(v)) ? v : '');
 
 // Validación ligera de lo que llega de la ventana
 const str = (v, n = 120) => String(v ?? '').slice(0, n).trim();
@@ -68,6 +85,8 @@ function save({ write }, d) {
     shopCats: (d.shopCats || []).map((x) => str(x, 40)).filter(Boolean).slice(0, 30),
     payGroups: (d.payGroups || []).map((x) => str(x, 40)).filter(Boolean).slice(0, 30),
     holidayCountries: (d.holidayCountries || []).filter((c) => COUNTRIES[c]),
+    giftPeople: (d.giftPeople || ['Emi']).map((x) => str(x, 40)).filter(Boolean).slice(0, 30),
+    gifts: (d.gifts || []).slice(0, 300).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 160), for: str(x.for, 40) || 'Emi', note: str(x.note, 400), link: /^https:\/\/\S+$/.test(x.link || '') ? str(x.link, 600) : '', price: x.price === '' || x.price == null ? null : Number(x.price) || null, image: okImage(x.image), status: ['idea', 'bought', 'given'].includes(x.status) ? x.status : 'idea', occasion: str(x.occasion, 60), at: Number(x.at) || Date.now() })).filter((x) => x.name),
     shopping: (d.shopping || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), qty: str(x.qty, 30), cat: str(x.cat, 40), done: !!x.done, at: Number(x.at) || Date.now() })).filter((x) => x.name),
     payments: (d.payments || []).slice(0, 200).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), group: str(x.group, 40) || 'Personal', day: intOr(x.day, 1, 31), amount: x.amount === '' || x.amount == null ? null : Number(x.amount) || null, currency: str(x.currency, 5) || 'CRC', notifyDays: intOr(x.notifyDays, 0, 30) ?? 3, note: str(x.note, 300), paid: Object.fromEntries(Object.entries(x.paid || {}).filter(([k]) => /^\d{4}-\d{2}$/.test(k)).slice(-36)) })).filter((x) => x.name),
     reminders: (d.reminders || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), title: str(x.title, 160), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', note: str(x.note, 500), notifyDays: intOr(x.notifyDays, 0, 60) ?? 1, done: !!x.done })).filter((x) => x.title && x.date),

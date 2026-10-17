@@ -1826,3 +1826,44 @@ body.editing #scroller { overflow: hidden; }
 @media (max-width: 1150px) { .ed-grid { grid-template-columns: 210px minmax(0, 1fr) 320px; } }
 .ed-monaco-host { position: absolute; inset: 0; }
 body.editing .side { display: none; }
+
+/* ---------- Casa: regalos y alquileres ---------- */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gt-grid, .mk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.gt-card, .mk-card { display: grid; grid-template-rows: auto 1fr; border-radius: 14px; overflow: hidden; background: var(--night-2); border: 1px solid var(--line); }
+.gt-card.st-bought { border-color: color-mix(in srgb, var(--cyan) 55%, var(--line)); }
+.gt-card.st-given { opacity: .6; }
+.gt-img, .mk-img { position: relative; aspect-ratio: 1; padding: 0; border: 0; background: #fff; display: grid; place-items: center; overflow: hidden; color: #777; font-size: 13px; }
+.mk-img { aspect-ratio: 4 / 3; background: var(--surface); color: var(--muted); }
+.gt-img img, .mk-img img { width: 100%; height: 100%; object-fit: contain; }
+.mk-img img { object-fit: cover; }
+.gt-img:hover, .mk-img:hover { filter: brightness(1.04); }
+.gt-body, .mk-body { display: grid; gap: 3px; align-content: start; padding: 10px 12px 12px; }
+.gt-body b { font: 650 15px/1.25 var(--body); }
+.gt-body .hint, .mk-body .hint { margin: 0; }
+.gt-st { padding: 4px 8px; font-size: 12px; }
+.gt-form { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; }
+.gt-photo { aspect-ratio: 1; border-radius: 12px; background: #fff; border: 1px dashed var(--line); display: grid; place-items: center; overflow: hidden; margin-bottom: 8px; color: #666; font-size: 12.5px; text-align: center; padding: 10px; }
+.gt-photo img { width: 100%; height: 100%; object-fit: contain; }
+.gt-fields { display: grid; gap: 8px; }
+.mk-price { font: 700 19px var(--display); color: var(--green); }
+.mk-title { margin: 0; font-weight: 600; line-height: 1.3; }
+.mk-act { margin-top: 6px; }
+.mk-card.on { border-color: var(--amber); }
+.mk-new { position: absolute; top: 8px; left: 8px; }
+@media (max-width: 800px) { .gt-form { grid-template-columns: 1fr; } }
+
+/* ---------- Email ---------- */
+.ml-list { list-style: none; margin: 0; padding: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+.ml-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 11px 16px; background: var(--night-2); border-bottom: 1px solid var(--line); }
+.ml-row:last-child { border-bottom: 0; }
+.ml-row.unread { background: color-mix(in srgb, var(--amber) 7%, var(--night-2)); }
+.ml-dot { width: 9px; height: 9px; border-radius: 50%; background: transparent; }
+.ml-row.unread .ml-dot { background: var(--amber); }
+.ml-main { display: grid; gap: 1px; min-width: 0; }
+.ml-main b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-row.unread .ml-main b { font-weight: 700; }
+.ml-main span { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-row.unread .ml-main span { color: var(--text); }
+.ml-meta { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
+.gt-form .rx-input { width: 100%; }

@@ -359,13 +359,206 @@
   }
 
   // =========================================================== vista
-  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['feriados', 'Feriados']];
+  // =========================================================== ALQUILERES (Facebook Marketplace)
+  const MK = { st: null, busy: false, error: null, filter: 'all', prefsOpen: false };
+  const mk = window.api.market;
+  mk.onCity(async () => {
+    MK.st = await mk.state();
+    toast('Ubicación guardada: ya puedes buscar.');
+    render();
+  });
+  async function mkSearch() {
+    MK.busy = true;
+    MK.error = null;
+    render();
+    try {
+      const r = await mk.search();
+      if (r.login) {
+        MK.error = 'login';
+        mk.openWindow();
+      } else {
+        MK.st.last = r;
+        const n = r.list.filter((x) => x.isNew).length;
+        toast(`${plural(r.list.length, 'alquiler', 'alquileres')}${n ? `, ${n} nuevos` : ''}.`);
+      }
+    } catch (e) {
+      MK.error = errMsg(e);
+    }
+    MK.busy = false;
+    render();
+    updateBadge();
+  }
+  function alquileres() {
+    if (!MK.st) {
+      mk.state().then((s) => { MK.st = s; render(); });
+      return skeleton();
+    }
+    const { prefs: p, last, saved } = MK.st;
+    const crc = (n) => `₡${Number(n).toLocaleString('es')}`;
+    const list = (last?.list || []).filter((x) => MK.filter === 'all' || (MK.filter === 'new' ? x.isNew : !!saved[x.id]));
+    const shown = MK.filter === 'saved' ? Object.values(saved) : list;
+    const card = (x) => {
+      const on = !!saved[x.id];
+      return h('article', { class: `mk-card ${on ? 'on' : ''}` },
+        h('button', { class: 'mk-img', onclick: () => mk.openItem(x.id), 'aria-label': `Abrir ${x.title} en Facebook` }, x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer', onerror: (e) => e.target.remove() }) : h('span', { text: 'Sin foto' }), x.isNew && h('span', { class: 'rx-tag new mk-new', text: 'Nuevo' })),
+        h('div', { class: 'mk-body' },
+          h('b', { class: 'mk-price', text: x.price || 'Sin precio' }),
+          h('p', { class: 'mk-title', text: x.title }),
+          x.where && h('p', { class: 'hint', text: x.where }),
+          x.extra && h('p', { class: 'hint', text: x.extra }),
+          h('div', { class: 'rx-row mk-act' },
+            h('button', { class: 'btn primary small', text: 'Abrir en Facebook', onclick: () => mk.openItem(x.id) }),
+            h('button', { class: 'btn subtle small', text: on ? '★ Guardado' : '☆ Guardar', 'aria-pressed': String(on), onclick: async () => { MK.st.saved = await mk.star(x, !on); render(); } })
+          )
+        )
+      );
+    };
+    const pIn = { place: h('input', { class: 'rx-input', value: p.place }), min: h('input', { class: 'rx-input', type: 'number', value: p.min, step: 5000 }), max: h('input', { class: 'rx-input', type: 'number', value: p.max, step: 5000 }), only: h('input', { type: 'checkbox', checked: p.onlyPlace }) };
+    return [
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary', text: MK.busy ? 'Buscando…' : 'Buscar alquileres', disabled: MK.busy, onclick: mkSearch }),
+        h('button', { class: 'btn ghost small', text: 'Preferencias', onclick: () => { MK.prefsOpen = !MK.prefsOpen; render(); } }),
+        h('button', { class: 'btn subtle small', text: p.city ? 'Abrir Facebook' : 'Elegir ubicación en Facebook', onclick: () => mk.openWindow() }),
+        h('span', { class: 'hint', text: `${p.place} · ${crc(p.min)} a ${crc(p.max)} · alquiler de propiedades` })
+      ),
+      !p.city && h('div', { class: 'notice' }, h('span', { text: `Paso único: pulsa «Elegir ubicación en Facebook», inicia sesión si te lo pide y, en el filtro de ubicación de Marketplace, elige ${p.place}. La app lo recuerda sola y desde ahí busca siempre allí.` })),
+      MK.error === 'login' && h('div', { class: 'notice' }, h('span', { text: 'Facebook pide iniciar sesión: entra en la ventana que se abrió y vuelve a pulsar «Buscar alquileres».' })),
+      MK.error && MK.error !== 'login' && h('p', { class: 'hint bad', text: MK.error }),
+      MK.prefsOpen && h('section', { class: 'rx-card li-prefs' },
+        h('h3', { text: 'Qué buscar' }),
+        h('div', { class: 'ks-two' }, h('label', { class: 'ks-field' }, h('span', { text: 'Precio mínimo (colones)' }), pIn.min), h('label', { class: 'ks-field' }, h('span', { text: 'Precio máximo (colones)' }), pIn.max)),
+        h('label', { class: 'ks-field' }, h('span', { text: 'Lugar' }), pIn.place),
+        h('label', { class: 'rx-check' }, pIn.only, h('span', { text: 'Mostrar solo los que dicen ese lugar (Marketplace también trae pueblos vecinos)' })),
+        h('div', { class: 'actions' }, h('button', { class: 'btn ghost', text: 'Cancelar', onclick: () => { MK.prefsOpen = false; render(); } }), h('button', { class: 'btn primary', text: 'Guardar', onclick: async () => { await mk.savePrefs({ place: pIn.place.value, min: pIn.min.value, max: pIn.max.value, onlyPlace: pIn.only.checked }); MK.st = await mk.state(); MK.prefsOpen = false; render(); } }))
+      ),
+      !!(last || Object.keys(saved).length) && h('div', { class: 'row wk-filters' },
+        h('div', { class: 'seg' }, [['all', 'Todos'], ['new', 'Nuevos'], ['saved', `Guardados (${Object.keys(saved).length})`]].map(([k2, t]) => h('button', { class: MK.filter === k2 ? 'on' : '', text: t, onclick: () => { MK.filter = k2; render(); } }))),
+        last && h('span', { class: 'hint', text: `Búsqueda de ${relTime(last.at / 1000)}.` })
+      ),
+      shown.length ? h('div', { class: 'mk-grid' }, shown.map(card)) : last ? h('p', { class: 'hint', text: 'No hay publicaciones en este filtro.' }) : h('p', { class: 'empty' }, h('b', { text: 'Pulsa «Buscar alquileres»' }), 'Trae las publicaciones de alquiler de Facebook Marketplace con tu precio y tu lugar.'),
+      h('p', { class: 'hint rx-foot', text: 'Se lee Marketplace con tu sesión de Facebook solo cuando pulsas «Buscar». ViperTeca no publica ni escribe a nadie: abres la publicación en tu navegador y contactas tú.' }),
+    ];
+  }
+
+  // =========================================================== REGALOS
+  const GIFT_ST = [['idea', 'Idea'], ['bought', 'Comprado'], ['given', 'Entregado']];
+  // reduce la foto a 600 px y la guarda como JPEG dentro de casa.json
+  function shrink(blob) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 600 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k);
+        c.height = Math.round(img.height * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('No pude leer esa imagen.'));
+      img.src = url;
+    });
+  }
+  function giftForm(g, person) {
+    const d = K.d;
+    const isNew = !g;
+    let image = g?.image || '';
+    const preview = h('div', { class: 'gt-photo' });
+    const showPreview = () => fill(preview, image ? h('img', { src: image, alt: '' }) : h('span', { text: 'Sin foto. Elige una, pégala con Ctrl+V o pega el enlace de la imagen.' }));
+    showPreview();
+    const file = h('input', { type: 'file', accept: 'image/*', class: 'sr-only', onchange: async (e) => { const f = e.target.files[0]; if (f) { image = await shrink(f).catch((x) => { toast(errMsg(x), true); return image; }); showPreview(); } } });
+    const urlIn = h('input', { class: 'rx-input', placeholder: 'https://… enlace de la imagen (opcional)', onchange: (e) => { if (/^https:\/\//.test(e.target.value.trim())) { image = e.target.value.trim(); showPreview(); } } });
+    const f = {
+      name: h('input', { class: 'rx-input', value: g?.name || '', required: true, placeholder: 'Qué regalo' }),
+      for: h('select', { class: 'sn-select' }, d.giftPeople.map((p) => h('option', { value: p, text: p, selected: (g?.for || person || 'Emi') === p }))),
+      note: h('input', { class: 'rx-input', value: g?.note || '', placeholder: 'Tono, talla, color, dónde lo vende…' }),
+      occasion: h('input', { class: 'rx-input', value: g?.occasion || '', placeholder: 'Cumpleaños, Navidad, aniversario…' }),
+      price: h('input', { class: 'rx-input', type: 'number', value: g?.price ?? '', placeholder: 'Precio aproximado (opcional)' }),
+      link: h('input', { class: 'rx-input', value: g?.link || '', placeholder: 'https://… dónde comprarlo (opcional)' }),
+    };
+    const field = (l, el) => h('label', { class: 'ks-field' }, h('span', { text: l }), el);
+    const dlg = h('dialog', { class: 'rx-dlg ks-dlg wide' });
+    const form = h('form', { method: 'dialog' },
+      h('h2', { text: isNew ? 'Nuevo regalo' : 'Editar regalo' }),
+      h('div', { class: 'gt-form' },
+        h('div', {}, preview, h('div', { class: 'rx-row' }, h('button', { type: 'button', class: 'btn ghost small', text: 'Elegir foto', onclick: () => file.click() }), image && h('button', { type: 'button', class: 'btn subtle small', text: 'Quitar foto', onclick: () => { image = ''; showPreview(); } })), file, urlIn),
+        h('div', { class: 'gt-fields' }, field('Regalo', f.name), field('Para', f.for), field('Detalles', f.note), field('Ocasión', f.occasion), field('Precio', f.price), field('Dónde comprarlo', f.link))
+      ),
+      h('div', { class: 'actions' },
+        !isNew && h('button', { type: 'button', class: 'btn subtle', text: 'Eliminar', onclick: (e) => { const b = e.currentTarget; if (b.dataset.sure) { d.gifts = d.gifts.filter((x) => x !== g); commit(); dlg.close(); } else { b.dataset.sure = '1'; b.textContent = 'Pulsa otra vez para eliminar'; } } }),
+        h('button', { type: 'button', class: 'btn ghost', text: 'Cancelar', onclick: () => dlg.close() }),
+        h('button', { class: 'btn primary', text: 'Guardar' })
+      )
+    );
+    form.addEventListener('submit', (e) => {
+      const name = f.name.value.trim();
+      if (!name) return e.preventDefault();
+      const link = f.link.value.trim();
+      const row = { name, for: f.for.value, note: f.note.value.trim(), occasion: f.occasion.value.trim(), price: f.price.value ? Number(f.price.value) : null, link: /^https:\/\//.test(link) ? link : '', image };
+      if (isNew) d.gifts.push({ id: uid(), status: 'idea', at: Date.now(), ...row });
+      else Object.assign(g, row);
+      commit();
+    });
+    // pegar una imagen con Ctrl+V mientras el diálogo está abierto
+    dlg.addEventListener('paste', async (e) => {
+      const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+      if (!item) return;
+      e.preventDefault();
+      image = await shrink(item.getAsFile()).catch(() => image);
+      showPreview();
+    });
+    dlg.append(form);
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    f.name.focus();
+  }
+  function regalos() {
+    const d = K.d;
+    const people = [...new Set([...(d.giftPeople || ['Emi']), ...d.gifts.map((g) => g.for)])];
+    const card = (g) => h('article', { class: `gt-card st-${g.status}` },
+      h('button', { class: 'gt-img', onclick: () => giftForm(g), 'aria-label': `Editar ${g.name}` }, g.image ? h('img', { src: g.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : h('span', { text: '+ Añadir foto' })),
+      h('div', { class: 'gt-body' },
+        h('b', { text: g.name }),
+        g.note && h('p', { class: 'hint', text: g.note }),
+        h('p', { class: 'hint', text: [g.occasion, g.price ? money(g.price, 'CRC') : null].filter(Boolean).join(' · ') }),
+        h('div', { class: 'rx-row' },
+          h('select', { class: 'sn-select gt-st', 'aria-label': 'Estado', onchange: (e) => { g.status = e.target.value; commit(); } }, GIFT_ST.map(([v, l]) => h('option', { value: v, text: l, selected: g.status === v }))),
+          g.link && h('button', { class: 'btn subtle small', text: 'Dónde comprarlo', onclick: () => api.openLink(g.link) }),
+          h('button', { class: 'btn ghost small', text: 'Editar', onclick: () => giftForm(g) })
+        )
+      )
+    );
+    return [
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary small', text: 'Nuevo regalo', onclick: () => giftForm(null) }),
+        h('button', { class: 'btn ghost small', text: 'Añadir persona', onclick: () => form('Nueva persona para regalos', [{ key: 'name', label: 'Nombre', required: true }], (v) => { if (!d.giftPeople.includes(v.name)) { d.giftPeople.push(v.name); commit(); } }) }),
+        h('span', { class: 'hint', text: 'Toca la foto de un regalo para cambiarla: puedes elegir un archivo o pegarla con Ctrl+V.' })
+      ),
+      people.map((p) => {
+        const list = d.gifts.filter((g) => g.for === p).sort((a, b) => ['idea', 'bought', 'given'].indexOf(a.status) - ['idea', 'bought', 'given'].indexOf(b.status));
+        const pending = list.filter((g) => g.status === 'idea').length;
+        return h('section', { class: 'ks-group' },
+          h('h3', { class: 'rx-squad-h' }, `Para ${p}`, h('span', { class: 'count', text: pending ? `${pending} por comprar` : String(list.length) }), h('button', { class: 'btn subtle small', text: '+ Añadir', onclick: () => giftForm(null, p) })),
+          list.length ? h('div', { class: 'gt-grid' }, list.map(card)) : h('p', { class: 'hint', text: 'Sin regalos anotados.' })
+        );
+      }),
+    ];
+  }
+
+  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
   const SUB = {
     compras: 'Lo que falta en la casa, por categoría. Marca lo que vas comprando.',
     pagos: 'Alquiler, servicios y demás pagos de cada mes, con cuánto falta para el próximo.',
     recordatorios: 'Visitas, citas y fechas que no quieres olvidar.',
     cumples: 'Cumpleaños de la familia, amigos y gatitos.',
+    regalos: 'Ideas de regalos para cada persona, con su foto y dónde comprarlos.',
     feriados: 'Feriados nacionales de Estados Unidos, Argentina y Costa Rica.',
+    alquileres: 'Casas y apartamentos en alquiler de Facebook Marketplace, con tu precio y tu lugar.',
   };
   function render() {
     const body = $('#casaBody');
@@ -373,7 +566,7 @@
     $('#casaTitle').textContent = TABS.find((t) => t[0] === K.tab)[1];
     $('#casaSub').textContent = SUB[K.tab];
     if (!K.d) return fill(body, skeleton());
-    const views = { compras, pagos, recordatorios, cumples: cumpleanos, feriados };
+    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, feriados, alquileres };
     fill(body, views[K.tab]());
   }
   const skeleton = () => h('div', { class: 'rx-skel' }, [1, 2, 3].map(() => h('div', { class: 'skel rx-skel-row' }, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }))));
@@ -399,6 +592,7 @@
     set('countCompras', K.d.shopping.filter((x) => !x.done).length);
     set('countPagos', K.d.payments.filter((p) => { const n = nextDue(p); return n && n.days <= (p.notifyDays ?? 3); }).length);
     set('countCumples', K.d.birthdays.filter((b) => b.day && nextBirthday(b).days <= 7).length);
+    set('countRegalos', (K.d.gifts || []).filter((g) => g.status === 'idea').length);
     set('countRecordatorios', K.d.reminders.filter((r) => !r.done && Math.round((new Date(r.date + 'T00:00:00').getTime() - startOfDay()) / DAY) <= 7 && new Date(r.date + 'T00:00:00').getTime() >= startOfDay()).length);
   }
   setTimeout(updateBadge, 3000);

@@ -246,6 +246,10 @@ En **Websites**, cada web tiene **Abrir en el editor**: se abre su carpeta con u
 
 A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes instalado, con tu sesión y tu plan, sobre la carpeta de esa web. Eliges el modelo (Opus, Sonnet o Haiku), el esfuerzo y los permisos (solo leer, leer y editar archivos, o también ejecutar comandos como npm o git). Ves en vivo qué archivos lee o edita y, si cambia uno abierto, el editor lo recarga solo. Con «Incluir el archivo abierto» le pasa el archivo y lo que tengas seleccionado. La conversación de cada web se guarda y sigue donde la dejaste. En la barra de abajo: la rama de git, la posición del cursor y, en la esquina, el **% de contexto** que lleva la conversación con Claude y el estado de tu límite de 5 horas.
 
+## Email
+
+**ViperTech → Email** muestra la bandeja de entrada de tu correo de Hostinger (contacto@vipertechcr.com) por IMAP, en modo solo lectura: quién te escribió, el asunto, la hora y cuáles están sin leer, sin marcarlos como leídos. Revisa cada 5 minutos y te avisa de los correos nuevos. La contraseña la escribes tú y se guarda cifrada en este PC. Para leer o responder, «Abrir Webmail de Hostinger».
+
 ## LinkedIn
 
 **ViperTech → LinkedIn** tiene tres pestañas. *Buscar ofertas*: busca con tus preferencias (puestos o tecnologías, lugares, modalidad y si son del último día, semana o mes) en el buscador público de empleos de LinkedIn, sin usar tu cuenta; marca las nuevas desde la última búsqueda y, al abrir una, muestra la descripción, el tipo de empleo, el nivel y cuántos se postularon. *Recomendadas para ti* y *Mis postulaciones* leen esas páginas de tu cuenta: la primera vez se abre LinkedIn en una ventana de la app y entras tú, y desde ahí la app solo las lee cuando pulsas «Leer de LinkedIn» (dónde te postulaste, cuándo y si vieron tu solicitud o descargaron tu CV). También puedes llevar el seguimiento de cada oferta (guardada, postulé, entrevista, oferta…). ViperTeca no postula ni escribe en LinkedIn. LinkedIn limita las búsquedas seguidas: si corta, espera unos minutos.
@@ -262,6 +266,8 @@ Sección **Casa** del menú, todo guardado en este PC y editable (crear, editar 
 - **Pagos**: alquiler, agua, luz, internet y demás, divididos en grupos (Personal, Abuela, Abuelo y los que crees). Pones el día del mes y ves cuántos días faltan; marcas cada mes como pagado. Te avisa unos días antes, el mismo día y si se atrasa. Los que aún no tienen fecha quedan como «Fecha por confirmar».
 - **Recordatorios**: visitas, citas y fechas sueltas, con aviso antes y el mismo día.
 - **Cumpleaños**: personas y gatitos, con cuenta regresiva y edad si pones el año. Si solo sabes el mes, se guarda así hasta que pongas el día.
+- **Regalos**: ideas de regalos por persona (empieza con los de Emi), con foto (elegida, pegada con Ctrl+V o por enlace), detalles, ocasión, precio, dónde comprarlo y estado: idea, comprado o entregado.
+- **Alquileres**: publicaciones de alquiler de propiedades de Facebook Marketplace entre tu precio mínimo y máximo (por defecto ₡130.000 a ₡250.000) en Guápiles, en tarjetas con foto, precio y lugar; marca las nuevas, puedes guardar las que te gustan y abrirlas en el navegador. Marketplace necesita tu sesión: la primera vez se abre Facebook en una ventana de la app, entras tú y eliges Guápiles en el filtro de ubicación (la app lo recuerda). Solo lee cuando pulsas «Buscar».
 - **Feriados**: feriados nacionales oficiales de Estados Unidos, Argentina y Costa Rica (Nager.Date; no se editan), en lista o en calendario mes a mes, y si quieres con tus cumpleaños, recordatorios y pagos encima.
 
 ## Novedades de la 1.9

@@ -1103,6 +1103,8 @@ function showView(view) {
   if (view === 'workana') window.workanaUI?.show();
   $('#calView').hidden = view !== 'cal';
   $('#linkedinView').hidden = view !== 'linkedin';
+  $('#mailView').hidden = view !== 'mail';
+  if (view === 'mail') window.mailUI?.show();
   $('#editorView').hidden = view !== 'editor';
   document.body.classList.toggle('editing', view === 'editor');
   if (view === 'linkedin') window.linkedinUI?.show();

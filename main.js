@@ -43,6 +43,8 @@ const anime = require('./src/anime');
 const linkedin = require('./src/linkedin');
 const codeedit = require('./src/codeedit');
 const claudeChat = require('./src/claude-chat');
+const marketplace = require('./src/marketplace');
+const mail = require('./src/mail');
 const storeinfo = require('./src/storeinfo');
 const { LanServer } = require('./src/lan');
 
@@ -216,6 +218,17 @@ function snapshot(dir) {
       await shot('workana-postular.png');
       const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
+      return app.quit();
+    }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'v114') {
+      for (const [v, name, ms] of [['casa-regalos', 'regalos', 2000], ['casa-alquileres', 'alquileres', 2000], ['mail', 'mail', 2000]]) {
+        await js(`showView('${v}')`);
+        await wait(ms);
+        await shot(`${name}.png`);
+      }
+      await js(`showView('casa-regalos'); setTimeout(() => document.querySelector('.gt-card .btn.ghost')?.click(), 600)`);
+      await wait(1500);
+      await shot('regalo-editar.png');
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'editor') {
@@ -617,6 +630,8 @@ app.whenReady().then(() => {
     setInterval(vercelTick, 10 * 60000);
     setTimeout(casaTick, 30000);
     setInterval(casaTick, 30 * 60000);
+    setTimeout(mailTick, 35000);
+    setInterval(mailTick, 5 * 60000);
     setTimeout(animeTick, 50000);
     setInterval(animeTick, 30 * 60000);
     if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
@@ -1040,6 +1055,7 @@ ipcMain.handle('data:export', async () => {
   delete settings.calIcsEnc;
   delete settings.vercelEnc;
   delete settings.psiKeyEnc;
+  delete settings.mailPassEnc;
   const data = {
     app: 'biblioteca-juegos',
     version: 1,
@@ -2230,6 +2246,13 @@ async function notionTick() {
 // ---------- Casa ----------
 ipcMain.handle('casa:get', () => casa.load(ctxRW));
 ipcMain.handle('casa:save', (_e, d) => casa.save(ctxRW, d || {}));
+ipcMain.handle('casa:openLink', (_e, url) => {
+  const u = String(url || '');
+  const known = (store.read('casa.json', {}).gifts || []).some((g) => g.link === u);
+  if (!known || !/^https:\/\//.test(u)) return false;
+  shell.openExternal(u);
+  return true;
+});
 ipcMain.handle('casa:holidays', (_e, years) => casa.holidays(ctxRW, (Array.isArray(years) ? years : []).map(Number).filter((y) => y >= 2000 && y <= 2100).slice(0, 3)));
 ipcMain.handle('anime:upcoming', (_e, force) => anime.upcoming(ctxRW, !!force));
 ipcMain.handle('anime:search', (_e, q) => anime.search(String(q || '')));
@@ -2311,6 +2334,37 @@ ipcMain.handle('claude:saveHistory', (_e, dir, h) => {
   store.write('claude-chats.json', all);
   return true;
 });
+
+// Casa → Alquileres (Facebook Marketplace con tu sesión)
+ipcMain.handle('mk:state', () => marketplace.state(store.read));
+ipcMain.handle('mk:search', () => marketplace.search(ctxRW));
+ipcMain.handle('mk:prefs', (_e, p) => marketplace.savePrefs(ctxRW, p || {}));
+ipcMain.handle('mk:star', (_e, item, on) => {
+  if (!item || !/^\d{5,25}$/.test(String(item.id))) throw new Error('Publicación no válida.');
+  return marketplace.star(ctxRW, item, !!on);
+});
+ipcMain.handle('mk:window', (e) => marketplace.openWindow(marketplace.state(store.read).url, { ...ctxRW, onCity: (id) => !e.sender.isDestroyed() && e.sender.send('mk:city', id) }));
+ipcMain.handle('mk:openItem', (_e, id) => {
+  if (!/^\d{5,25}$/.test(String(id))) return false;
+  shell.openExternal(`https://www.facebook.com/marketplace/item/${id}/`);
+  return true;
+});
+
+// ViperTech → Email (IMAP de Hostinger, solo lectura)
+ipcMain.handle('mail:account', () => mail.account(store.read));
+ipcMain.handle('mail:setAccount', (_e, a) => mail.setAccount(ctxRW, a || {}));
+ipcMain.handle('mail:cached', () => store.read('mail-cache.json', null));
+ipcMain.handle('mail:inbox', () => mail.inbox(ctxRW));
+ipcMain.handle('mail:openWeb', () => shell.openExternal('https://mail.hostinger.com/'));
+async function mailTick() {
+  if (!mail.account(store.read).hasPassword) return;
+  const r = await mail.inbox(ctxRW).catch(() => null);
+  if (!r) return;
+  if (win && !win.isDestroyed()) win.webContents.send('mail:changed', r);
+  if (!settingsOn('mailAlerts') || !r.fresh?.length) return;
+  if (r.fresh.length === 1) notify(`Correo de ${r.fresh[0].from}`, r.fresh[0].subject, null);
+  else notify(`${r.fresh.length} correos nuevos en ${r.user}`, r.fresh.slice(0, 3).map((m) => `${m.from}: ${m.subject}`).join('\n'));
+}
 
 function casaTick() {
   for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
