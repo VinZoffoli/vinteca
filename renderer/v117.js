@@ -150,8 +150,9 @@
   }
   async function ensureWish() {
     if (typeof gi === 'undefined') return null;
-    if (!gi.wish && !GC.wishBusy) {
+    if (!gi.wish && !GC.wishBusy && !GC.wishTried) {
       GC.wishBusy = true;
+      GC.wishTried = true;
       gi.wish = await window.api.gwish().catch(() => null);
       GC.wishBusy = false;
       window.renderGenshin?.();
@@ -220,7 +221,25 @@
       )
     );
   }
-  window.gcalcUI = { render: renderCalc };
+  // Probabilidad de sacar al personaje antes de una fecha con lo que tienes (para los banners)
+  function chance(target) {
+    // sin el historial de deseos cargado no se sabe la tirada actual: se pide y se vuelve a pintar
+    if (typeof gi === 'undefined' || !gi.wish) {
+      ensureWish();
+      return null;
+    }
+    const v = GC.v;
+    const pool = ((typeof gi !== 'undefined' && gi.wish?.pools) || []).find((p) => p.key === 'character');
+    const pity = v.banner === 'character' && v.pity != null ? v.pity : pool?.pity5 ?? 0;
+    const guaranteed = v.banner === 'character' && v.guaranteed != null ? !!v.guaranteed : !!pool?.guaranteed;
+    const days = Math.max(0, Math.floor((target - Date.now()) / DAY));
+    const income = days * (60 + (v.welkin ? 90 : 0)) + Math.round((Number(v.extra) || 0) * (days / 30));
+    const pulls = Math.floor(((Number(v.primos) || 0) + income) / 160) + (Number(v.fates) || 0) + Math.floor((Number(v.glitter) || 0) / 5);
+    if (!pulls) return { p: 0, pulls };
+    const curve = simulate({ banner: 'character', pity, guaranteed, copies: 1, max: pulls });
+    return { p: curve[Math.min(pulls, curve.length - 1)], pulls };
+  }
+  window.gcalcUI = { render: renderCalc, chance };
 
   // =================================================== GENSHIN: ESPECIALIDADES Y MINERALES
   const GT = { list: null, busy: false };
@@ -241,6 +260,7 @@
     if (m <= 0) return null;
     return m < 60 ? `${m} min` : m < 48 * 60 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} días`;
   };
+  window.gatherList = () => GT.list || [];
   window.gatherCard = (result) => {
     gatherLoad();
     const list = GT.list || [];

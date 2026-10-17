@@ -258,6 +258,16 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.19
+
+- **Genshin → Farmeo, tu plan de hoy**: en qué gastar la resina (el dominio de libros del día y para quién), jefes semanales con descuento que te quedan, encargos, expediciones listas, la tetera, el transformador, las especialidades listas para recoger y la recompensa diaria de HoYoLAB.
+- **Inventario de materiales**: en cada material del plan anotas cuántos tienes (y tu mora) y te dice lo que falta; los completos se marcan.
+- **Puntuación de artefactos**: cada pieza muestra su valor crítico (Prob. CRIT × 2 + Daño CRIT) con una nota (Joya, Muy bueno, Bueno, Normal o Para cambiar) y cada personaje el total, con las piezas que conviene cambiar.
+- **Tu suerte en los deseos** (pestaña Deseos): un gráfico con lo que costó cada 5★, tu media frente a la de todos los jugadores, los 50/50 ganados y perdidos y tu racha.
+- **Banners con probabilidad**: cada personaje del banner muestra la probabilidad de sacarlo antes de que termine, con lo que tienes y lo que juntes (según la Calculadora de tiradas).
+- **Tienda de Paimon**: aparece en los reinicios y te avisa el día 1 de cada mes.
+- **En el iPhone**: Genshin muestra encargos, jefes semanales, expediciones, la tetera y el transformador.
+
 ## Novedades de la 1.18
 
 - **Diseño renovado en toda la app**: superficies con profundidad y una sola familia de tarjetas, títulos más firmes, Mi día con un saludo grande y cifras en tarjetas, menú lateral translúcido, botones que responden al pulsar, foco visible con el teclado, diálogos y avisos que entran suaves, y textos largos que ya no se salen.

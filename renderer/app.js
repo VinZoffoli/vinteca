@@ -2554,6 +2554,7 @@ function renderWishes() {
         )
       )
     ),
+    window.wishLuck?.(w),
   ];
 }
 
@@ -2739,7 +2740,7 @@ function hoyoCharacterCard(c) {
             h(
               'div',
               { class: 'hc-relic' },
-              h('div', { class: 'hc-relic-head' }, h('div', {}, h('b', { text: a.name }), h('span', { class: 'hc-lv', text: `Nv. ${a.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(a.rarity || 5) })), a.icon && h('img', { src: a.icon, alt: '', referrerPolicy: 'no-referrer' })),
+              h('div', { class: 'hc-relic-head' }, h('div', {}, h('b', { text: a.name }), h('span', { class: 'hc-lv', text: `Nv. ${a.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(a.rarity || 5) }), window.artBadge?.(a)), a.icon && h('img', { src: a.icon, alt: '', referrerPolicy: 'no-referrer' })),
               a.main && h('div', { class: `hc-main${isCrit(a.main.name) ? ' crit' : ''}` }, h('span', { text: a.main.name }), h('b', { text: a.main.final })),
               h(
                 'ul',
@@ -2749,7 +2750,8 @@ function hoyoCharacterCard(c) {
             )
           )
         ),
-        h('p', { class: 'hint', text: [...new Set(c.artifacts.map((a) => a.set).filter(Boolean))].join(', ') })
+        h('p', { class: 'hint', text: [...new Set(c.artifacts.map((a) => a.set).filter(Boolean))].join(', ') }),
+        window.artSummary?.(c.artifacts)
       )
   );
 }
@@ -2933,14 +2935,15 @@ function genshinCharacter(c) {
                   h(
                     'div',
                     {},
-                    h('p', { class: 'gi-slot', text: a.slot }),
+                    h('p', { class: 'gi-slot' }, a.slot, window.artBadge?.(a)),
                     a.main && h('b', { text: `${a.main.name} ${a.main.value}` }),
                     h('ul', {}, a.subs.map((s) => h('li', { class: /CRIT/.test(s.name) ? 'crit' : '', text: `${s.name} +${s.value}` })))
                   )
                 )
               )
             )
-          : h('p', { class: 'hint', text: 'No lleva artefactos.' })
+          : h('p', { class: 'hint', text: 'No lleva artefactos.' }),
+        window.artSummary?.(c.artifacts)
       )
     )
   );

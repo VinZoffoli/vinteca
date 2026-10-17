@@ -297,6 +297,13 @@ function genshin(d) {
   const r = d.resin;
   return [
     r ? h('section', { class: 'hero' }, h('small', { text: r.value >= r.max ? 'Resina llena' : r.fullAt ? 'Se llena ' + until(r.fullAt) : 'Resina' }), h('h2', { class: 'big', text: r.value + ' / ' + r.max }), h('div', { class: 'bar' }, h('i', { class: r.value >= r.max ? 'hot' : '', style: 'width:' + Math.min(100, r.value / r.max * 100) + '%' }))) : null,
+    d.notes && card('Hoy en Teyvat', null, list([
+      li('Encargos diarios', d.notes.commissionsDone + '/' + d.notes.commissionsTotal, d.notes.commissionsDone >= d.notes.commissionsTotal ? 'ok' : 'hot', d.notes.commissionsDone >= d.notes.commissionsTotal && !d.notes.commissionReward ? 'falta cobrarlos con Katheryne' : null),
+      li('Jefes semanales con descuento', d.notes.weeklyLeft + '/' + d.notes.weeklyTotal, d.notes.weeklyLeft ? '' : 'ok'),
+      li('Expediciones listas', d.notes.expeditions.filter((x) => x.done).length + '/' + d.notes.expeditions.length, d.notes.expeditions.some((x) => x.done) ? 'hot' : ''),
+      d.notes.realmMax ? li('Moneda de la tetera', d.notes.realmCoins + '/' + d.notes.realmMax, d.notes.realmCoins >= d.notes.realmMax * 0.9 ? 'hot' : '') : null,
+      d.notes.transformerReady != null ? li('Transformador paramétrico', d.notes.transformerReady ? 'listo' : 'cargando', d.notes.transformerReady ? 'hot' : '') : null,
+    ].filter(Boolean))),
     card('Reinicios', null, list(d.resets.map((x) => li(x.name, until(x.at))))),
     card('Tus tiradas', null, list(d.pools.map((p) => li(p.name, p.pity + '/' + p.hard, p.pity >= 74 ? 'hot' : '', p.key === 'character' ? (p.guaranteed ? 'el próximo 5★ es garantizado' : 'en 50/50') : null)))),
     card('Especialidades y minerales', null, d.gather.length ? list(d.gather.map((g) => { const ready = g.readyAt <= Date.now(); return h('li', { class: ready ? 'ok' : '' }, h('div', { class: 't' }, h('span', { text: g.name }), h('small', { text: ready ? 'listo para recoger' : 'vuelve ' + until(g.readyAt) })), h('button', { class: 'btn small' + (ready ? ' done' : ''), text: 'Ya recogí', onclick: async () => { await act('gather', { id: g.id }, 'Anotado'); load('genshin', true); } })); })) : h('p', { class: 'empty', text: 'Añade recolecciones en el PC (Genshin → Farmeo).' })),

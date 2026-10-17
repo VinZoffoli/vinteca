@@ -112,6 +112,8 @@ contextBridge.exposeInMainWorld('api', {
     openCode: (code) => ipcRenderer.invoke('gcodes:open', code),
     resin: () => ipcRenderer.invoke('gresin:get'),
     setResin: (v) => ipcRenderer.invoke('gresin:set', v),
+    inventory: () => ipcRenderer.invoke('ginv:get'),
+    setInventory: (name, n) => ipcRenderer.invoke('ginv:set', name, n),
   },
   health: {
     get: () => ipcRenderer.invoke('health:get'),

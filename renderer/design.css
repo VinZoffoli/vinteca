@@ -235,3 +235,51 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .dy-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; }
 .dy-list li > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dy-list li > b { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+/* ---------- 1.19: Genshin ---------- */
+.art-score { display: inline-flex; align-items: baseline; gap: 5px; margin-left: 8px; padding: 2px 8px; border-radius: 999px; font: 600 11.5px var(--display); background: var(--surface-2); color: var(--muted); white-space: nowrap; vertical-align: middle; }
+.art-score b { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--text); }
+.art-score.top { background: color-mix(in srgb, var(--amber) 22%, var(--surface)); color: var(--amber); }
+.art-score.great { background: color-mix(in srgb, var(--green) 18%, var(--surface)); color: var(--green); }
+.art-score.good { background: color-mix(in srgb, var(--cyan) 15%, var(--surface)); color: var(--cyan); }
+.art-score.bad { background: color-mix(in srgb, var(--pink) 18%, var(--surface)); color: var(--pink); }
+.art-sum { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); }
+.art-sum b { color: var(--text); }
+.art-sum.warn b { color: var(--pink); }
+.luck { margin-top: 26px; }
+.luck-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--gap); }
+.luck-card { padding: var(--pad-card); border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.luck-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.luck-head h3 { margin: 0; font: 700 16px var(--display); }
+.luck-v { font: 600 12.5px var(--display); color: var(--muted); }
+.luck-v.good { color: var(--green); }
+.luck-v.bad { color: var(--pink); }
+.luck-bars { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 110px; margin: 14px 0 10px; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
+.luck-bars i { flex: 1 1 0; max-width: 22px; border-radius: 4px 4px 1px 1px; background: color-mix(in srgb, var(--muted) 70%, transparent); }
+.luck-bars i.won { background: var(--cyan); }
+.luck-bars i.lost { background: var(--pink); }
+.luck-avg { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px dashed color-mix(in srgb, var(--text) 45%, transparent); pointer-events: none; }
+.luck-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; margin: 0; }
+.luck-stats dt { font-size: 12px; color: var(--muted); }
+.luck-stats dd { margin: 0; font: 700 15px var(--display); font-variant-numeric: tabular-nums; }
+.luck-stats dd.good { color: var(--green); }
+.luck-stats dd.bad { color: var(--pink); }
+.gplan { border-color: color-mix(in srgb, var(--amber) 35%, var(--card-line)); }
+.gplan-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gplan-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; }
+.gplan-list li i { width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--amber); }
+.gplan-list li.done i { background: var(--green); border-color: var(--green); }
+.gplan-list li.done span { color: var(--muted); text-decoration: line-through; }
+.gplan-list small { display: block; margin: 1px 0 0; }
+.gf-inv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 4px 0 10px; }
+.gf-inv .hint { flex: 1 1 100%; margin: 0; }
+.gf-have { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.gf-mora-in { width: 130px; }
+.gf-inv-sum { font: 600 13px var(--display); color: var(--green); }
+.gf-have-in { width: 62px; margin-left: auto; padding: 3px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--night); color: var(--text); font-size: 12.5px; }
+.gf-mats li.got { opacity: .6; }
+.gf-mats li.got b { color: var(--green); }
+.gx-odds { display: block; font-weight: 600; }
+.gx-odds.ok { color: var(--green); }
+.gx-odds.mid { color: var(--amber); }
+.gx-odds.low { color: var(--pink); }

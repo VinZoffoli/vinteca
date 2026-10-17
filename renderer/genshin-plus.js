@@ -12,7 +12,7 @@
     if (F.plan) return;
     F.busy = true;
     try {
-      [F.avatars, F.plan, F.resin, F.settings] = await Promise.all([api.avatars(), api.plan(), api.resin(), window.api.basicSettings()]);
+      [F.avatars, F.plan, F.resin, F.settings, F.inv] = await Promise.all([api.avatars(), api.plan(), api.resin(), window.api.basicSettings(), api.inventory().catch(() => ({}))]);
       if (F.plan.length) F.result = await api.compute();
     } catch (e) {
       F.error = errMsg(e);
@@ -101,15 +101,30 @@
           ? h('ul', {}, r.todayFarm.map((t) => h('li', {}, h('b', { text: t.domain || 'Dominio de talentos' }), h('span', { text: ` para ${t.who.join(', ')}` }))))
           : h('p', { class: 'hint', text: 'Hoy no toca ningún libro de tus personajes: aprovecha para jefes, gemas o materiales de enemigos.' })
       ),
-      h('p', { class: 'hint', text: `Necesitas en total ${r.mora.toLocaleString('es')} de mora (sin contar la experiencia para subir de nivel). No sé lo que ya tienes en el inventario: resta lo que tengas.` }),
+      (() => {
+        const inv = F.inv || {};
+        const moraLeft = Math.max(0, r.mora - (inv.Mora || 0));
+        const done = r.materials.filter((m) => (inv[m.name] || 0) >= m.count).length;
+        const moraIn = h('input', { type: 'number', class: 'gf-num gf-mora-in', min: 0, step: 10000, value: inv.Mora || '', placeholder: 'tu mora', 'aria-label': 'Mora que tienes', onchange: async (e) => { F.inv = await api.setInventory('Mora', e.target.value); redraw(); } });
+        return h('div', { class: 'gf-inv' },
+          h('p', { class: 'hint', text: `Mora: necesitas ${r.mora.toLocaleString('es')}${inv.Mora ? `, te faltan ${moraLeft.toLocaleString('es')}` : ''} (sin contar la experiencia). Anota en cada material cuánto tienes y te digo lo que falta.` }),
+          h('label', { class: 'gf-have' }, h('span', { text: 'Tengo de mora' }), moraIn),
+          h('span', { class: 'gf-inv-sum', text: `${done} de ${r.materials.length} materiales completos` })
+        );
+      })(),
       Object.entries(groups).map(([g, list]) => h('section', { class: 'gf-group' },
         h('h3', { class: 'rx-sec', text: r.groups[g] || g }),
-        h('ul', { class: 'gf-mats' }, list.map((m) => h('li', { class: `r${m.rank || 1} ${m.days && m.today ? 'today' : ''}`, title: `${m.name} · para ${m.who.join(', ')}${m.days ? ` · ${m.days.map((d) => r.daysEs[d]).join(', ')}` : ''}` },
-          m.icon && h('img', { src: m.icon, alt: '', loading: 'lazy' }),
-          h('b', { text: `×${m.count}` }),
-          h('span', { text: m.name }),
-          m.days && h('small', { text: m.today ? 'Hoy' : m.days.filter((d) => d !== 'sunday').map((d) => r.daysEs[d].slice(0, 3)).join('/') })
-        )))
+        h('ul', { class: 'gf-mats' }, list.map((m) => {
+          const have = F.inv?.[m.name] || 0;
+          const left = Math.max(0, m.count - have);
+          return h('li', { class: `r${m.rank || 1} ${m.days && m.today ? 'today' : ''} ${left === 0 ? 'got' : ''}`, title: `${m.name} · para ${m.who.join(', ')}${m.days ? ` · ${m.days.map((d) => r.daysEs[d]).join(', ')}` : ''}` },
+            m.icon && h('img', { src: m.icon, alt: '', loading: 'lazy' }),
+            h('b', { text: left === 0 ? '✓' : `×${left}` }),
+            h('span', { text: m.name }),
+            m.days && h('small', { text: m.today ? 'Hoy' : m.days.filter((d) => d !== 'sunday').map((d) => r.daysEs[d].slice(0, 3)).join('/') }),
+            h('input', { type: 'number', class: 'gf-have-in', min: 0, value: have || '', placeholder: 'tengo', title: `Cuántos tienes (necesitas ${m.count})`, 'aria-label': `Cuántos ${m.name} tienes`, onchange: async (e) => { F.inv = await api.setInventory(m.name, e.target.value); redraw(); } })
+          );
+        }))
       )),
     ];
   }
@@ -153,7 +168,8 @@
     return h('div', { class: 'gx' },
       h('section', { class: 'rx-card' },
         h('h3', { text: 'Reinicios' }),
-        h('ul', { class: 'dy-list' }, (X.resets || []).map((r) => h('li', { title: r.note }, h('span', { text: r.name }), h('b', { text: `en ${until(r.at)}` }))))
+        h('ul', { class: 'dy-list' }, (X.resets || []).map((r) => h('li', { title: r.note }, h('span', { text: r.name }), h('b', { text: `en ${until(r.at)}` })))),
+        h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: F.settings?.paimonAlert !== false, onchange: (e) => window.api.saveSettings({ paimonAlert: e.target.checked }) }), h('span', { text: 'Avisarme el día 1 cuando se renueva la tienda de Paimon' }))
       ),
       h('section', { class: `rx-card ${s && s.linked && !s.signed && !s.error ? 'gx-warn' : ''}` },
         h('h3', { text: 'Recompensa diaria de HoYoLAB' }),
@@ -172,7 +188,12 @@
           const inPlan = (F.plan || []).some((p) => c.av && String(p.id) === String(c.av.id));
           return h('li', {},
             c.av ? h('img', { src: c.av.icon, alt: '', loading: 'lazy' }) : h('span', { class: 'gx-ph' }),
-            h('div', {}, h('b', { text: c.name }), h('small', { text: c.upcoming ? `Llega en ${until(c.start)}` : `Hasta dentro de ${until(c.end)}` })),
+            h('div', {}, h('b', { text: c.name }), h('small', { text: c.upcoming ? `Llega en ${until(c.start)}` : `Hasta dentro de ${until(c.end)}` }), (() => {
+              const ch = window.gcalcUI?.chance?.(c.end);
+              if (!ch) return null;
+              const pct = Math.round(ch.p * 100);
+              return h('small', { class: `gx-odds ${pct >= 90 ? 'ok' : pct >= 50 ? 'mid' : 'low'}`, title: 'Con lo que tienes y lo que juntes hasta que termine (según la Calculadora de tiradas)', text: `${pct} % de sacarlo · ${ch.pulls} tiradas` });
+            })()),
             c.av && h('button', { class: inPlan ? 'btn subtle small' : 'btn ghost small', text: inPlan ? 'En tu plan' : 'Planear farmeo', disabled: inPlan, onclick: () => { F.plan.push({ id: c.av.id, level: 1, ascended: false, talents: [1, 1, 1], target: { level: 90, talents: [8, 8, 8] } }); save(); toast(`${c.name} añadido: te digo qué materiales juntar.`); } })
           );
         })) : h('p', { class: 'hint', text: 'Sin datos de banners todavía (se leen de los anuncios oficiales del juego).' }),
@@ -185,6 +206,7 @@
     loadFarm();
     if (!F.plan) return [resinCardSafe(), skeletonDeals(3)];
     return h('div', { class: 'gf' },
+      window.genshinTodayPlan?.({ result: F.result, resin: F.resin, sign: X.sign }),
       extraCards(),
       resinCardSafe(),
       window.gatherCard?.(F.result),

@@ -233,6 +233,12 @@ function snapshot(dir) {
         ajustes: [`openSettings?.(); setTimeout(() => { showSettingsTab?.('apariencia'); }, 500)`, 2500],
         logros: [`document.querySelector('dialog[open]')?.close(); showView('ach')`, 3000],
         asistente: [`showView('assist')`, 2000],
+        'g-farmeo': [`showView('genshin'); setGenshinTab('farmeo')`, 7000],
+        'g-farmeo2': [`document.querySelector('.gf-inv')?.scrollIntoView()`, 1500],
+        'g-deseos': [`setGenshinTab('deseos'); setTimeout(() => document.querySelector('.luck')?.scrollIntoView(), 2500)`, 4000],
+        'g-notas': [`setGenshinTab('notas'); setTimeout(() => document.querySelector('.hc')?.scrollIntoView(), 6000)`, 8000],
+        'g-arts': [`document.querySelector('.hc-arts')?.scrollIntoView()`, 1500],
+        'g-perfil': [`setGenshinTab('perfil'); setTimeout(() => document.querySelector('.gi-arts')?.scrollIntoView(), 3000)`, 5000],
       };
       for (const name of steps) {
         const [code, ms] = CODE[name] || [name, 2000];
@@ -765,6 +771,8 @@ app.whenReady().then(() => {
     setTimeout(animeTick, 50000);
     setInterval(animeTick, 30 * 60000);
     setTimeout(gatherTick, 70000);
+    setTimeout(paimonTick, 80000);
+    setInterval(paimonTick, 60 * 60000);
     setInterval(gatherTick, 10 * 60000);
     setTimeout(sundayTick, 90000);
     setInterval(sundayTick, 30 * 60000);
@@ -2933,6 +2941,31 @@ ipcMain.handle('assist:save', (_e, h) => {
   return true;
 });
 
+// Inventario de Genshin: cuánto tienes de cada material del plan (lo anotas tú)
+ipcMain.handle('ginv:get', () => store.read('genshin-inventory.json', {}));
+ipcMain.handle('ginv:set', (_e, name, n) => {
+  const inv = store.read('genshin-inventory.json', {});
+  const k = String(name || '').slice(0, 80).trim();
+  if (!k) return inv;
+  const v = Math.max(0, Math.min(1e10, Math.round(Number(n) || 0)));
+  if (v) inv[k] = v;
+  else delete inv[k];
+  store.write('genshin-inventory.json', inv);
+  return inv;
+});
+// Tienda de Paimon: el día 1 de cada mes se renuevan los destinos de brillo y polvo
+function paimonTick() {
+  if (!settingsOn('paimonAlert')) return;
+  const now = new Date();
+  if (now.getDate() !== 1 || now.getHours() < 9) return;
+  const key = now.toLocaleDateString('sv').slice(0, 7);
+  const s = store.read('settings.json', {});
+  if (s.lastPaimonNotice === key) return;
+  s.lastPaimonNotice = key;
+  store.write('settings.json', s);
+  notify('Se renovó la tienda de Paimon', 'Cambia brillo y polvo estelar por los 10 destinos entrelazados y 10 encontrados de este mes.');
+}
+
 // Mapa interactivo oficial de Genshin (HoYoLAB) en una ventana de la app.
 // Usa su propia sesión guardada: si entras con tu cuenta de HoYoLAB, tus marcas
 // se quedan. Recuerda dónde lo dejaste (mapa, centro y zoom).
@@ -3030,7 +3063,8 @@ const mobileApi = {
         pools = (genshinWish.summary(store.read('genshin-wishes.json', { items: {} }))?.pools || []).map((p) => ({ name: p.name, key: p.key, pity: p.pity5, hard: p.hardPity, guaranteed: p.guaranteed }));
       } catch {}
       const codes = await genshinCodes.list(ctxRW, false).catch(() => null);
-      return { resin: d.resin, resets: genshinEndgame.resets(now), pools, gather: gatherState().sort((a, z) => a.readyAt - z.readyAt), codes: (codes?.codes || codes?.list || []).slice(0, 12).map((x) => ({ code: x.code, rewards: x.rewards, used: x.used, url: x.url })) };
+      const notes = hoyolab.linked(store.read) ? store.read('hoyolab-cache.json', null)?.data?.notes : null;
+      return { notes: notes ? { commissionsDone: notes.commissionsDone, commissionsTotal: notes.commissionsTotal, commissionReward: notes.commissionReward, weeklyLeft: notes.weeklyLeft, weeklyTotal: notes.weeklyTotal, realmCoins: notes.realmCoins, realmMax: notes.realmMax, expeditions: (notes.expeditions || []).map((x) => ({ done: x.done, minutesLeft: x.minutesLeft })), transformerReady: notes.transformerReady } : null, resin: d.resin, resets: genshinEndgame.resets(now), pools, gather: gatherState().sort((a, z) => a.readyAt - z.readyAt), codes: (codes?.codes || codes?.list || []).slice(0, 12).map((x) => ({ code: x.code, rewards: x.rewards, used: x.used, url: x.url })) };
     }
     if (section === 'trabajo') {
       const cal = store.read('calendar-cache.json', null);

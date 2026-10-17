@@ -43,6 +43,7 @@ function resets(now = Date.now()) {
     { key: 'theater', name: 'Teatro Imaginario', at: theater, note: 'Se reinicia el día 1 de cada mes.' },
     { key: 'weekly', name: 'Jefes semanales', at: weekly, note: 'Los descuentos de resina vuelven cada lunes.' },
     { key: 'daily', name: 'Encargos diarios', at: dailyNext, note: 'El día de Genshin cambia a las 4:00 del servidor.' },
+    { key: 'paimon', name: 'Tienda de Paimon', at: theater, note: 'Cada día 1: 5 destinos entrelazados y 5 encontrados por brillo estelar, y otros 5 + 5 por polvo estelar.' },
   ];
 }
 
