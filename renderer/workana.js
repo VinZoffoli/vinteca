@@ -76,6 +76,40 @@
     render();
   }
 
+  // Postular: ventana de Workana con propuesta y precio puestos; Enviar lo pulsas tú
+  const BID_MSG = {
+    login: 'Inicia sesión en Workana en la ventana que se abrió. Después la propuesta se rellena sola.',
+    go: 'Abriendo el formulario de propuesta…',
+    filled: 'Propuesta y precio puestos. Revisa en la ventana de Workana y pulsa Enviar.',
+    'filled-text': 'Propuesta puesta. Escribe el precio en la ventana de Workana, revisa y pulsa Enviar.',
+  };
+  W.bid = {};
+  api.onBidState(({ slug, state }) => {
+    W.bid[slug] = { state, open: true };
+    if (BID_MSG[state]) toast(BID_MSG[state]);
+    render();
+  });
+  api.onBidClosed(({ slug, state }) => {
+    W.bid[slug] = { state, open: false, ask: /^filled/.test(state || '') };
+    render();
+  });
+  async function postular(p) {
+    const text = W.drafts[p.slug];
+    const probs = await api.check(text);
+    if (probs.length) {
+      W.problems[p.slug] = probs;
+      render();
+      return toast('La propuesta tiene cosas que Workana no permite: corrígelas antes de postular.', true);
+    }
+    try {
+      await api.bid({ url: p.url, slug: p.slug, text, price: W.prices[p.slug] });
+      W.bid[p.slug] = { state: 'opening', open: true };
+      render();
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+  }
+
   async function copyAndOpen(p) {
     const text = W.drafts[p.slug];
     const probs = await api.check(text);
@@ -186,10 +220,13 @@
       h('p', { class: 'hint', text: `Referencias elegidas de tu perfil: ${(W.refs?.[p.slug] || []).join(' y ') || 'ninguna'}. Precio para poner en Workana: ${W.prices[p.slug]} ${p.budget?.currency || ''}.` }),
       ta,
       h('div', { class: 'wk-problems' }, problemsList(p)),
+      W.bid?.[p.slug]?.ask && h('div', { class: 'notice' }, h('span', { text: '¿Enviaste la propuesta en Workana?' }), h('button', { class: 'btn primary small', text: 'Sí, marcar como postulado', onclick: () => { W.bid[p.slug].ask = false; markDone(p, true); } }), h('button', { class: 'btn subtle small', text: 'No', onclick: () => { W.bid[p.slug].ask = false; render(); } })),
+      W.bid?.[p.slug]?.open && h('p', { class: 'hint', text: BID_MSG[W.bid[p.slug].state] || 'Abriendo Workana…' }),
       h(
         'div',
         { class: 'row' },
-        h('button', { class: 'btn primary', text: 'Copiar y abrir en Workana', onclick: () => copyAndOpen(p) }),
+        h('button', { class: 'btn primary', text: 'Postular', onclick: () => postular(p) }),
+        h('button', { class: 'btn ghost small', text: 'Copiar y abrir en el navegador', onclick: () => copyAndOpen(p) }),
         h('button', { class: 'btn ghost small', text: 'Solo copiar', onclick: async () => { const probs = await api.check(W.drafts[p.slug]); if (probs.length) return toast('Corrige primero lo marcado en rojo.', true); await api.copy(W.drafts[p.slug]); toast('Propuesta copiada.'); } })
       )
     );
@@ -197,7 +234,7 @@
 
   function problemsList(p) {
     const probs = W.problems[p.slug] || [];
-    if (!probs.length) return h('p', { class: 'hint ok', text: 'Cumple las reglas de Workana: sin enlaces, sin números y sin datos de contacto.' });
+    if (!probs.length) return h('p', { class: 'hint ok', text: 'Cumple las reglas de Workana: sin enlaces (salvo tu línea de portafolio), sin números y sin datos de contacto.' });
     return [
       h('ul', { class: 'wk-bad' }, probs.map((x) => h('li', { text: `${x.why}: ${x.found.join(', ')}` }))),
       h('button', { class: 'btn ghost small', text: 'Corregir automáticamente', onclick: async () => { W.drafts[p.slug] = await api.clean(W.drafts[p.slug]); W.problems[p.slug] = await api.check(W.drafts[p.slug]); render(); } }),

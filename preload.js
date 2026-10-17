@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('api', {
     clean: (t) => ipcRenderer.invoke('wk:clean', t),
     copy: (t) => ipcRenderer.invoke('wk:copy', t),
     onProgress: (cb) => ipcRenderer.on('wk:progress', (_e, t) => cb(t)),
+    bid: (p) => ipcRenderer.invoke('wk:bid', p),
+    onBidState: (cb) => ipcRenderer.on('wk:bidState', (_e, v) => cb(v)),
+    onBidClosed: (cb) => ipcRenderer.on('wk:bidClosed', (_e, v) => cb(v)),
   },
   cheats: {
     procs: () => ipcRenderer.invoke('trainer:procs'),

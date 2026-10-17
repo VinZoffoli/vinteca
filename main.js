@@ -200,6 +200,12 @@ function snapshot(dir) {
       await wait(800);
       await shot('workana-propuesta.png');
       log(`PROPUESTA ${JSON.stringify(await js(`document.querySelector('.wk-draft')?.value`))}`);
+      await js(`[...document.querySelectorAll('.wk-draftbox .btn')].find((b) => b.textContent === 'Postular')?.click()`);
+      for (let i = 0; i < 30 && !(await js(`/Inicia sesión|Propuesta/.test(document.querySelector('.wk-draftbox > p.hint:last-of-type')?.textContent || '')`)); i++) await wait(1000);
+      log(`POSTULAR ${await js(`document.querySelector('.wk-draftbox > p.hint:last-of-type')?.textContent`)}`);
+      await shot('workana-postular.png');
+      const bidShot = BrowserWindow.getAllWindows().find((w) => /Postular en Workana/.test(w.getTitle()));
+      if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
       return app.quit();
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'resto') {
@@ -1521,10 +1527,12 @@ ipcMain.handle('wallet:logout', async (_e, key) => {
 });
 
 // ---------- Workana ----------
-ipcMain.handle('wk:state', () => store.read('workana.json', { queries: ['wordpress', 'elementor', 'woocommerce', 'landing page', 'pagina web', 'desarrollo web'], publication: '3d', done: {}, last: null }));
+const WK_DEFAULT = { queries: ['wordpress', 'elementor', 'woocommerce', 'landing page', 'pagina web', 'desarrollo web'], publication: '3d', done: {}, last: null };
+// Siempre con los valores por defecto debajo: una búsqueda guarda solo `last`
+const wkState = () => ({ ...WK_DEFAULT, ...store.read('workana.json', {}) });
+ipcMain.handle('wk:state', () => wkState());
 ipcMain.handle('wk:saveState', (_e, patchState) => {
-  const s = store.read('workana.json', { done: {} });
-  const next = { ...s, ...patchState };
+  const next = { ...wkState(), ...patchState };
   store.write('workana.json', next);
   return next;
 });
@@ -1532,7 +1540,7 @@ ipcMain.handle('wk:search', async (e, opts) => {
   const queries = (Array.isArray(opts?.queries) ? opts.queries : []).map((q) => String(q).trim()).filter(Boolean).slice(0, 8);
   if (!queries.length) throw new Error('Añade al menos una palabra para buscar.');
   const list = await workana.search({ queries, publication: ['1d', '3d', '1w', '1m'].includes(opts?.publication) ? opts.publication : '3d', pages: 2, onProgress: (t) => !e.sender.isDestroyed() && e.sender.send('wk:progress', t) });
-  const s = store.read('workana.json', { done: {} });
+  const s = wkState();
   s.last = { at: Date.now(), list };
   store.write('workana.json', s);
   return s.last;
@@ -1540,6 +1548,16 @@ ipcMain.handle('wk:search', async (e, opts) => {
 ipcMain.handle('wk:build', (_e, p) => proposal.build(p || {}));
 ipcMain.handle('wk:check', (_e, text) => proposal.check(String(text || '')));
 ipcMain.handle('wk:clean', (_e, text) => proposal.clean(String(text || '')));
+ipcMain.handle('wk:bid', (e, p) => {
+  const url = String(p?.url || '');
+  const text = String(p?.text || '');
+  const price = String(p?.price || '').replace(/[^\d.,]/g, '');
+  if (!/^https:\/\/www\.workana\.com\/job\/[\w-]+\/?$/.test(url)) throw new Error('Ese proyecto no es de Workana.');
+  if (proposal.check(text).length) throw new Error('La propuesta tiene cosas que Workana no permite: corrígelas primero.');
+  require('electron').clipboard.writeText(text);
+  const send = (ch, v) => !e.sender.isDestroyed() && e.sender.send(ch, { slug: p.slug, state: v });
+  return workana.bid({ url, text, price, onState: (s) => send('wk:bidState', s), onClose: (s) => send('wk:bidClosed', s) });
+});
 ipcMain.handle('wk:copy', (_e, text) => {
   require('electron').clipboard.writeText(String(text || ''));
   return true;
