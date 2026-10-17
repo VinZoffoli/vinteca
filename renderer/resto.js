@@ -504,6 +504,7 @@
   const HL = { data: null, busy: false, psi: {}, settings: null };
   async function healthLoad(force) {
     if (!HL.settings) HL.settings = await window.api.basicSettings();
+    if (!HL.hidden) HL.hidden = await window.api.health.hidden();
     // el pipeline de Notion trae las webs publicadas: se carga aparte, sin esperar
     if (!N.data && N.linked !== false && !HL.notionAsked) {
       HL.notionAsked = true;
@@ -554,7 +555,8 @@
           psi?.lcp && h('span', { class: 'hint', text: `LCP ${psi.lcp}` }),
           psi?.error && h('span', { class: 'hint bad', text: psi.error }),
           h('button', { class: 'btn subtle small', text: psi === 'busy' ? 'Midiendo…' : psi ? 'Medir otra vez' : 'Medir velocidad y SEO', disabled: psi === 'busy' || !d.psi, title: d.psi ? '' : 'Añade tu clave de PageSpeed abajo', onclick: async () => { HL.psi[s.url] = 'busy'; websRender(); try { HL.psi[s.url] = await window.api.health.psi(s.url); } catch (e) { HL.psi[s.url] = { error: errMsg(e) }; } websRender(); } }),
-          h('button', { class: 'btn subtle small', text: 'Abrir', onclick: () => window.api.health.open(s.url) })
+          h('button', { class: 'btn subtle small', text: 'Abrir', onclick: () => window.api.health.open(s.url) }),
+          h('button', { class: 'btn subtle small', text: 'Ocultar', title: 'No mostrar esta web en Salud', onclick: async () => { HL.hidden = await window.api.health.hide(s.url, true); HL.data = await window.api.health.get(); toast(`${s.name} oculta.`); websRender(); } })
         )
       );
     };
@@ -572,6 +574,7 @@
       rows.length ? h('ul', { class: 'rx-repos' }, rows.map(row)) : h('p', { class: 'empty' }, h('b', { text: 'No hay webs para vigilar' }), 'Salen solas las webs publicadas del pipeline de Notion y los dominios de Vercel. También puedes añadir una abajo.'),
       h('section', { class: 'rx-card' },
         h('h3', { text: 'Ajustes' }),
+        HL.hidden?.length ? h('p', { class: 'hint' }, 'Ocultas: ', HL.hidden.map((host) => h('button', { class: 'chip', title: 'Volver a mostrar', onclick: async () => { HL.hidden = await window.api.health.hide(host, false); HL.data = await window.api.health.get(); websRender(); } }, host, ' ✕'))) : null,
         h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: HL.settings?.healthAlerts !== false, onchange: (e) => window.api.saveSettings({ healthAlerts: e.target.checked }) }), h('span', { text: 'Avisarme si una web se cae, cuando vuelve y si su SSL vence en menos de 14 días' })),
         h('div', { class: 'rx-paste' }, addIn, h('button', { class: 'btn ghost small', text: 'Añadir web', onclick: async () => { try { await window.api.health.addSite(addIn.value); HL.data = await window.api.health.check(); websRender(); } catch (e) { toast(errMsg(e), true); } } })),
         h('p', { class: 'hint', text: d.psi ? 'Clave de PageSpeed guardada (cifrada en este PC).' : 'Para medir velocidad y SEO hace falta una clave gratuita de la API de PageSpeed Insights (Google Cloud). Créala y pégala aquí.' }),

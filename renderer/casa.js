@@ -49,16 +49,20 @@
   let saveTimer;
   function save(now) {
     clearTimeout(saveTimer);
+    // No se reemplaza K.d con lo devuelto: la vista sigue usando los mismos
+    // objetos y un cambio hecho justo después no se pierde.
     const run = async () => {
-      K.d = await api.save(K.d);
+      await api.save(K.d);
     };
     if (now) return run();
     saveTimer = setTimeout(run, 400);
   }
   const commit = () => {
-    save();
+    const p = save(true);
     render();
     updateBadge();
+    // el presupuesto se calcula con lo guardado: se refresca cuando termina de guardar
+    if (K.tab === 'presupuesto') p.then(() => { BUD.st = null; render(); });
   };
 
   // ---- formulario en diálogo ----
@@ -121,9 +125,14 @@
     const bought = d.shopping.filter((x) => x.done);
     const groups = [...new Set([...d.shopCats, ...pending.map((x) => x.cat)])].map((c) => [c, pending.filter((x) => x.cat === c)]).filter(([, l]) => l.length);
     const item = (x) => h('li', { class: `ks-item ${x.done ? 'done' : ''}` },
-      h('label', { class: 'ks-check' }, h('input', { type: 'checkbox', checked: x.done, onchange: (e) => { x.done = e.target.checked; commit(); } }), h('span', { text: x.name }), x.qty && h('small', { text: x.qty })),
-      h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => form('Editar producto', [{ key: 'name', label: 'Producto', value: x.name, required: true }, { key: 'qty', label: 'Cantidad', value: x.qty }, { key: 'cat', label: 'Categoría', type: 'select', value: x.cat, options: d.shopCats.map((c) => [c, c]) }], (v) => { Object.assign(x, v); commit(); }, () => { d.shopping = d.shopping.filter((y) => y !== x); commit(); }) })
+      h('label', { class: 'ks-check' }, h('input', { type: 'checkbox', checked: x.done, onchange: (e) => { x.done = e.target.checked; x.boughtAt = x.done ? Date.now() : null; commit(); } }), h('span', { text: x.name }), x.qty && h('small', { text: x.qty }), x.price && h('small', { text: money(x.price, 'CRC') })),
+      h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => form('Editar producto', [{ key: 'name', label: 'Producto', value: x.name, required: true }, { key: 'qty', label: 'Cantidad', value: x.qty }, { key: 'price', label: 'Precio (opcional, cuenta para el presupuesto)', type: 'number', value: x.price ?? '' }, { key: 'cat', label: 'Categoría', type: 'select', value: x.cat, options: d.shopCats.map((c) => [c, c]) }], (v) => { Object.assign(x, { ...v, price: v.price ? Number(v.price) : null }); commit(); }, () => { d.shopping = d.shopping.filter((y) => y !== x); commit(); }) })
     );
+    const phone = h('div', { class: 'ks-phone' });
+    window.api.lanStatus().then((st) => {
+      if (st.running && st.shopQr) fill(phone, h('img', { src: st.shopQr, alt: 'Código QR de la lista de compras' }), h('div', {}, h('b', { text: 'La lista en el celular' }), h('p', { class: 'hint', text: 'Escanéalo con el celular (misma Wi-Fi): Emi o tú pueden ver, marcar y añadir cosas, y se actualiza aquí.' })));
+      else fill(phone, h('div', {}, h('b', { text: 'La lista en el celular' }), h('p', { class: 'hint', text: 'Enciende «En el móvil» para ver y marcar esta lista desde el celular, con un código QR.' })), h('button', { class: 'btn ghost small', text: 'Encender', onclick: async () => { await window.api.lanStart(); render(); } }));
+    }).catch(() => {});
     return [
       h('div', { class: 'ks-add rx-row' }, name, qty, cat, h('button', { class: 'btn primary', text: 'Añadir', onclick: add })),
       h('div', { class: 'toolbar flat' },
@@ -133,6 +142,96 @@
       ),
       groups.length ? h('div', { class: 'ks-cols' }, groups.map(([c, l]) => h('section', { class: 'rx-card ks-cat' }, h('h3', {}, c, h('span', { class: 'count', text: String(l.length) })), h('ul', { class: 'ks-list' }, l.map(item))))) : h('p', { class: 'empty' }, h('b', { text: 'Lista vacía' }), 'Escribe arriba lo que haga falta en la casa.'),
       bought.length ? h('details', { class: 'notes' }, h('summary', { text: `Ya comprado (${bought.length})` }), h('ul', { class: 'ks-list' }, bought.map(item))) : null,
+      phone,
+    ];
+  }
+
+  // =========================================================== PRESUPUESTO
+  const BUD = { st: null };
+  function presupuesto() {
+    const d = K.d;
+    d.budget ||= { limit: null, currency: 'CRC', expenses: [] };
+    if (!BUD.st) {
+      window.api.budget().then((s) => { BUD.st = s; render(); });
+      return skeleton();
+    }
+    const s = BUD.st;
+    const pct = s.limit ? Math.min(100, (s.spent / s.limit) * 100) : 0;
+    const limitIn = h('input', { class: 'rx-input', type: 'number', value: d.budget.limit ?? '', placeholder: 'Límite del mes', step: 10000 });
+    const amount = h('input', { class: 'rx-input', type: 'number', placeholder: 'Monto' });
+    const note = h('input', { class: 'rx-input', placeholder: 'En qué (super, gasolina, salida…)' });
+    const cat = h('select', { class: 'sn-select' }, ['Comida', 'Casa', 'Transporte', 'Salud', 'Gatos', 'Salidas', 'Regalos', 'Otros'].map((c) => h('option', { value: c, text: c })));
+    const addExpense = () => {
+      const a = Number(amount.value);
+      if (!a) return amount.focus();
+      d.budget.expenses.push({ id: uid(), date: new Date().toISOString().slice(0, 10), amount: a, cat: cat.value, note: note.value.trim() });
+      BUD.st = null;
+      commit();
+    };
+    amount.addEventListener('keydown', (e) => e.key === 'Enter' && addExpense());
+    note.addEventListener('keydown', (e) => e.key === 'Enter' && addExpense());
+    const month = new Date().toLocaleDateString('es', { month: 'long', year: 'numeric' });
+    const kinds = Object.entries(s.byKind).sort((a, b) => b[1] - a[1]);
+    return [
+      h('section', { class: `ks-next ${s.limit && s.spent > s.limit ? 'bad' : ''}` },
+        h('p', { class: 'ks-kicker', text: `Gastado en ${month}` }),
+        h('p', { class: 'ks-big' }, h('b', { text: money(s.spent, s.currency) }), s.limit && h('span', { text: ` de ${money(s.limit, s.currency)}` })),
+        s.limit ? h('div', { class: 'dy-bar' }, h('i', { class: s.spent > s.limit ? 'hot' : '', style: { width: `${pct}%` } })) : h('p', { class: 'hint', text: 'Pon un límite para el mes y te aviso al llegar al 90 % y si te pasas.' }),
+        s.limit && h('p', { class: 'hint', text: s.spent > s.limit ? `Te pasaste por ${money(s.spent - s.limit, s.currency)}.` : `Te quedan ${money(s.limit - s.spent, s.currency)}. Pagos fijos del mes: ${money(s.planned, s.currency)}.` })
+      ),
+      h('div', { class: 'toolbar flat' }, h('span', { class: 'hint', text: 'Límite del mes:' }), limitIn, h('button', { class: 'btn ghost small', text: 'Guardar límite', onclick: () => { d.budget.limit = limitIn.value ? Number(limitIn.value) : null; BUD.st = null; commit(); toast('Límite guardado.'); } })),
+      h('section', { class: 'rx-card' },
+        h('h3', { text: 'Anotar un gasto' }),
+        h('div', { class: 'ks-add rx-row' }, amount, cat, note, h('button', { class: 'btn primary', text: 'Anotar', onclick: addExpense })),
+        h('p', { class: 'hint', text: 'Los pagos que marcas como pagados (con monto) y las compras con precio que tachas se suman solos.' })
+      ),
+      kinds.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'En qué se va' }), h('ul', { class: 'bu-kinds' }, kinds.map(([k2, v]) => h('li', {}, h('span', { text: k2 }), h('div', { class: 'dy-bar' }, h('i', { style: { width: `${(v / (s.spent || 1)) * 100}%` } })), h('b', { text: money(v, s.currency) }))))) : null,
+      s.lines.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'Movimientos del mes' }), h('ul', { class: 'dy-list' }, s.lines.slice().reverse().map((l) => h('li', {}, h('span', { text: `${l.kind} · ${l.name}` }), h('b', { text: money(l.amount, s.currency) }), l.id && h('button', { class: 'btn subtle small', text: 'Quitar', onclick: () => { d.budget.expenses = d.budget.expenses.filter((x) => x.id !== l.id); BUD.st = null; commit(); } }))))) : null,
+      s.other.length ? h('p', { class: 'hint', text: `Hay ${s.other.length} pagos en otra moneda que no se suman (${[...new Set(s.other.map((o) => o.currency))].join(', ')}).` }) : null,
+    ];
+  }
+
+  // =========================================================== GATITOS
+  const CARE = [['vacuna', 'Vacuna'], ['desparasitacion', 'Desparasitación'], ['pulgas', 'Antipulgas'], ['veterinario', 'Visita al veterinario'], ['otro', 'Otro']];
+  function careForm(c, cat) {
+    const d = K.d;
+    const isNew = !c;
+    const cats = d.birthdays.filter((b) => b.kind === 'gato').map((b) => b.name);
+    form(isNew ? 'Nuevo cuidado' : 'Editar cuidado', [
+      { key: 'cat', label: 'Gatito', type: 'select', value: c?.cat || cat || cats[0], options: cats.map((x) => [x, x]) },
+      { key: 'type', label: 'Qué', type: 'select', value: c?.type || 'vacuna', options: CARE },
+      { key: 'date', label: 'Cuándo se hizo (opcional)', type: 'date', value: c?.date || '' },
+      { key: 'next', label: 'Cuándo toca la próxima', type: 'date', value: c?.next || '' },
+      { key: 'note', label: 'Nota (vacuna, producto, veterinaria…)', value: c?.note || '' },
+    ], (v) => {
+      const row = { cat: v.cat, type: v.type, date: v.date || null, next: v.next || null, note: v.note };
+      if (isNew) d.catCare.push({ id: uid(), done: false, ...row });
+      else Object.assign(c, row);
+      commit();
+    }, isNew ? null : () => { d.catCare = d.catCare.filter((x) => x !== c); commit(); });
+  }
+  function gatitos() {
+    const d = K.d;
+    d.catCare ||= [];
+    const cats = d.birthdays.filter((b) => b.kind === 'gato');
+    const today = startOfDay();
+    const label = (t) => CARE.find((x) => x[0] === t)?.[1] || t;
+    return [
+      h('div', { class: 'toolbar flat' }, h('button', { class: 'btn primary small', text: 'Anotar cuidado', onclick: () => careForm(null) }), h('span', { class: 'hint', text: 'Te aviso 3 días antes y el día que toca. Los gatitos salen de Cumpleaños.' })),
+      cats.length ? h('div', { class: 'ct-grid' }, cats.map((b) => {
+        const list = d.catCare.filter((c) => c.cat === b.name).sort((x, y) => String(x.next || '9').localeCompare(String(y.next || '9')));
+        const next = list.find((c) => c.next && !c.done);
+        return h('section', { class: 'rx-card ct-cat' },
+          h('div', { class: 'ct-head' }, h('h3', { text: b.name }), h('button', { class: 'btn subtle small', text: '+ Anotar', onclick: () => careForm(null, b.name) })),
+          next ? h('p', { class: `ct-next ${new Date(next.next + 'T00:00:00') <= today ? 'hot' : ''}`, text: `Próximo: ${label(next.type)} · ${daysText(Math.round((new Date(next.next + 'T00:00:00') - today) / DAY))}` }) : h('p', { class: 'hint', text: 'Sin nada pendiente.' }),
+          list.length ? h('ul', { class: 'dy-list' }, list.map((c) => h('li', { class: c.done ? 'past' : '' },
+            h('span', { text: `${label(c.type)}${c.note ? ` · ${c.note}` : ''}` }),
+            h('b', { text: c.next ? `toca ${dShort(new Date(c.next + 'T12:00:00'))}` : c.date ? `hecho ${dShort(new Date(c.date + 'T12:00:00'))}` : '' }),
+            h('button', { class: 'btn subtle small', text: c.done ? 'Reabrir' : 'Hecho', onclick: () => { c.done = !c.done; if (c.done && !c.date) c.date = new Date().toISOString().slice(0, 10); commit(); } }),
+            h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => careForm(c) })
+          ))) : null
+        );
+      })) : h('p', { class: 'empty', text: 'Añade tus gatitos en Cumpleaños y aquí podrás llevar sus vacunas y visitas.' }),
     ];
   }
 
@@ -419,7 +518,8 @@
         h('button', { class: 'btn primary', text: MK.busy ? 'Buscando…' : 'Buscar alquileres', disabled: MK.busy, onclick: mkSearch }),
         h('button', { class: 'btn ghost small', text: 'Preferencias', onclick: () => { MK.prefsOpen = !MK.prefsOpen; render(); } }),
         h('button', { class: 'btn subtle small', text: p.city ? 'Abrir Facebook' : 'Elegir ubicación en Facebook', onclick: () => mk.openWindow() }),
-        h('span', { class: 'hint', text: `${p.place} · ${crc(p.min)} a ${crc(p.max)} · alquiler de propiedades` })
+        h('span', { class: 'hint', text: `${p.place} · ${crc(p.min)} a ${crc(p.max)} · alquiler de propiedades` }),
+        p.city && h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: MK.alerts !== false, onchange: (e) => { MK.alerts = e.target.checked; window.api.saveSettings({ rentAlerts: e.target.checked }); } }), h('span', { text: 'Buscar sola cada 4 horas y avisarme de las nuevas' }))
       ),
       !p.city && h('div', { class: 'notice' }, h('span', { text: `Paso único: pulsa «Elegir ubicación en Facebook», inicia sesión si te lo pide y, en el filtro de ubicación de Marketplace, elige ${p.place}. La app lo recuerda sola y desde ahí busca siempre allí.` })),
       MK.error === 'login' && h('div', { class: 'notice' }, h('span', { text: 'Facebook pide iniciar sesión: entra en la ventana que se abrió y vuelve a pulsar «Buscar alquileres».' })),
@@ -550,13 +650,15 @@
     ];
   }
 
-  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
+  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
   const SUB = {
     compras: 'Lo que falta en la casa, por categoría. Marca lo que vas comprando.',
     pagos: 'Alquiler, servicios y demás pagos de cada mes, con cuánto falta para el próximo.',
     recordatorios: 'Visitas, citas y fechas que no quieres olvidar.',
     cumples: 'Cumpleaños de la familia, amigos y gatitos.',
     regalos: 'Ideas de regalos para cada persona, con su foto y dónde comprarlos.',
+    presupuesto: 'Cuánto llevas gastado este mes frente a tu límite: pagos, compras y gastos sueltos.',
+    gatitos: 'Vacunas, desparasitación y visitas al veterinario de cada gatito, con recordatorio.',
     feriados: 'Feriados nacionales de Estados Unidos, Argentina y Costa Rica.',
     alquileres: 'Casas y apartamentos en alquiler de Facebook Marketplace, con tu precio y tu lugar.',
   };
@@ -566,7 +668,7 @@
     $('#casaTitle').textContent = TABS.find((t) => t[0] === K.tab)[1];
     $('#casaSub').textContent = SUB[K.tab];
     if (!K.d) return fill(body, skeleton());
-    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, feriados, alquileres };
+    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos, feriados, alquileres };
     fill(body, views[K.tab]());
   }
   const skeleton = () => h('div', { class: 'rx-skel' }, [1, 2, 3].map(() => h('div', { class: 'skel rx-skel-row' }, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }))));
@@ -596,5 +698,15 @@
     set('countRecordatorios', K.d.reminders.filter((r) => !r.done && Math.round((new Date(r.date + 'T00:00:00').getTime() - startOfDay()) / DAY) <= 7 && new Date(r.date + 'T00:00:00').getTime() >= startOfDay()).length);
   }
   setTimeout(updateBadge, 3000);
+  // cambios desde el celular (lista de compras) o alquileres nuevos encontrados en segundo plano
+  window.api.onCasaChanged(async () => {
+    K.d = await api.get();
+    render();
+    updateBadge();
+  });
+  window.api.onMarketChanged(async () => {
+    MK.st = await window.api.market.state();
+    render();
+  });
   window.casaUI = { show };
 })();

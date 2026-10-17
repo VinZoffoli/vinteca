@@ -87,7 +87,15 @@ function save({ write }, d) {
     holidayCountries: (d.holidayCountries || []).filter((c) => COUNTRIES[c]),
     giftPeople: (d.giftPeople || ['Emi']).map((x) => str(x, 40)).filter(Boolean).slice(0, 30),
     gifts: (d.gifts || []).slice(0, 300).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 160), for: str(x.for, 40) || 'Emi', note: str(x.note, 400), link: /^https:\/\/\S+$/.test(x.link || '') ? str(x.link, 600) : '', price: x.price === '' || x.price == null ? null : Number(x.price) || null, image: okImage(x.image), status: ['idea', 'bought', 'given'].includes(x.status) ? x.status : 'idea', occasion: str(x.occasion, 60), at: Number(x.at) || Date.now() })).filter((x) => x.name),
-    shopping: (d.shopping || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), qty: str(x.qty, 30), cat: str(x.cat, 40), done: !!x.done, at: Number(x.at) || Date.now() })).filter((x) => x.name),
+    shopping: (d.shopping || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), qty: str(x.qty, 30), cat: str(x.cat, 40), done: !!x.done, at: Number(x.at) || Date.now(), price: x.price === '' || x.price == null ? null : Number(x.price) || null, boughtAt: x.done ? Number(x.boughtAt) || Date.now() : null })).filter((x) => x.name),
+    // Presupuesto del mes: límite y gastos sueltos (los pagos y las compras con precio se suman solos)
+    budget: {
+      limit: d.budget?.limit === '' || d.budget?.limit == null ? null : Number(d.budget.limit) || null,
+      currency: str(d.budget?.currency, 5) || 'CRC',
+      expenses: (d.budget?.expenses || []).slice(-2000).map((x) => ({ id: str(x.id, 20) || id(), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : new Date().toISOString().slice(0, 10), amount: Number(x.amount) || 0, cat: str(x.cat, 40) || 'Otros', note: str(x.note, 200) })).filter((x) => x.amount > 0),
+    },
+    // Cuidados de los gatitos: vacunas, desparasitación, veterinario…
+    catCare: (d.catCare || []).slice(0, 1000).map((x) => ({ id: str(x.id, 20) || id(), cat: str(x.cat, 60), type: ['vacuna', 'desparasitacion', 'pulgas', 'veterinario', 'otro'].includes(x.type) ? x.type : 'otro', date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, next: /^\d{4}-\d{2}-\d{2}$/.test(x.next || '') ? x.next : null, note: str(x.note, 300), done: !!x.done })).filter((x) => x.cat),
     payments: (d.payments || []).slice(0, 200).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), group: str(x.group, 40) || 'Personal', day: intOr(x.day, 1, 31), amount: x.amount === '' || x.amount == null ? null : Number(x.amount) || null, currency: str(x.currency, 5) || 'CRC', notifyDays: intOr(x.notifyDays, 0, 30) ?? 3, note: str(x.note, 300), paid: Object.fromEntries(Object.entries(x.paid || {}).filter(([k]) => /^\d{4}-\d{2}$/.test(k)).slice(-36)) })).filter((x) => x.name),
     reminders: (d.reminders || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), title: str(x.title, 160), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', note: str(x.note, 500), notifyDays: intOr(x.notifyDays, 0, 60) ?? 1, done: !!x.done })).filter((x) => x.title && x.date),
     birthdays: (d.birthdays || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 80), kind: x.kind === 'gato' ? 'gato' : 'persona', day: intOr(x.day, 1, 31), month: intOr(x.month, 1, 12), year: intOr(x.year, 1900, 2100), note: str(x.note, 200) })).filter((x) => x.name && x.month),
@@ -202,6 +210,31 @@ function dueNotices({ read, write }) {
     if (n.days === 0) once(`bd:${b.id}:${y}:0`, { title: `¡Hoy cumple ${who}!`, body: n.age ? `Cumple ${n.age} ${b.kind === 'gato' ? (n.age === 1 ? 'año' : 'años') : 'años'}.` : 'No te olvides de saludar.' });
     else if (n.days === 1) once(`bd:${b.id}:${y}:1`, { title: `Mañana cumple ${who}`, body: n.age ? `Cumple ${n.age} años.` : 'Prepara el saludo o el regalo.' });
   }
+  // Ideas de regalo cuando se acerca un cumpleaños (14 y 3 días antes)
+  const plain = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  for (const b of d.birthdays || []) {
+    if (!b.day || b.kind === 'gato') continue;
+    const n = nextBirthday(b, now);
+    if (n.days !== 14 && n.days !== 3) continue;
+    const who = plain(b.name);
+    const ideas = (d.gifts || []).filter((g) => g.status === 'idea' && (plain(g.for) === who || who.startsWith(plain(g.for)) || plain(g.for).startsWith(who.split(' ')[0])));
+    if (!ideas.length) continue;
+    once(`gift:${b.id}:${new Date(n.date).getFullYear()}:${n.days}`, { title: `Faltan ${n.days} días para el cumple de ${b.name}`, body: `Tienes ${ideas.length} ${ideas.length === 1 ? 'idea de regalo' : 'ideas de regalo'}: ${ideas.slice(0, 3).map((g) => g.name).join(', ')}${ideas.length > 3 ? '…' : ''}.` });
+  }
+  // Cuidados de los gatitos que tocan pronto
+  for (const c of d.catCare || []) {
+    if (c.done || !c.next) continue;
+    const days = Math.round((new Date(c.next + 'T00:00:00').getTime() - startOfDay(now)) / DAY);
+    const what = { vacuna: 'vacuna', desparasitacion: 'desparasitación', pulgas: 'antipulgas', veterinario: 'visita al veterinario', otro: c.note || 'cuidado' }[c.type];
+    if (days === 3) once(`cat:${c.id}:3`, { title: `En 3 días: ${what} de ${c.cat}`, body: c.note || 'Revisa Casa → Gatitos.' });
+    if (days === 0) once(`cat:${c.id}:0`, { title: `Hoy toca ${what} de ${c.cat}`, body: c.note || 'Cuando lo hagas, márcalo en Casa → Gatitos.' });
+  }
+  // Presupuesto del mes: aviso al 90 % y al pasarse
+  const b = budgetStatus(d, now);
+  if (b.limit) {
+    if (b.spent >= b.limit) once(`budget:${b.month}:100`, { title: 'Te pasaste del presupuesto del mes', body: `Llevas ${b.spent.toLocaleString('es')} de ${b.limit.toLocaleString('es')} ${b.currency}.` });
+    else if (b.spent >= b.limit * 0.9) once(`budget:${b.month}:90`, { title: 'Llevas el 90 % del presupuesto del mes', body: `Te quedan ${(b.limit - b.spent).toLocaleString('es')} ${b.currency}.` });
+  }
   // limpieza: solo los últimos 400 avisos
   const keys = Object.keys(sent);
   if (keys.length > 400) for (const k of keys.sort((a, b) => sent[a] - sent[b]).slice(0, keys.length - 400)) delete sent[k];
@@ -209,4 +242,21 @@ function dueNotices({ read, write }) {
   return out;
 }
 
-module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, COUNTRIES };
+/** Gasto del mes: pagos marcados como pagados + compras con precio + gastos sueltos. */
+function budgetStatus(d, now = Date.now()) {
+  const dt = new Date(now);
+  const month = ym(dt);
+  const lines = [];
+  for (const p of d.payments || []) if (p.amount && p.paid?.[month]) lines.push({ kind: 'Pagos', name: p.name + (p.group && p.group !== 'Personal' ? ` (${p.group})` : ''), amount: p.amount, currency: p.currency });
+  for (const s of d.shopping || []) if (s.price && s.done && s.boughtAt && ym(new Date(s.boughtAt)) === month) lines.push({ kind: 'Compras', name: s.name, amount: s.price });
+  for (const e of d.budget?.expenses || []) if (e.date.startsWith(month)) lines.push({ kind: e.cat || 'Otros', name: e.note || e.cat, amount: e.amount, id: e.id, date: e.date });
+  const currency = d.budget?.currency || 'CRC';
+  const same = lines.filter((l) => !l.currency || l.currency === currency);
+  const spent = same.reduce((a, l) => a + l.amount, 0);
+  const planned = (d.payments || []).filter((p) => p.amount && (!p.currency || p.currency === currency)).reduce((a, p) => a + p.amount, 0);
+  const byKind = {};
+  for (const l of same) byKind[l.kind] = (byKind[l.kind] || 0) + l.amount;
+  return { month, limit: d.budget?.limit || null, currency, spent, planned, lines: same, byKind, other: lines.filter((l) => l.currency && l.currency !== currency) };
+}
+
+module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, budgetStatus, COUNTRIES };

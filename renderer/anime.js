@@ -56,7 +56,7 @@
         a.romaji && a.romaji !== a.title && h('p', { class: 'an-alt', text: a.romaji }),
         h('p', { class: 'an-meta', text: [a.format, a.episodes ? `${a.episodes} ep.` : null, a.studio, a.streaming?.length ? a.streaming.join(', ') : null].filter(Boolean).join(' · ') }),
         a.genres?.length ? h('p', { class: 'an-genres' }, a.genres.map((g) => h('span', { text: g }))) : null,
-        a.synopsis && h('p', { class: `an-syn ${open ? 'open' : ''}`, text: a.synopsis, onclick: () => { A.open = open ? null : a.id; redraw(); }, title: open ? '' : 'Clic para leer completa' }),
+        a.synopsis && h('p', { class: `an-syn ${open ? 'open' : ''}`, text: A.tr?.[a.id] || a.synopsis, lang: A.tr?.[a.id] ? 'es' : 'en', onclick: () => { A.open = open ? null : a.id; redraw(); }, title: open ? '' : 'Clic para leer completa' }),
         h('div', { class: 'an-act' },
           h('button', { class: on ? 'btn ghost small' : 'btn primary small', text: on ? 'En tu calendario' : 'Añadir a mi calendario', onclick: () => toggleFollow(a) }),
           a.trailer && h('button', { class: 'btn subtle small', text: 'Tráiler', onclick: () => window.api.open(a.trailer) }),
@@ -193,17 +193,40 @@
     ];
   }
 
+  // Sinopsis en español: se traducen con Claude (Haiku) al pulsar el botón y quedan guardadas
+  async function translateAll() {
+    const pool = [...(A.results || []), ...(A.data?.soon || []), ...(A.data?.seasons || []).flatMap((s) => s.list), ...Object.values(A.mine?.follows || {})];
+    const todo = [...new Map(pool.filter((a) => a.synopsis && !A.tr?.[a.id]).map((a) => [a.id, { id: a.id, synopsis: a.synopsis }])).values()];
+    if (!todo.length) return toast('Ya están todas en español.');
+    A.translating = true;
+    redraw();
+    try {
+      const r = await window.api.animeTr.run(todo);
+      A.tr = r.cache;
+      toast(`${plural(r.done, 'sinopsis traducida', 'sinopsis traducidas')}.`);
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+    A.translating = false;
+    redraw();
+  }
   function render() {
+    if (!A.tr && !A.trLoading) {
+      A.trLoading = true;
+      window.api.animeTr.get().then((t) => { A.tr = t || {}; redraw(); }).catch(() => (A.tr = {}));
+    }
     if (!A.data && !A.busy && !A.error) load(false);
     const n = Object.keys(A.mine?.follows || {}).length + (A.mine?.custom?.length || 0);
     return h('div', { class: 'an' },
       h('div', { class: 'toolbar flat an-top' },
         h('div', { class: 'seg' }, h('button', { class: A.view === 'next' ? 'on' : '', text: 'Próximos estrenos', onclick: () => { A.view = 'next'; redraw(); } }), h('button', { class: A.view === 'mine' ? 'on' : '', text: `Mi calendario${n ? ` (${n})` : ''}`, onclick: () => { A.view = 'mine'; redraw(); } })),
+        h('span', { class: 'ed-sp' }),
+        h('button', { class: 'btn ghost small', text: A.translating ? 'Traduciendo con Claude…' : 'Traducir sinopsis al español', disabled: !!A.translating, title: 'Usa tu Claude Code (modelo Haiku) una vez; las traducciones quedan guardadas', onclick: translateAll }),
         h('button', { class: 'btn subtle small', text: A.busy ? 'Actualizando…' : 'Actualizar', disabled: A.busy, onclick: () => load(true) })
       ),
       searchBar(),
       A.results ? [h('h2', { class: 'section-h', text: `Resultados para «${A.q}»` }), A.results.length ? h('div', { class: 'an-grid' }, A.results.map(card)) : h('p', { class: 'hint', text: 'No encontré nada con ese nombre.' })] : A.view === 'mine' ? mineView() : nextView(),
-      h('p', { class: 'hint rx-foot', text: 'Datos y portadas oficiales de AniList. Las sinopsis vienen en inglés.' })
+      h('p', { class: 'hint rx-foot', text: 'Datos y portadas oficiales de AniList. Las sinopsis vienen en inglés; «Traducir sinopsis al español» las traduce con tu Claude y quedan guardadas.' })
     );
   }
 

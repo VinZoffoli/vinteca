@@ -183,4 +183,48 @@ function notices({ read, write }) {
   return out;
 }
 
-module.exports = { upcoming, search, mine, follow, saveCustom, refreshFollows, notices, nextSeasons };
+// ---- sinopsis en español ----
+// Se traducen con tu Claude Code (modelo Haiku) solo cuando pulsas "Traducir al
+// español"; quedan guardadas y no se vuelven a traducir.
+function translations(read) {
+  return read('anime-tr.json', {});
+}
+async function translate({ read, write }, items) {
+  const { spawn } = require('child_process');
+  const exe = require('./claude-chat').findClaude();
+  if (!exe) throw new Error('Para traducir hace falta Claude Code instalado en este PC.');
+  const cache = translations(read);
+  const todo = (items || []).filter((a) => a && a.id && a.synopsis && !cache[a.id]).slice(0, 120);
+  let done = 0;
+  for (let i = 0; i < todo.length; i += 30) {
+    const batch = Object.fromEntries(todo.slice(i, i + 30).map((a) => [a.id, a.synopsis.slice(0, 1200)]));
+    const prompt = `Traduce al español neutro (latinoamericano) estas sinopsis de anime. Mantén los nombres propios. Responde SOLO con un objeto JSON válido con las mismas claves y el texto traducido, sin nada más.\n\n${JSON.stringify(batch)}`;
+    const out = await new Promise((resolve, reject) => {
+      const p = spawn(exe, ['-p', '--output-format', 'json', '--model', 'haiku', '--allowedTools', ''], { windowsHide: true, cwd: require('os').tmpdir() });
+      let buf = '';
+      p.stdout.on('data', (d) => (buf += d));
+      p.on('error', reject);
+      p.on('close', () => resolve(buf));
+      p.stdin.end(prompt, 'utf8');
+    });
+    let text = '';
+    try {
+      text = JSON.parse(out).result || '';
+    } catch {
+      text = out;
+    }
+    const m = String(text).match(/\{[\s\S]*\}/);
+    if (!m) continue;
+    try {
+      const tr = JSON.parse(m[0]);
+      for (const [id, t] of Object.entries(tr)) if (typeof t === 'string' && t.trim()) {
+        cache[id] = t.trim();
+        done++;
+      }
+    } catch {}
+    write('anime-tr.json', cache);
+  }
+  return { done, cache };
+}
+
+module.exports = { upcoming, search, mine, follow, saveCustom, refreshFollows, notices, nextSeasons, translate, translations };

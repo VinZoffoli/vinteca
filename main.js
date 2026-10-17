@@ -221,6 +221,35 @@ function snapshot(dir) {
       if (bidShot) require('fs').writeFileSync(require('path').join(dir, 'workana-ventana.png'), (await bidShot.webContents.capturePage()).toPNG());
       return app.quit();
     }
+    if (process.env.BJ_SNAPSHOT_ONLY === 'v116') {
+      log(`VISTA inicial ${await js('state.view')}`);
+      const steps = [
+        ['dia', `showView('day')`, 3000],
+        ['busqueda', `openPalette(); document.querySelector('#palInput').value = 'selladora'; document.querySelector('#palInput').value = 'sellador'; setTimeout(() => renderPalette('sellador'), 1200)`, 2500],
+        ['logros-faciles', `closePalette(); showView('ach'); setTimeout(() => [...document.querySelectorAll('#achView .view-head .btn')].find((b) => /fáciles/.test(b.textContent))?.click(), 500)`, 25000],
+        ['ficha-mods', `document.querySelector('dialog[open]')?.close(); openGame(games().find((g) => /cyberpunk|witcher|hollow knight|resident evil/i.test(g.title)) || games()[0]); setTimeout(() => document.querySelector('#gameMods')?.scrollIntoView(), 7000)`, 9000],
+        ['novedades', `document.querySelector('#gameDlg')?.close(); showView('news')`, 6000],
+        ['genshin', `showView('genshin'); setGenshinTab('farmeo')`, 7000],
+        ['presupuesto', `showView('casa-presupuesto')`, 2500],
+        ['gatitos', `showView('casa-gatitos')`, 2000],
+        ['compras', `showView('casa-compras')`, 2500],
+        ['anime', `showView('news'); state.newsTab = 'anime'; renderNews()`, 6000],
+      ];
+      for (const [name, code, ms] of steps) {
+        await js(code).catch((e) => log(`[error] ${name}: ${e.message}`));
+        await wait(ms);
+        await shot(`${name}.png`);
+      }
+      log(`PALETA ${await js(`[...document.querySelectorAll('#palList .pal-title')].map((x) => x.textContent).join(' | ')`).catch(() => '')}`);
+      try {
+        openPanel();
+        await wait(5000);
+        if (panelWin) fs.writeFileSync(path.join(dir, 'panel.png'), (await panelWin.webContents.capturePage()).toPNG());
+      } catch (e) {
+        log(`[error] panel: ${e.message}`);
+      }
+      return app.quit();
+    }
     if (process.env.BJ_SNAPSHOT_ONLY === 'family') {
       const s = store.read('settings.json', {});
       const r = await require('./src/steamfamily').load(ctxRW, { steamId: s.steamId || store.getSettings().steamId, apiKey: null }).catch((e) => ({ error: e.message }));
@@ -551,7 +580,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/act\.hoyolab\.com\/ys\/event\/signin-sea-v3\/|https:\/\/www\.gamerpower\.com\/(open\/)?[\w-]+$|https:\/\/www\.nexusmods\.com\/[a-z0-9]+\/mods\/(\d+)?$|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -640,6 +669,14 @@ app.whenReady().then(() => {
     setInterval(vercelTick, 10 * 60000);
     setTimeout(casaTick, 30000);
     setInterval(casaTick, 30 * 60000);
+    setTimeout(giveawayTick, 70000);
+    setInterval(giveawayTick, 6 * 3600000);
+    setTimeout(checkinTick, 90000);
+    setInterval(checkinTick, 60 * 60000);
+    setTimeout(rentTick, 10 * 60000);
+    setInterval(rentTick, 4 * 3600000);
+    setTimeout(backupTick, 120000);
+    setInterval(backupTick, 6 * 3600000);
     setTimeout(mailTick, 35000);
     setInterval(mailTick, 5 * 60000);
     setTimeout(animeTick, 50000);
@@ -1494,7 +1531,38 @@ function lanServer() {
       s.lanToken = require('crypto').randomBytes(12).toString('hex');
       store.write('settings.json', s);
     }
-    lan = new LanServer({ games: () => store.read('library.json', null)?.games || [], launch: async (g) => launchFromMain(g), token: s.lanToken });
+    lan = new LanServer({
+      games: () => store.read('library.json', null)?.games || [],
+      launch: async (g) => launchFromMain(g),
+      token: s.lanToken,
+      // lista de compras de Casa, para verla y marcarla desde el celular
+      shopping: {
+        get: () => {
+          const c = casa.load(ctxRW);
+          return { cats: c.shopCats, items: (c.shopping || []).map((x) => ({ id: x.id, name: x.name, qty: x.qty, cat: x.cat, done: x.done })) };
+        },
+        toggle: (id) => {
+          const c = casa.load(ctxRW);
+          const it = (c.shopping || []).find((x) => x.id === id);
+          if (it) {
+            it.done = !it.done;
+            it.boughtAt = it.done ? Date.now() : null;
+            casa.save(ctxRW, c);
+            if (win && !win.isDestroyed()) win.webContents.send('casa:changed');
+          }
+          return !!it;
+        },
+        add: (name, qty) => {
+          const c = casa.load(ctxRW);
+          const n = String(name || '').trim().slice(0, 120);
+          if (!n) return false;
+          c.shopping.push({ id: require('crypto').randomBytes(6).toString('hex'), name: n, qty: String(qty || '').slice(0, 30), cat: c.shopCats?.[0] || 'Súper', done: false, at: Date.now() });
+          casa.save(ctxRW, c);
+          if (win && !win.isDestroyed()) win.webContents.send('casa:changed');
+          return true;
+        },
+      },
+    });
   }
   return lan;
 }
@@ -2100,6 +2168,16 @@ ipcMain.handle('panel:data', async () => {
     today: (cal?.events || []).filter((e) => !e.allDay && e.end > now && e.myStatus !== 'DECLINED' && new Date(e.start).toDateString() === new Date(now).toDateString()).slice(0, 6).map((e) => ({ title: e.title, start: e.start, daily: e.daily })),
     resin,
     tickets: nc ? { open: open.length, late } : null,
+    week: (() => {
+      const c = casa.load(ctxRW);
+      const pays = (c.payments || []).map((p) => ({ p, n: casa.nextDue(p, now) })).filter((x) => x.n && x.n.days >= 0 && x.n.days <= 7).sort((a, b) => a.n.days - b.n.days).slice(0, 3).map(({ p, n }) => ({ label: p.name + (p.group !== 'Personal' ? ` (${p.group})` : ''), days: n.days, kind: 'pago' }));
+      const bd = (c.birthdays || []).filter((b) => b.day).map((b) => ({ b, n: casa.nextBirthday(b, now) })).filter((x) => x.n.days <= 7).slice(0, 3).map(({ b, n }) => ({ label: b.name, days: n.days, kind: 'cumple' }));
+      return [...pays, ...bd].sort((a, b) => a.days - b.days);
+    })(),
+    anime: (() => {
+      const f = Object.values(anime.mine(ctxRW).follows || {}).map((a) => ({ a, at: a.next?.at || (a.status === 'NOT_YET_RELEASED' && a.precision === 'day' ? a.start : null) })).filter((x) => x.at && x.at > now - 3600000).sort((x, y) => x.at - y.at)[0];
+      return f ? { title: f.a.title, cover: f.a.cover, at: f.at, what: f.a.next ? `Episodio ${f.a.next.episode}` : 'Estreno' } : null;
+    })(),
     spotify: spCache.v,
     lhm: sensors.lhmSeen(),
     mode: st.mode || null,
@@ -2206,8 +2284,33 @@ function healthSites() {
   for (const r of rows) if (r.production && /^https:\/\//.test(r.production) && (r.group === 'done' || /live/i.test(r.status))) map.set(r.production, { url: r.production, name: r.name, mine: r.mine });
   for (const p of vc) if (p.domain && ![...map.values()].some((x) => new URL(x.url).hostname.replace(/^www\./, '') === new URL(p.domain).hostname.replace(/^www\./, ''))) map.set(p.domain, { url: p.domain, name: p.name, fromVercel: true });
   for (const u of extra) if (!map.has(u)) map.set(u, { url: u, name: new URL(u).hostname });
-  return [...map.values()];
+  const hidden = new Set(healthHidden());
+  return [...map.values()].filter((s) => !hidden.has(hostOf(s.url)));
 }
+const hostOf = (u) => {
+  try {
+    return new URL(u).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+// Webs que no quieres ver en Salud (por dominio). Fun Tapas viene oculta de serie.
+function healthHidden() {
+  const s = store.read('settings.json', {});
+  return Array.isArray(s.healthHidden) ? s.healthHidden : ['funtapas.com'];
+}
+ipcMain.handle('health:hide', (_e, url, on) => {
+  const host = hostOf(String(url || '')) || String(url || '').replace(/^www\./, '');
+  if (!host) return healthHidden();
+  const s = store.read('settings.json', {});
+  const list = new Set(healthHidden());
+  if (on) list.add(host);
+  else list.delete(host);
+  s.healthHidden = [...list];
+  store.write('settings.json', s);
+  return s.healthHidden;
+});
+ipcMain.handle('health:hidden', () => healthHidden());
 ipcMain.handle('health:get', () => ({ last: store.read('webhealth.json', null), sites: healthSites(), psi: !!webhealth.getSecret(store.read, 'psiKeyEnc') }));
 ipcMain.handle('health:check', async () => {
   const r = await webhealth.checkAll(healthSites(), ctxRW);
@@ -2430,6 +2533,146 @@ async function mailTick() {
 function casaTick() {
   for (const n of casa.dueNotices(ctxRW)) notify(n.title, n.body);
 }
+
+// ---------- 1.16: Mi día, regalos de juegos, mods, Genshin, Casa, copias ----------
+const giveaways = require('./src/giveaways');
+const nexus = require('./src/nexus');
+const genshinEndgame = require('./src/genshin-endgame');
+const cloudbackup = require('./src/cloudbackup');
+
+ipcMain.handle('gw:list', (_e, force) => giveaways.list(ctxRW, !!force));
+async function giveawayTick() {
+  if (!settingsOn('giveawayAlerts')) return;
+  const r = await giveaways.list(ctxRW, true).catch(() => null);
+  const fresh = (r?.items || []).filter((x) => x.isNew);
+  if (!r || r.first || !fresh.length) return;
+  notify(fresh.length === 1 ? `Gratis en ${fresh[0].store}: ${fresh[0].title}` : `${fresh.length} juegos gratis nuevos`, fresh.slice(0, 3).map((x) => `${x.store}: ${x.title}${x.worth ? ` (antes ${x.worth})` : ''}`).join('\n'), fresh.length === 1 ? fresh[0].url : null);
+}
+
+ipcMain.handle('nexus:top', (_e, title) => nexus.top(ctxRW, String(title || '').slice(0, 120)));
+
+// Logros fáciles que te faltan (los que tiene más gente), de los juegos que ya empezaste
+ipcMain.handle('ach:easy', async () => {
+  const auth = await steamAuth();
+  const sum = store.read('achievements.json', null);
+  const lib = new Map((store.read('library.json', null)?.games || []).filter((g) => g.store === 'steam').map((g) => [Number(g.id.split(':')[1]), g]));
+  const started = Object.entries(sum?.games || {})
+    .filter(([, g]) => g.total && g.done > 0 && g.done < g.total)
+    .sort((a, b) => b[1].done / b[1].total - a[1].done / a[1].total)
+    .slice(0, 14);
+  const out = [];
+  let i = 0;
+  await Promise.all([0, 1, 2].map(async () => {
+    while (i < started.length) {
+      const [appid, g] = started[i++];
+      const d = await achievements.detail({ ...auth, appid: Number(appid), read: store.read, write: store.write }).catch(() => null);
+      const game = lib.get(Number(appid));
+      for (const a of (d?.missing || []).filter((x) => x.globalPct != null && x.globalPct >= 25).slice(0, 4)) out.push({ ...a, appid: Number(appid), game: game?.title || `App ${appid}`, gameId: game?.id || null, done: g.done, total: g.total });
+    }
+  }));
+  return out.sort((a, b) => b.globalPct - a.globalPct).slice(0, 40);
+});
+
+// Genshin: recompensa diaria, reinicios y banners
+ipcMain.handle('hoyo:sign', () => hoyolab.signInfo(store.read));
+ipcMain.handle('gend:resets', () => genshinEndgame.resets());
+ipcMain.handle('hoyo:openSign', () => shell.openExternal(hoyolab.SIGN_PAGE));
+async function checkinTick() {
+  if (!settingsOn('checkinAlert') || !hoyolab.linked(store.read)) return;
+  if (new Date().getHours() < 9) return;
+  const today = new Date().toDateString();
+  const s = store.read('settings.json', {});
+  if (s.lastCheckinNotice === today) return;
+  const r = await hoyolab.signInfo(store.read).catch(() => null);
+  if (!r || r.error || r.signed) return;
+  s.lastCheckinNotice = today;
+  store.write('settings.json', s);
+  notify('Te falta la recompensa diaria de HoYoLAB', 'Haz clic para abrir la página y reclamarla.', hoyolab.SIGN_PAGE);
+}
+
+// Casa: presupuesto y alertas de alquiler
+ipcMain.handle('casa:budget', () => casa.budgetStatus(casa.load(ctxRW)));
+async function rentTick() {
+  if (!settingsOn('rentAlerts')) return;
+  const st = marketplace.state(store.read);
+  if (!st.prefs.city) return; // aún no eligió la ubicación en Facebook
+  const r = await marketplace.search(ctxRW).catch(() => null);
+  const fresh = (r?.list || []).filter((x) => x.isNew);
+  if (!r || r.login || !fresh.length) return;
+  notify(fresh.length === 1 ? `Alquiler nuevo: ${fresh[0].price}` : `${fresh.length} alquileres nuevos en ${st.prefs.place}`, fresh.slice(0, 3).map((x) => `${x.price} · ${x.title}`).join('\n'));
+  if (win && !win.isDestroyed()) win.webContents.send('mk:changed');
+}
+
+// Copia en OneDrive (una al día)
+ipcMain.handle('backup:status', () => ({ ...cloudbackup.status(), on: settingsOn('cloudBackup') }));
+ipcMain.handle('backup:run', () => cloudbackup.run(app.getPath('userData')));
+ipcMain.handle('backup:open', () => {
+  const r = cloudbackup.root();
+  if (r) shell.openPath(r);
+  return !!r;
+});
+function backupTick() {
+  if (!settingsOn('cloudBackup')) return;
+  const st = cloudbackup.status();
+  if (!st.available || st.last === new Date().toISOString().slice(0, 10)) return;
+  try {
+    cloudbackup.run(app.getPath('userData'));
+  } catch {}
+}
+
+// Anime: sinopsis en español (con Claude Haiku, solo cuando se pide)
+ipcMain.handle('anime:translations', () => anime.translations(store.read));
+ipcMain.handle('anime:translate', (_e, items) => anime.translate(ctxRW, (Array.isArray(items) ? items : []).map((a) => ({ id: Number(a.id), synopsis: String(a.synopsis || '') })).filter((a) => a.id)));
+
+// Mi día: todo lo de hoy en un solo lugar
+const DAYMS = 86400000;
+ipcMain.handle('day:summary', async () => {
+  const now = Date.now();
+  const d0 = new Date().setHours(0, 0, 0, 0);
+  const cal = store.read('calendar-cache.json', null);
+  const meetings = (cal?.events || []).filter((e) => e.end > now && e.start < d0 + DAYMS && e.myStatus !== 'DECLINED').map((e) => ({ title: e.title, start: e.start, end: e.end, allDay: e.allDay, link: e.link, daily: e.daily }));
+  const c = casa.load(ctxRW);
+  const pays = (c.payments || []).map((p) => ({ p, n: casa.nextDue(p, now) })).filter((x) => x.n && x.n.days <= 7).sort((a, b) => a.n.days - b.n.days).map(({ p, n }) => ({ name: p.name, group: p.group, days: n.days, date: n.date, amount: p.amount, currency: p.currency }));
+  const bdays = (c.birthdays || []).map((b) => ({ b, n: casa.nextBirthday(b, now) })).filter((x) => x.b.day && x.n.days <= 7).sort((a, b) => a.n.days - b.n.days).map(({ b, n }) => ({ name: b.name, kind: b.kind, days: n.days, age: n.age }));
+  const rems = (c.reminders || []).filter((r) => !r.done).map((r) => ({ ...r, days: Math.round((new Date(r.date + 'T00:00:00').getTime() - d0) / DAYMS) })).filter((r) => r.days >= 0 && r.days <= 3).sort((a, b) => a.days - b.days);
+  const cats = (c.catCare || []).filter((x) => !x.done && x.next).map((x) => ({ ...x, days: Math.round((new Date(x.next + 'T00:00:00').getTime() - d0) / DAYMS) })).filter((x) => x.days <= 7).sort((a, b) => a.days - b.days);
+  const nc = store.read('notion-cache.json', null)?.data;
+  const tickets = (nc?.tickets || []).filter((t) => t.group !== 'done' && t.deadline && new Date(t.deadline + 'T23:59:59').getTime() < now + 2 * DAYMS).map((t) => ({ title: t.title, deadline: t.deadline, status: t.status, url: t.url, late: new Date(t.deadline + 'T23:59:59').getTime() < now })).sort((a, b) => a.deadline.localeCompare(b.deadline));
+  const mailC = store.read('mail-cache.json', null);
+  const mailUnread = mailC ? { count: mailC.unread, last: (mailC.list || []).filter((m) => m.unread).slice(0, 3).map((m) => ({ from: m.from, subject: m.subject })) } : null;
+  const hc = hoyolab.linked(store.read) ? store.read('hoyolab-cache.json', null)?.data?.notes : null;
+  const manual = store.read('gresin.json', null);
+  const resin = hc ? { value: hc.resin, max: hc.maxResin, fullAt: hc.resinFullAt } : manual ? resinFromManual(manual) : null;
+  const am = anime.mine(ctxRW);
+  const animeToday = Object.values(am.follows || {}).flatMap((a) => {
+    const out = [];
+    if (a.next && a.next.at < d0 + 2 * DAYMS && a.next.at > now - 6 * 3600000) out.push({ title: a.title, cover: a.cover, what: `Episodio ${a.next.episode}`, at: a.next.at });
+    if (a.status === 'NOT_YET_RELEASED' && a.precision === 'day' && a.start >= d0 && a.start < d0 + 2 * DAYMS) out.push({ title: a.title, cover: a.cover, what: 'Estreno', at: a.start });
+    return out;
+  });
+  const gw = store.read('giveaways.json', null);
+  const budget = casa.budgetStatus(c, now);
+  const pulls = (store.read('webs.json', null)?.repos || []).filter((r) => r.behind > 0).length;
+  return { now, meetings, pays, bdays, rems, cats, tickets, mail: mailUnread, resin, anime: animeToday, giveaways: (gw?.items || []).slice(0, 6), budget: { limit: budget.limit, spent: budget.spent, currency: budget.currency }, shopping: (c.shopping || []).filter((x) => !x.done).length, pulls, resets: genshinEndgame.resets(now).slice(0, 2) };
+});
+
+// Búsqueda global (Ctrl+K): índice de lo que hay fuera de la biblioteca
+ipcMain.handle('search:index', () => {
+  const out = [];
+  const c = casa.load(ctxRW);
+  for (const g of c.gifts || []) out.push({ label: g.name, hint: `Regalo para ${g.for}`, view: 'casa-regalos' });
+  for (const s of c.shopping || []) if (!s.done) out.push({ label: s.name, hint: 'Lista de compras', view: 'casa-compras' });
+  for (const p of c.payments || []) out.push({ label: `${p.name}${p.group !== 'Personal' ? ` (${p.group})` : ''}`, hint: 'Pago', view: 'casa-pagos' });
+  for (const b of c.birthdays || []) out.push({ label: b.name, hint: b.kind === 'gato' ? 'Cumpleaños (gatito)' : 'Cumpleaños', view: 'casa-cumples' });
+  for (const r of c.reminders || []) out.push({ label: r.title, hint: `Recordatorio · ${r.date}`, view: 'casa-recordatorios' });
+  for (const t of store.read('notion-cache.json', null)?.data?.tickets || []) out.push({ label: t.title, hint: `Ticket · ${t.status}`, view: 'notion' });
+  for (const r of store.read('webs.json', null)?.repos || []) out.push({ label: r.name, hint: 'Web', view: 'webs' });
+  for (const a of Object.values(anime.mine(ctxRW).follows || {})) out.push({ label: a.title, hint: 'Anime que sigues', view: 'news', tab: 'anime' });
+  for (const m of (store.read('mail-cache.json', null)?.list || []).slice(0, 40)) out.push({ label: m.subject, hint: `Correo de ${m.from}`, view: 'mail' });
+  for (const p of Object.values(store.read('workana.json', {}).done || {})) if (p.title) out.push({ label: p.title, hint: 'Postulación de Workana', view: 'workana' });
+  for (const j of Object.values(store.read('linkedin.json', {}).tracked || {})) out.push({ label: j.title, hint: `LinkedIn · ${j.company}`, view: 'linkedin' });
+  return out;
+});
 
 ipcMain.handle('genshin:get', (_e, force, uid) => {
   const id = uid || store.getSettings().genshinUid;

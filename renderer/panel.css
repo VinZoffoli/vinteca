@@ -66,3 +66,8 @@ body { background: radial-gradient(120% 50% at 50% 0%, color-mix(in srgb, var(--
 .pn-agenda li { display: grid; grid-template-columns: 64px 1fr; gap: 10px; font-size: 17px; }
 .pn-agenda b { font: 700 17px var(--display); color: var(--cyan); font-variant-numeric: tabular-nums; }
 .pn-agenda span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pn-anime { display: grid; grid-template-columns: 90px 1fr; gap: 14px; align-items: center; padding: 14px; border-radius: 20px; background: var(--night-2); border: 1px solid var(--line); }
+.pn-anime img { width: 90px; height: 128px; object-fit: cover; border-radius: 10px; }
+.pn-anime div { display: grid; gap: 3px; min-width: 0; }
+.pn-anime b { font: 700 20px/1.2 var(--display); }
+.pn-anime span { color: var(--muted); font-size: 15px; }

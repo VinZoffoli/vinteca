@@ -120,6 +120,8 @@ contextBridge.exposeInMainWorld('api', {
     setKey: (k) => ipcRenderer.invoke('health:setKey', k),
     addSite: (u) => ipcRenderer.invoke('health:addSite', u),
     open: (u) => ipcRenderer.invoke('health:openSite', u),
+    hide: (u, on) => ipcRenderer.invoke('health:hide', u, on),
+    hidden: () => ipcRenderer.invoke('health:hidden'),
   },
   vercel: {
     status: () => ipcRenderer.invoke('vercel:status'),
@@ -174,6 +176,28 @@ contextBridge.exposeInMainWorld('api', {
     openWeb: () => ipcRenderer.invoke('mail:openWeb'),
     onChanged: (cb) => ipcRenderer.on('mail:changed', (_e, d) => cb(d)),
   },
+  gw: { list: (force) => ipcRenderer.invoke('gw:list', force) },
+  nexus: { top: (title) => ipcRenderer.invoke('nexus:top', title) },
+  achEasy: () => ipcRenderer.invoke('ach:easy'),
+  gend: {
+    resets: () => ipcRenderer.invoke('gend:resets'),
+    sign: () => ipcRenderer.invoke('hoyo:sign'),
+    openSign: () => ipcRenderer.invoke('hoyo:openSign'),
+  },
+  budget: () => ipcRenderer.invoke('casa:budget'),
+  onCasaChanged: (cb) => ipcRenderer.on('casa:changed', () => cb()),
+  onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
+  backup: {
+    status: () => ipcRenderer.invoke('backup:status'),
+    run: () => ipcRenderer.invoke('backup:run'),
+    open: () => ipcRenderer.invoke('backup:open'),
+  },
+  animeTr: {
+    get: () => ipcRenderer.invoke('anime:translations'),
+    run: (items) => ipcRenderer.invoke('anime:translate', items),
+  },
+  day: () => ipcRenderer.invoke('day:summary'),
+  searchIndex: () => ipcRenderer.invoke('search:index'),
   family: {
     status: () => ipcRenderer.invoke('family:status'),
     login: () => ipcRenderer.invoke('family:login'),

@@ -114,10 +114,78 @@
     ];
   }
 
+  // ---- recompensa diaria, reinicios y banners ----
+  const X = { sign: null, resets: null, news: null, loading: false };
+  async function loadExtra() {
+    if (X.loading || X.resets) return;
+    X.loading = true;
+    [X.sign, X.resets, X.news] = await Promise.all([
+      window.api.gend.sign().catch(() => null),
+      window.api.gend.resets().catch(() => []),
+      typeof gi !== 'undefined' && gi.news ? gi.news : window.api.gnews(false).catch(() => null),
+    ]);
+    X.loading = false;
+    redraw();
+  }
+  const until = (t) => {
+    const m = Math.round((t - Date.now()) / 60000);
+    if (m < 60) return `${m} min`;
+    const hh = Math.floor(m / 60);
+    return hh < 48 ? `${hh} h` : `${Math.round(hh / 24)} días`;
+  };
+  const plainName = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  function bannerChars() {
+    const evs = (X.news?.events || []).filter((e) => /gachap|deseo|invocaci[oó]n de personaje/i.test(e.kind || '') && e.end > Date.now());
+    const out = [];
+    for (const e of evs) {
+      for (const m of String(e.title).matchAll(/obtenci[oó]n de ([^,"«»]+?),\s*["“«]/g)) {
+        const name = m[1].trim();
+        const av = (F.avatars || []).find((a) => plainName(a.name) === plainName(name));
+        if (!out.some((x) => x.name === name)) out.push({ name, av, end: e.end, start: e.start, upcoming: e.start > Date.now() });
+      }
+    }
+    return out;
+  }
+  function extraCards() {
+    loadExtra();
+    const s = X.sign;
+    const chars = bannerChars();
+    return h('div', { class: 'gx' },
+      h('section', { class: 'rx-card' },
+        h('h3', { text: 'Reinicios' }),
+        h('ul', { class: 'dy-list' }, (X.resets || []).map((r) => h('li', { title: r.note }, h('span', { text: r.name }), h('b', { text: `en ${until(r.at)}` }))))
+      ),
+      h('section', { class: `rx-card ${s && s.linked && !s.signed && !s.error ? 'gx-warn' : ''}` },
+        h('h3', { text: 'Recompensa diaria de HoYoLAB' }),
+        !s ? h('p', { class: 'hint', text: 'Comprobando…' })
+          : !s.linked ? h('p', { class: 'hint', text: 'Inicia sesión en HoYoLAB (pestaña Notas) para saber si ya la reclamaste hoy.' })
+          : s.error ? h('p', { class: 'hint bad', text: s.error })
+          : h('p', { class: 'gx-sign', text: s.signed ? `Ya la reclamaste hoy (${s.days} días este mes).` : 'Todavía no la reclamaste hoy.' }),
+        h('div', { class: 'rx-row' },
+          h('button', { class: s?.signed ? 'btn ghost small' : 'btn primary small', text: 'Abrir la página para reclamarla', onclick: () => window.api.gend.openSign() }),
+          h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: F.settings?.checkinAlert !== false, onchange: (e) => window.api.saveSettings({ checkinAlert: e.target.checked }) }), h('span', { text: 'Avisarme si se me olvida' }))
+        )
+      ),
+      h('section', { class: 'rx-card gx-banners' },
+        h('h3', { text: 'Personajes de los banners' }),
+        chars.length ? h('ul', { class: 'gx-chars' }, chars.map((c) => {
+          const inPlan = (F.plan || []).some((p) => c.av && String(p.id) === String(c.av.id));
+          return h('li', {},
+            c.av ? h('img', { src: c.av.icon, alt: '', loading: 'lazy' }) : h('span', { class: 'gx-ph' }),
+            h('div', {}, h('b', { text: c.name }), h('small', { text: c.upcoming ? `Llega en ${until(c.start)}` : `Hasta dentro de ${until(c.end)}` })),
+            c.av && h('button', { class: inPlan ? 'btn subtle small' : 'btn ghost small', text: inPlan ? 'En tu plan' : 'Planear farmeo', disabled: inPlan, onclick: () => { F.plan.push({ id: c.av.id, level: 1, ascended: false, talents: [1, 1, 1], target: { level: 90, talents: [8, 8, 8] } }); save(); toast(`${c.name} añadido: te digo qué materiales juntar.`); } })
+          );
+        })) : h('p', { class: 'hint', text: 'Sin datos de banners todavía (se leen de los anuncios oficiales del juego).' }),
+        h('p', { class: 'hint', text: 'Los del próximo parche aparecen aquí en cuanto HoYoverse los anuncia (normalmente tras el livestream).' })
+      )
+    );
+  }
+
   function renderFarm() {
     loadFarm();
     if (!F.plan) return [resinCardSafe(), skeletonDeals(3)];
     return h('div', { class: 'gf' },
+      extraCards(),
       resinCardSafe(),
       F.error && h('p', { class: 'hint bad', text: F.error }),
       h('section', { class: 'rx-card' },

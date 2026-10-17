@@ -276,4 +276,17 @@ function logout({ read, write }) {
   return { linked: false };
 }
 
-module.exports = { login, overview, logout, linked, server, details };
+// Recompensa diaria de HoYoLAB: solo se consulta si ya la reclamaste hoy
+// (la reclamas tú en la página oficial; la app no la reclama por ti).
+const SIGN_ACT = 'e202102251931481';
+const SIGN_PAGE = `https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=${SIGN_ACT}`;
+async function signInfo(read) {
+  const cookie = loadCookies(read);
+  if (!cookie) return { linked: false, page: SIGN_PAGE };
+  const r = await fetch(`https://sg-hk4e-api.hoyolab.com/event/sol/info?lang=es-es&act_id=${SIGN_ACT}`, { headers: { Cookie: cookie, Origin: 'https://act.hoyolab.com', Referer: 'https://act.hoyolab.com/', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36' }, signal: AbortSignal.timeout(15000) });
+  const j = await r.json().catch(() => ({}));
+  if (j.retcode !== 0) return { linked: true, error: j.message || 'HoYoLAB no respondió.', page: SIGN_PAGE };
+  return { linked: true, signed: !!j.data?.is_sign, days: j.data?.total_sign_day || 0, today: j.data?.today || null, page: SIGN_PAGE };
+}
+
+module.exports = { login, overview, logout, linked, server, details, signInfo, SIGN_PAGE };

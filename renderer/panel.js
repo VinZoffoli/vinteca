@@ -134,6 +134,32 @@
     }
     if (row.children.length) parts.push(row);
 
+    // esta semana en casa: pagos y cumpleaños
+    if (d.week?.length) {
+      const ul = el('ul', 'pn-agenda');
+      for (const w of d.week) {
+        const li = el('li');
+        li.append(el('b', '', w.days === 0 ? 'Hoy' : w.days === 1 ? 'Mañana' : `${w.days} d`), el('span', '', `${w.kind === 'pago' ? 'Pago: ' : 'Cumple: '}${w.label}`));
+        ul.append(li);
+      }
+      parts.push(card('Esta semana', ul));
+    }
+
+    // el anime que viene
+    if (d.anime) {
+      const a = el('section', 'pn-anime');
+      if (d.anime.cover) {
+        const img = el('img');
+        img.src = d.anime.cover;
+        img.alt = '';
+        a.append(img);
+      }
+      const info = el('div');
+      info.append(el('p', 'pn-kicker', d.anime.what), el('b', '', d.anime.title), el('span', '', `${new Date(d.anime.at).toLocaleDateString('es', { weekday: 'long' })} ${time(d.anime.at)}`));
+      a.append(info);
+      parts.push(a);
+    }
+
     // ventiladores
     if (s?.fans?.length) {
       const list = el('ul', 'pn-fans');

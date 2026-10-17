@@ -258,6 +258,24 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.16
+
+- **Mi día** es la pantalla de inicio: reuniones de hoy, pagos de la semana, cumpleaños, recordatorios, cuidados de los gatitos, tickets que vencen, correos sin leer, anime que sale, resina y reinicios de Genshin, presupuesto del mes y juegos gratis. Abajo, la copia en OneDrive.
+- **Búsqueda global (Ctrl+K)**: además de juegos, encuentra secciones, regalos, compras, pagos, cumpleaños, recordatorios, tickets, webs, anime que sigues, correos y postulaciones.
+- **Logros fáciles que te faltan** (botón en Logros): de los juegos que ya empezaste, los logros que tiene al menos 1 de cada 4 jugadores.
+- **Gratis para quedártelos** (Novedades → Juegos): juegos regalados en Steam, GOG, Epic y Prime Gaming (GamerPower), con aviso cuando sale uno nuevo.
+- **Mods** en la ficha de cada juego: los más recomendados de Nexus Mods, sin contenido para adultos.
+- **Genshin → Farmeo**: cuándo se reinician el Abismo, el Teatro, los jefes semanales y los encargos; si ya reclamaste la recompensa diaria de HoYoLAB (con aviso si se te olvida); y los personajes de los banners con «Planear farmeo».
+- **Casa → Presupuesto**: límite del mes y lo gastado (pagos pagados, compras con precio y gastos sueltos), con aviso al 90 % y al pasarte.
+- **Casa → Gatitos**: vacunas, desparasitación, antipulgas y veterinario de cada gatito, con aviso 3 días antes y el día.
+- **Lista de compras en el celular**: con «En el móvil» encendido, un QR abre la lista en el celular para verla, marcarla y añadir cosas.
+- **Ideas de regalo**: 14 y 3 días antes de un cumpleaños te recuerda los regalos que tienes anotados para esa persona.
+- **Alertas de alquiler**: con la ubicación elegida, Alquileres busca sola cada 4 horas y avisa de las publicaciones nuevas.
+- **Panel del case**: suma los pagos y cumpleaños de la semana y la portada del próximo anime.
+- **Copia en OneDrive**: una copia diaria de tus datos (sin claves ni tokens) en OneDrive\ViperTeca\Copias, se guardan las 10 últimas.
+- **Sinopsis de anime en español**: «Traducir sinopsis al español» las traduce con tu Claude Code (Haiku) una vez y quedan guardadas.
+- **Websites → Salud**: botón «Ocultar» en cada web (Fun Tapas viene oculta).
+
 ## Biblioteca familiar de Steam
 
 La biblioteca incluye también los juegos que te comparte tu **grupo familiar de Steam**, así salen completas las sagas. En **Sagas**, pulsa «Conectar con Steam»: se abre Steam en una ventana de la app, inicias sesión tú y, desde ahí, cada vez que actualizas la biblioteca se suman los juegos de la familia (solo lectura). En cada juego compartido verás de quién es.

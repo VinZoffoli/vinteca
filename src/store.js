@@ -66,6 +66,11 @@ function getSettings() {
     healthAlerts: s.healthAlerts !== false,
     vercelAlerts: s.vercelAlerts !== false,
     panelAuto: !!s.panelAuto,
+    giveawayAlerts: s.giveawayAlerts !== false,
+    checkinAlert: s.checkinAlert !== false,
+    rentAlerts: s.rentAlerts !== false,
+    cloudBackup: s.cloudBackup !== false,
+    mailAlerts: s.mailAlerts !== false,
     tempLimits: s.tempLimits || { cpu: 90, gpu: 85 },
     genshinUid: s.genshinUid || '',
     palette: s.palette || 'viper',
@@ -85,7 +90,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});

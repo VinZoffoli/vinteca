@@ -27,7 +27,8 @@ const same = (a, b) => {
 
 class LanServer {
   /** @param games () => juegos  @param launch (id) => abre el juego en el PC */
-  constructor({ games, launch, token }) {
+  constructor({ games, launch, token, shopping }) {
+    this.shopping = shopping || null;
     this.games = games;
     this.launch = launch;
     this.token = token || crypto.randomBytes(12).toString('hex');
@@ -50,7 +51,17 @@ class LanServer {
       q.make();
       qr = 'data:image/svg+xml;base64,' + Buffer.from(q.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
     }
-    return { running: true, url, qr, ip, port: this.port };
+    // lista de compras: misma dirección con /compras
+    let shopUrl = null;
+    let shopQr = null;
+    if (ip && this.shopping) {
+      shopUrl = `http://${ip}:${this.port}/compras?t=${this.token}`;
+      const q2 = qrcode(0, 'M');
+      q2.addData(shopUrl);
+      q2.make();
+      shopQr = 'data:image/svg+xml;base64,' + Buffer.from(q2.createSvgTag({ cellSize: 6, margin: 3, scalable: true })).toString('base64');
+    }
+    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr };
   }
 
   start() {
@@ -109,6 +120,12 @@ class LanServer {
         return this.send(res, 500, 'application/json', JSON.stringify({ ok: false, error: e.message }));
       }
     }
+    if (this.shopping) {
+      if (req.method === 'GET' && u.pathname === '/compras') return this.send(res, 200, 'text/html; charset=utf-8', SHOP_PAGE);
+      if (req.method === 'GET' && u.pathname === '/api/compras') return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(this.shopping.get()));
+      if (req.method === 'POST' && u.pathname === '/api/compras/toggle') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.toggle(String(u.searchParams.get('id') || '')) }));
+      if (req.method === 'POST' && u.pathname === '/api/compras/add') return this.send(res, 200, 'application/json', JSON.stringify({ ok: this.shopping.add(u.searchParams.get('name'), u.searchParams.get('qty')) }));
+    }
     this.send(res, 404, 'text/plain; charset=utf-8', 'No existe.');
   }
 }
@@ -155,6 +172,43 @@ try{const r=await fetch('/api/launch?t='+encodeURIComponent(T)+'&id='+encodeURIC
 document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{mode=b.dataset.v;document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));render()});
 $('#q').oninput=render;
 fetch('/api/games?t='+encodeURIComponent(T)).then(r=>r.json()).then(l=>{games=l;render()}).catch(()=>toast('No se pudo leer la biblioteca.'));
+</script></body></html>`;
+
+// Lista de compras en el celular (Casa → Compras)
+const SHOP_PAGE = `<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16122a">
+<title>Lista de compras</title>
+<style>
+:root{--night:#16122a;--n2:#1c1734;--line:#3a3166;--text:#f1edff;--muted:#a39cc3;--amber:#ffb547;--ink:#2a1800}
+*{box-sizing:border-box}body{margin:0;background:var(--night);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:sticky;top:0;background:rgba(22,18,42,.95);backdrop-filter:blur(10px);padding:14px 16px 12px;border-bottom:1px solid var(--line);z-index:2}
+h1{margin:0 0 10px;font-size:21px}h1 b{color:var(--amber)}
+form{display:flex;gap:8px}input{flex:1;min-width:0;padding:11px 13px;border-radius:10px;border:1px solid var(--line);background:var(--n2);color:var(--text);font:inherit}
+input.q{flex:0 0 84px}button{padding:11px 16px;border-radius:10px;border:0;background:var(--amber);color:var(--ink);font:600 15px system-ui}
+main{padding:8px 16px 40px}h2{font-size:14px;color:var(--muted);margin:18px 0 6px}
+label{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+label input{flex:none;width:22px;height:22px;accent-color:var(--amber)}label small{color:var(--muted)}
+label.done span{text-decoration:line-through;color:var(--muted)}p{color:var(--muted)}
+</style></head><body>
+<header><h1>Lista de <b>compras</b></h1>
+<form id="f"><input id="n" placeholder="Qué falta" autocomplete="off"><input id="c" class="q" placeholder="Cant."><button>Añadir</button></form></header>
+<main id="m"><p>Cargando…</p></main>
+<script>
+const t=new URLSearchParams(location.search).get('t');
+const api=(p,m)=>fetch(p+(p.includes('?')?'&':'?')+'t='+encodeURIComponent(t),{method:m||'GET'}).then(r=>r.json());
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){const d=await api('/api/compras');const m=document.getElementById('m');
+const pend=d.items.filter(x=>!x.done),done=d.items.filter(x=>x.done);
+const cats=[...new Set([...d.cats,...pend.map(x=>x.cat)])];
+let h='';for(const c of cats){const l=pend.filter(x=>x.cat===c);if(!l.length)continue;h+='<h2>'+esc(c)+'</h2>'+l.map(row).join('')}
+if(!pend.length)h+='<p>No falta nada por comprar.</p>';if(done.length)h+='<h2>Comprado</h2>'+done.map(row).join('');m.innerHTML=h;
+m.querySelectorAll('input[type=checkbox]').forEach(i=>i.onchange=async()=>{await api('/api/compras/toggle?id='+encodeURIComponent(i.dataset.id),'POST');load()})}
+function row(x){return '<label class="'+(x.done?'done':'')+'"><input type="checkbox" data-id="'+esc(x.id)+'" '+(x.done?'checked':'')+'><span>'+esc(x.name)+'</span>'+(x.qty?' <small>'+esc(x.qty)+'</small>':'')+'</label>'}
+document.getElementById('f').onsubmit=async e=>{e.preventDefault();const n=document.getElementById('n'),c=document.getElementById('c');if(!n.value.trim())return;
+await api('/api/compras/add?name='+encodeURIComponent(n.value)+'&qty='+encodeURIComponent(c.value),'POST');n.value='';c.value='';load()};
+load();setInterval(load,15000);
 </script></body></html>`;
 
 module.exports = { LanServer, localIp };

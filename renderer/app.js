@@ -1125,6 +1125,8 @@ function showView(view) {
   $('#workanaView').hidden = view !== 'workana';
   if (view === 'workana') window.workanaUI?.show();
   $('#calView').hidden = view !== 'cal';
+  $('#dayView').hidden = view !== 'day';
+  if (view === 'day') window.dayUI?.show();
   $('#linkedinView').hidden = view !== 'linkedin';
   $('#mailView').hidden = view !== 'mail';
   if (view === 'mail') window.mailUI?.show();
@@ -2021,6 +2023,9 @@ function openPick() {
 const VIEWS = [
   ['library', 'Juegos'], ['sagas', 'Sagas'], ['ach', 'Logros'], ['stats', 'Estadísticas'],
   ['news', 'Novedades'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
+  ['day', 'Mi día'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
+  ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
+  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
 ];
 let palIndex = 0;
 let palItems = [];
@@ -2028,6 +2033,7 @@ let palItems = [];
 function openPalette() {
   const p = $('#palette');
   p.hidden = false;
+  window.refreshSearchIndex?.().then(() => renderPalette($('#palInput').value));
   const input = $('#palInput');
   input.value = '';
   renderPalette('');
@@ -2053,7 +2059,8 @@ function renderPalette(q) {
     found = recentGames().slice(0, 6).map((g) => ({ kind: 'game', g }));
   }
   const views = VIEWS.filter(([, l]) => !t || normTitle(l).startsWith(t)).slice(0, t ? 3 : 0).map(([v, l]) => ({ kind: 'view', v, l }));
-  palItems = [...found, ...views];
+  const extra = t ? window.paletteExtra?.(q) || [] : [];
+  palItems = [...found, ...views, ...extra];
   palIndex = Math.min(palIndex, Math.max(0, palItems.length - 1));
   $('#palList').replaceChildren(
     ...(palItems.length
@@ -2063,7 +2070,9 @@ function renderPalette(q) {
             { class: `pal-item${i === palIndex ? ' on' : ''}`, onclick: () => runPalette(i, false), onmouseenter: () => { palIndex = i; renderPaletteSel(); } },
             it.kind === 'game'
               ? [h('span', { class: 'pal-cover' }, it.g.cover ? coverImg(it.g) : null), h('span', { class: 'pal-title', text: it.g.title }), h('span', { class: 'pal-hint', text: it.g.installed ? 'Enter: jugar' : 'Enter: ficha' })]
-              : [h('span', { class: 'pal-cover' }), h('span', { class: 'pal-title', text: `Ir a ${it.l}` }), h('span', { class: 'pal-hint', text: 'Sección' })]
+              : it.kind === 'extra'
+                ? [h('span', { class: 'pal-cover' }), h('span', { class: 'pal-title', text: it.label }), h('span', { class: 'pal-hint', text: it.hint })]
+                : [h('span', { class: 'pal-cover' }), h('span', { class: 'pal-title', text: `Ir a ${it.l}` }), h('span', { class: 'pal-hint', text: 'Sección' })]
           )
         )
       : [h('p', { class: 'hint pal-empty', text: 'Ningún juego con ese nombre.' })])
@@ -2077,6 +2086,7 @@ function runPalette(i, sheet) {
   if (!it) return;
   closePalette();
   if (it.kind === 'view') return showView(it.v);
+  if (it.kind === 'extra') return it.run();
   if (sheet || !it.g.installed) return openGame(it.g);
   launch(it.g);
 }
@@ -2147,6 +2157,7 @@ function renderNews() {
     box,
     tabs,
     n.error ? h('p', { class: 'hint bad', text: n.error }) : null,
+    window.giveawaysSection?.(),
     rel.length ? h('section', { class: 'nw-rels-wrap' }, h('h2', { class: 'section-h', text: 'Próximos lanzamientos de tu lista de deseados' }), h('div', { class: 'nw-rels' }, rel)) : null,
     h('div', { class: 'toolbar flat nw-filter' },
       h('h2', { class: 'section-h', text: 'Anuncios de tus juegos' }),
@@ -3413,6 +3424,7 @@ function fillGameExtras(g) {
   fillGameNews(g);
   fillGameShots(g);
   fillGameSaves(g);
+  window.fillGameMods?.(g);
 }
 
 // ---------- valoraciones ----------
@@ -3878,7 +3890,8 @@ function renderGame() {
     slot('gameSimilar'),
     slot('gameNews'),
     slot('gameShots'),
-    slot('gameSaves')
+    slot('gameSaves'),
+    slot('gameMods')
   );
 }
 
