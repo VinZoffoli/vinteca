@@ -145,7 +145,12 @@
           h('div', {}, h('b', { text: p?.onTimePct != null ? p.onTimePct + '%' : '—' }), h('span', { text: 'a tiempo (30 días)' })),
           h('div', {}, h('b', { text: p?.avgDays != null ? String(p.avgDays).replace('.', ',') + ' d' : '—' }), h('span', { text: 'por ticket' }))
         ),
-        p ? h('div', { class: 'sq-pace' }, h('span', { class: 'hint', text: 'Cerrados por semana' }), spark(closed), h('b', { text: closed[3] + ' esta semana' })) : h('p', { class: 'hint', text: d.notion ? 'No encontré a ' + sq.leader + ' como Responsible en los tickets.' : 'Conecta Notion para ver su ritmo.' }),
+        p ? h('div', { class: 'sq-pace' }, h('span', { class: 'hint', text: 'Cerrados por semana' }), spark(closed), h('b', { text: closed[3] + ' esta semana' })) : h('p', { class: 'hint', text: d.notion ? (S.busy ? 'Leyendo los tickets de ' + sq.leader + '…' : 'No encontré a ' + sq.leader + ' como Responsible en los tickets.') : 'Conecta Notion para ver su ritmo.' }),
+        p?.tickets?.length ? h('div', { class: 'sq-sec' }, h('p', { class: 'sq-sec-h', text: 'Tickets abiertos de ' + sq.leader.split(' ')[0] }), h('ul', { class: 'sq-tk' }, p.tickets.slice(0, 6).map((t) => h('li', { class: t.late ? 'late' : '' }, h('button', { class: 'link-btn', text: t.title, title: 'Abrir en Notion', onclick: () => window.api.open(t.url) }), h('b', { text: t.late ? 'vencido ' + t.deadline.slice(5).split('-').reverse().join('/') : t.deadline ? t.deadline.slice(5).split('-').reverse().join('/') : t.status })))), p.tickets.length > 6 && h('p', { class: 'hint', text: 'y ' + (p.open - 6) + ' más' })) : null,
+        (() => {
+          const doing = sq.webs.list.filter((w) => w.group === 'doing' || w.group === 'todo' || w.group === 'stopped');
+          return doing.length ? h('div', { class: 'sq-sec' }, h('p', { class: 'sq-sec-h', text: 'Webs en el pipeline (' + doing.length + ')' }), h('ul', { class: 'sq-webs' }, doing.map((w) => h('li', { class: 'g-' + w.group }, h('span', { text: w.name }), h('em', { text: w.status }))))) : null;
+        })(),
         h('div', { class: 'sq-row' },
           h('div', {}, h('b', { text: String(sq.webs.live) }), h('span', { text: 'webs publicadas' })),
           h('div', {}, h('b', { text: String(sq.webs.doing) }), h('span', { text: 'en curso' })),
@@ -155,7 +160,7 @@
         sq.issues.top.length
           ? h('ul', { class: 'sq-issues' }, sq.issues.top.map((i) => h('li', { class: 'sev-' + i.sev }, h('span', { class: 'wa-sev ' + SEV[i.sev][1], text: SEV[i.sev][0] }), h('span', { text: i.name + ': ' + i.title }))))
           : h('p', { class: 'sq-clean', text: 'Sus webs no tienen errores críticos.' }),
-        p?.tickets?.length ? h('details', { class: 'sq-tickets' }, h('summary', { text: 'Tickets de ' + sq.leader.split(' ')[0] + ' (' + p.open + ')' }), h('ul', { class: 'dy-list' }, p.tickets.map((t) => h('li', { class: t.late ? 'hot' : '' }, h('span', { text: t.title }), h('b', { text: t.late ? 'vencido' : t.deadline || t.status }))))) : null
+        null
       );
     };
     const max = Math.max(1, ...d.squads.map((s) => (s.person?.closed || []).reduce((a, b) => a + b, 0)));
@@ -163,7 +168,8 @@
       h('div', { class: 'toolbar flat' },
         h('button', { class: 'btn ghost small', disabled: S.busy, text: S.busy ? 'Actualizando…' : 'Actualizar', onclick: () => sLoad(true) }),
         h('span', { class: 'hint', text: [d.team ? 'Notion: ' + d.team.openTotal + ' tickets abiertos en el equipo, leídos ' + relTime(d.team.at / 1000) : d.notion ? 'Leyendo Notion…' : 'Notion sin conectar', d.vercel ? null : 'Vercel sin conectar (deploys en 0)'].filter(Boolean).join(' · ') }),
-        d.teamError && h('span', { class: 'hint bad', text: d.teamError })
+        d.teamError && h('span', { class: 'hint bad', text: d.teamError }),
+        d.team?.errors?.length ? h('span', { class: 'hint', text: d.team.errors.join(' · ') }) : null
       ),
       h('div', { class: 'sq-grid' }, d.squads.map(card)),
       h('section', { class: 'rx-card sq-compare' },

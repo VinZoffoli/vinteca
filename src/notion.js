@@ -417,40 +417,59 @@ async function users(ctx) {
   return map;
 }
 /**
- * Tickets abiertos de todo el equipo y los terminados del último mes, por persona:
- * abiertos, vencidos, cerrados por semana, puntualidad y días medios de resolución.
+ * Tickets de cada responsable (uno por squad): abiertos, vencidos, cerrados por
+ * semana, puntualidad y días medios. Se pregunta a Notion por cada persona.
+ * @param leaders { a: 'Vincenzo', b: 'Camila Jouce', … }
  */
-async function team(ctx, force) {
+async function team(ctx, force, leaders = {}) {
   const c = ctx.read('notion-team.json', null);
   if (!force && c && Date.now() - c.at < 30 * 60000) return c;
+  const names = await users(ctx).catch(() => ({}));
+  const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const dashed = (id) => id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+  const findId = (leader) => {
+    const n = norm(leader);
+    const all = Object.entries(names);
+    return (all.find(([, v]) => norm(v) === n) || all.find(([, v]) => norm(v).startsWith(n + ' ')) || all.find(([, v]) => norm(v).startsWith(n)) || [])[0] || null;
+  };
   const notDone = { type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is_not', value: [{ type: 'is_option', value: 'Done' }, { type: 'is_option', value: 'Canceled' }] };
-  const done = { type: 'group', operator: 'and', filters: [{ type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is', value: { type: 'is_option', value: 'Done' } }, { type: 'property', property: 'Last edited time', propertyType: 'last_edited_time', operator: 'date_is_on_or_after', value: { type: 'relative', value: 'one_month_ago' } }] };
-  const [open, closed, names] = await Promise.all([
-    rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: notDone, limit: 100 }),
-    rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: done, limit: 100 }).catch(() => []),
-    users(ctx).catch(() => ({})),
-  ]);
+  const doneMonth = [{ type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is', value: { type: 'is_option', value: 'Done' } }, { type: 'property', property: 'Last edited time', propertyType: 'last_edited_time', operator: 'date_is_on_or_after', value: { type: 'relative', value: 'one_month_ago' } }];
   const now = Date.now();
   const today = new Date().toLocaleDateString('sv');
-  const P = {};
-  const person = (id) => (P[id] ||= { id, name: names[id] || 'Persona ' + id.slice(0, 6), open: 0, late: 0, soon: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] });
-  for (const r of open) {
-    const t = ticket(r);
-    for (const id of ids(r.Responsible)) {
-      const p = person(id);
-      p.open++;
-      if (t.deadline && t.deadline < today) p.late++;
-      else if (t.deadline && new Date(t.deadline + 'T23:59:59').getTime() - now < 3 * 86400000) p.soon++;
-      p.tickets.push({ title: t.title, deadline: t.deadline, status: t.status, url: t.url, late: !!(t.deadline && t.deadline < today) });
+  const people = [];
+  const errors = [];
+  for (const [squad, leader] of Object.entries(leaders)) {
+    const id = findId(leader);
+    if (!id) {
+      errors.push(leader + ' no aparece entre las personas de Notion');
+      continue;
     }
-  }
-  for (const r of closed) {
-    const t = ticket(r);
-    const end = t.edited ? new Date(t.edited).getTime() : null;
-    if (!end) continue;
-    const week = Math.floor((now - end) / (7 * 86400000));
-    for (const id of ids(r.Responsible)) {
-      const p = person(id);
+    const who = { type: 'property', property: 'Responsible', propertyType: 'person', operator: 'person_contains', value: { type: 'exact', value: 'user://' + dashed(id) } };
+    let open = [];
+    let closed = [];
+    try {
+      [open, closed] = await Promise.all([
+        rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: { type: 'group', operator: 'and', filters: [who, notDone] }, sort: [{ property: 'Deadline', direction: 'ascending' }], limit: 100 }),
+        rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: { type: 'group', operator: 'and', filters: [who, ...doneMonth] }, limit: 100 }).catch(() => []),
+      ]);
+    } catch (e) {
+      errors.push(leader + ': ' + e.message);
+      continue;
+    }
+    const p = { id, squad, leader, name: names[id] || leader, open: 0, late: 0, soon: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] };
+    for (const r of open) {
+      const t = ticket(r);
+      p.open++;
+      const late = !!(t.deadline && t.deadline < today);
+      if (late) p.late++;
+      else if (t.deadline && new Date(t.deadline + 'T23:59:59').getTime() - now < 3 * 86400000) p.soon++;
+      p.tickets.push({ title: t.title.replace(/\*\*|\\\|/g, '').replace(/\s+/g, ' ').trim(), deadline: t.deadline, status: t.status, url: t.url, late });
+    }
+    for (const r of closed) {
+      const t = ticket(r);
+      const end = t.edited ? new Date(t.edited).getTime() : null;
+      if (!end) continue;
+      const week = Math.floor((now - end) / (7 * 86400000));
       if (week >= 0 && week < 4) p.closed[3 - week]++;
       if (t.deadline) {
         p.withDeadline++;
@@ -458,20 +477,22 @@ async function team(ctx, force) {
       }
       if (t.created) p.days.push((end - new Date(t.created).getTime()) / 86400000);
     }
+    people.push({
+      id: p.id,
+      squad,
+      leader,
+      name: p.name,
+      open: p.open,
+      late: p.late,
+      soon: p.soon,
+      closed: p.closed,
+      onTimePct: p.withDeadline ? Math.round((p.onTime / p.withDeadline) * 100) : null,
+      avgDays: p.days.length ? Math.round((p.days.reduce((x, y) => x + y, 0) / p.days.length) * 10) / 10 : null,
+      tickets: p.tickets.sort((x, y) => Number(y.late) - Number(x.late) || String(x.deadline || '9').localeCompare(String(y.deadline || '9'))).slice(0, 15),
+    });
   }
-  const people = Object.values(P).map((p) => ({
-    id: p.id,
-    name: p.name,
-    open: p.open,
-    late: p.late,
-    soon: p.soon,
-    closed: p.closed,
-    onTimePct: p.withDeadline ? Math.round((p.onTime / p.withDeadline) * 100) : null,
-    avgDays: p.days.length ? Math.round((p.days.reduce((a, b) => a + b, 0) / p.days.length) * 10) / 10 : null,
-    tickets: p.tickets.sort((a, b) => String(a.deadline || '9').localeCompare(String(b.deadline || '9'))).slice(0, 12),
-  }));
-  const out = { at: Date.now(), people, openTotal: open.length, closedTotal: closed.length };
-  ctx.write('notion-team.json', out);
+  const out = { at: Date.now(), people, errors, openTotal: people.reduce((x, p) => x + p.open, 0), closedTotal: people.reduce((x, p) => x + p.closed.reduce((y, z) => y + z, 0), 0) };
+  if (people.length) ctx.write('notion-team.json', out);
   return out;
 }
 

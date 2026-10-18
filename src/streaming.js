@@ -76,15 +76,48 @@ const NETFLIX_READ = `(async () => {
 })()`;
 // Si la API interna no responde, se lee la página «Actividad de visionado»
 const NETFLIX_DOM = `(async () => {
-  for (let i = 0; i < 6; i++) {
-    const more = [...document.querySelectorAll('button')].find((b) => /mostrar m|show more/i.test(b.textContent));
-    if (!more) break;
+  let last = -1;
+  for (let i = 0; i < 30; i++) {
+    const rows = document.querySelectorAll('li.retableRow, .retable li').length;
+    const more = [...document.querySelectorAll('button')].find((b) => /mostrar m|ver m|show more|load more/i.test(b.textContent));
+    if (!more || rows === last) break;
+    last = rows;
     more.click();
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1300));
   }
   const rows = [...document.querySelectorAll('li.retableRow, .retable li')];
-  return rows.map((r) => ({ date: (r.querySelector('.date, .col.date') || {}).textContent || '', title: ((r.querySelector('.title a, .col.title a') || {}).textContent || '').trim() })).filter((x) => x.title);
+  return rows.map((r) => {
+    const a = r.querySelector('.title a, .col.title a, a[href*="/title/"]');
+    const m = a && (a.getAttribute('href') || '').match(/title\/(\d+)/);
+    return { date: ((r.querySelector('.date, .col.date') || {}).textContent || '').trim(), title: ((a || {}).textContent || '').trim(), id: m ? m[1] : null };
+  }).filter((x) => x.title);
 })()`;
+// "17/10/26" o "17/10/2026" (día/mes/año, como lo muestra Netflix en español)
+function dmy(s) {
+  const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (!m) return null;
+  const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const t = new Date(y, Number(m[2]) - 1, Number(m[1]), 12).getTime();
+  return t > Date.now() + 86400000 ? new Date(y, Number(m[1]) - 1, Number(m[2]), 12).getTime() : t;
+}
+const UA2 = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
+/** Título en inglés y carátula de la ficha pública de Netflix (sin tu sesión). */
+async function nfPublic({ read, write }, id) {
+  const cache = read('streaming-meta.json', {});
+  const k = 'nf:' + id;
+  if (cache[k] && Date.now() - cache[k].at < 30 * 86400000) return cache[k];
+  const out = { at: Date.now() };
+  try {
+    const html = await fetch('https://www.netflix.com/cr-en/title/' + id, { headers: { 'User-Agent': UA2, 'Accept-Language': 'en-US,en;q=0.9' }, signal: AbortSignal.timeout(15000) }).then((r) => (r.ok ? r.text() : ''));
+    const h1 = html.match(/<h1[^>]*>([^<]+)</);
+    const img = html.match(/https:\/\/occ-[^"'\s]+?\.(?:jpg|webp)\?r=[a-z0-9]+/i);
+    if (h1) out.title = h1[1].replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").trim();
+    if (img) out.cover = img[0];
+  } catch {}
+  cache[k] = out;
+  write('streaming-meta.json', cache);
+  return out;
+}
 function parseNetflixTitle(t) {
   // "Serie: Temporada 2: «Episodio»" o "Serie: Parte 1: Episodio 3"
   const parts = String(t).split(': ');
@@ -107,10 +140,27 @@ async function readNetflix() {
     await w.loadURL('https://www.netflix.com/viewingactivity');
     await sleep(4000);
     const rows = (await w.webContents.executeJavaScript(NETFLIX_DOM, true).catch(() => [])) || [];
-    r.items = rows.map((x) => ({ ...parseNetflixTitle(x.title), title: x.title, date: Date.parse(x.date) || null }));
+    r.items = rows.map((x) => ({ ...parseNetflixTitle(x.title), title: x.title, date: dmy(x.date), seriesId: x.id || null }));
     await w.loadURL('https://www.netflix.com/browse');
   }
   return { platform: 'netflix', profile: r.profile, items: r.items };
+}
+/** Completa títulos en inglés y carátulas de las series y películas recientes. */
+async function nfDecorate(ctx, items) {
+  const ids = [...new Set(items.map((i) => i.seriesId).filter(Boolean))].slice(0, 60);
+  let i = 0;
+  const map = {};
+  await Promise.all(Array.from({ length: 4 }, async () => {
+    while (i < ids.length) {
+      const id = ids[i++];
+      map[id] = await nfPublic(ctx, id);
+    }
+  }));
+  for (const it of items) {
+    const m = it.seriesId && map[it.seriesId];
+    if (m) Object.assign(it, { enTitle: m.title || null, image: it.image || m.cover || null });
+  }
+  return items;
 }
 
 // ---------------- Crunchyroll ----------------
@@ -163,19 +213,41 @@ function summarize(read) {
     const key = norm(it.series || it.title);
     if (!key) continue;
     const cur = by.get(key);
-    if (!cur || (it.date || 0) > (cur.last.date || 0)) by.set(key, { key, name: it.series || it.title, movie: !it.series && !it.episode, last: it, count: (cur?.count || 0) + 1 });
-    else cur.count++;
+    // el historial viene del más reciente al más viejo: sin fecha, gana el primero
+    if (!cur) by.set(key, { key, name: it.series || it.title, movie: !it.series && !it.episode, last: it, count: 1, all: [it] });
+    else {
+      cur.count++;
+      cur.all.push(it);
+      if ((it.date || 0) > (cur.last.date || 0)) cur.last = it;
+    }
   }
-  for (const v of by.values()) out.push(v);
+  for (const v of by.values()) {
+    // capítulos distintos vistos en la temporada del último (para estimar por dónde va)
+    const season = v.last.season;
+    v.seenInSeason = new Set(v.all.filter((x) => x.season === season).map((x) => x.episode || x.episodeTitle || x.title)).size;
+    delete v.all;
+    out.push(v);
+  }
   return out.sort((a, b) => (b.last.date || 0) - (a.last.date || 0));
+}
+
+// número del capítulo en el título: "N.º 16", "Episodio 3", "Capítulo cuatro", "3. Título"
+const WORDS = { uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15 };
+function epNumber(t) {
+  const s = String(t || '');
+  const m = s.match(/(?:n\.?\s?º|nº|no\.|#|episodio|cap[ií]tulo|ep\.?)\s*(\d+)/i) || s.match(/^(\d+)[.:)]/);
+  if (m) return Number(m[1]);
+  const w = s.toLowerCase().match(/cap[ií]tulo\s+([a-zé]+)/);
+  return w && WORDS[w[1]] ? WORDS[w[1]] : null;
 }
 
 /** Cuántos capítulos faltan: anime en AniList, series en TVmaze (caché de 3 días). */
 async function enrich({ read, write }, entry, platform) {
   const cache = read('streaming-meta.json', {});
-  const ck = platform + ':' + entry.key;
+  const ck = 'v2:' + platform + ':' + entry.key;
   let meta = cache[ck];
-  if (!meta || Date.now() - meta.at > 3 * 86400000) {
+  // lo encontrado dura 3 días; si no se encontró, se vuelve a intentar a las 6 horas
+  if (!meta || Date.now() - meta.at > (meta.source ? 3 * 86400000 : 6 * 3600000)) {
     meta = { at: Date.now() };
     try {
       if (platform === 'crunchyroll') {
@@ -184,8 +256,20 @@ async function enrich({ read, write }, entry, platform) {
         const m = j.data?.Media;
         if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
       } else if (!entry.movie) {
-        const s = await fetch('https://api.tvmaze.com/singlesearch/shows?q=' + encodeURIComponent(entry.name) + '&embed=episodes', { headers: { 'User-Agent': 'ViperTeca/1.23' }, signal: AbortSignal.timeout(12000) }).then((r) => (r.ok ? r.json() : null));
+        const names = [...new Set([entry.last.enTitle, entry.name].filter(Boolean))];
+        let s = null;
+        for (const n of names) {
+          s = await fetch('https://api.tvmaze.com/singlesearch/shows?q=' + encodeURIComponent(n) + '&embed=episodes', { headers: { 'User-Agent': 'ViperTeca/1.23' }, signal: AbortSignal.timeout(12000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+          if (s) break;
+        }
         if (s) Object.assign(meta, { source: 'TVmaze', status: s.status, cover: s.image?.medium || null, url: s.url, episodes: (s._embedded?.episodes || []).map((e) => ({ s: e.season, n: e.number, name: e.name, at: e.airstamp ? Date.parse(e.airstamp) : null })) });
+        else {
+          // anime en Netflix: AniList con el título en inglés
+          const q = 'query($s:String){Media(search:$s,type:ANIME){episodes status nextAiringEpisode{episode airingAt} coverImage{large} siteUrl}}';
+          const j = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { s: names[0] } }), signal: AbortSignal.timeout(12000) }).then((r) => r.json()).catch(() => null);
+          const m = j?.data?.Media;
+          if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
+        }
       }
     } catch {}
     cache[ck] = meta;
@@ -207,20 +291,23 @@ async function enrich({ read, write }, entry, platform) {
   } else if (meta.episodes?.length) {
     const aired = meta.episodes.filter((e) => !e.at || e.at < Date.now());
     total = aired.length;
-    const sNum = Number(String(last.season || '').match(/\d+/)?.[0]) || null;
+    const sNum = Number(String(last.season || '').match(/\d+/)?.[0]) || (aired.some((e) => e.s === 1) ? 1 : aired[0]?.s) || 1;
     const name = norm(last.episode || last.episodeTitle);
     let idx = aired.findIndex((e) => name && norm(e.name) === name);
-    if (idx < 0 && sNum && last.episode && /^\d+$/.test(String(last.episode))) idx = aired.findIndex((e) => e.s === sNum && e.n === Number(last.episode));
+    const num = epNumber(last.episode || last.episodeTitle);
+    if (idx < 0 && num) idx = aired.findIndex((e) => e.s === sNum && e.n === num);
+    // sin número: se cuenta por los capítulos distintos que ya viste de esa temporada
+    if (idx < 0 && entry.seenInSeason) idx = aired.findIndex((e) => e.s === sNum && e.n === Math.min(entry.seenInSeason, aired.filter((x) => x.s === sNum).length));
     if (idx >= 0) left = aired.length - idx - 1;
     const upcoming = meta.episodes.find((e) => e.at && e.at > Date.now());
     if (upcoming) next = { at: upcoming.at, label: 'T' + upcoming.s + ' E' + upcoming.n };
   } else if (meta.total) {
     total = meta.total;
-    const ep = Number(last.episode) || null;
+    const ep = Number(last.episode) || epNumber(last.episode || last.episodeTitle) || entry.seenInSeason || null;
     if (ep) left = Math.max(0, meta.total - ep);
     if (meta.next) next = { at: meta.next.at, label: 'Episodio ' + meta.next.ep };
   }
   return { ...entry, platform, cover: last.image || last.nfCover || meta.cover || null, url: meta.url || null, total, left, next, status: meta.status || (meta.airing ? 'Running' : null) };
 }
 
-module.exports = { open, readNetflix, readCrunchyroll, summarize, enrich };
+module.exports = { open, readNetflix, readCrunchyroll, summarize, enrich, nfDecorate, dmy, epNumber };

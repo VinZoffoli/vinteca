@@ -70,7 +70,7 @@
         h('b', { class: 'vw-title', text: s.name }),
         h('small', { class: 'hint', text: [WHO[s.who], s.movie ? 'película' : [last.season, ep && (typeof ep === 'number' ? 'episodio ' + ep : '«' + ep + '»')].filter(Boolean).join(' · '), last.date ? dShort(last.date) : null].filter(Boolean).join(' · ') }),
         pct != null ? h('div', { class: 'vw-bar' }, h('i', { style: { width: pct + '%' } })) : null,
-        s.movie ? null : h('p', { class: 'vw-left ' + (s.left === 0 ? 'done' : '') }, s.left == null ? (s.total ? s.total + ' capítulos en total' : 'No sé cuántos capítulos tiene') : s.left === 0 ? (s.next ? 'Al día: el siguiente sale ' + relTime(s.next.at / 1000) : 'La terminaste') : 'Te faltan ' + plural(s.left, 'capítulo', 'capítulos')),
+        s.movie ? null : h('p', { class: 'vw-left ' + (s.left === 0 ? 'done' : '') }, s.left == null ? (s.total ? s.total + ' capítulos en total' : 'Sin datos de capítulos todavía') : s.left === 0 ? (s.next ? 'Al día: el siguiente sale ' + relTime(s.next.at / 1000) : 'La terminaste') : 'Te faltan ' + plural(s.left, 'capítulo', 'capítulos')),
         s.next && s.left !== 0 ? h('small', { class: 'hint', text: 'Nuevo: ' + s.next.label + ' ' + relTime(s.next.at / 1000) }) : null
       )
     );
@@ -79,7 +79,7 @@
     const a = V.data?.ai?.data;
     return h('section', { class: 'vw-ai' },
       h('div', { class: 'ai-head' },
-        h('div', {}, h('h2', { class: 'section-h', text: 'Qué ver después y lo que se estrena' }), h('p', { class: 'hint', text: 'Tu Claude Code mira lo que vieron los dos y busca en la web qué sigue y los estrenos de Netflix y Crunchyroll.' })),
+        h('div', {}, h('h2', { class: 'section-h', text: 'Para ver ahora' }), h('p', { class: 'hint', text: 'Según lo que vieron los dos: con qué seguir, qué ver juntos y lo que se estrena pronto en Netflix y Crunchyroll.' })),
         h('div', { class: 'ai-tools' }, V.data?.ai && h('span', { class: 'hint', text: 'Actualizado ' + relTime(V.data.ai.at / 1000) }), h('button', { class: a ? 'btn ghost small' : 'btn primary small', disabled: V.aiBusy, text: V.aiBusy ? 'Buscando…' : a ? 'Volver a buscar' : 'Preparar', onclick: ai }))
       ),
       V.aiBusy && !a ? h('div', { class: 'ai-wait' }, h('span', { class: 'as-dots' }, h('i'), h('i'), h('i')), h('span', { text: 'Leyendo su historial y buscando estrenos. Tarda uno o dos minutos.' })) : null,
@@ -101,18 +101,38 @@
       return;
     }
     if (!V.data) return fill(box, h('div', { class: 'vw-conns' }, [1, 2].map(() => h('div', { class: 'skel', style: { height: '200px', borderRadius: '16px' } }))), h('p', { class: 'hint', text: 'Leyendo lo que están viendo y buscando cuántos capítulos faltan…' }));
+    // las recomendaciones se preparan solas una vez si no hay o son viejas
+    const ai = V.data?.ai;
+    if (V.data?.shows?.length && !V.aiBusy && !V.aiAuto && (!ai || Date.now() - ai.at > 3 * 86400000)) {
+      V.aiAuto = true;
+      setTimeout(ai_, 0);
+    }
     const shows = (V.data?.shows || []).filter((s) => V.who === 'all' || s.who === V.who);
     const going = shows.filter((s) => !s.movie && s.left !== 0);
-    const ready = shows.filter((s) => !s.movie && s.left === 0);
+    const upToDate = shows.filter((s) => !s.movie && s.left === 0 && s.next);
+    const finished = shows.filter((s) => !s.movie && s.left === 0 && !s.next);
     const movies = shows.filter((s) => s.movie).slice(0, 12);
+    const old = (V.data?.accounts || []).filter((a) => a.old);
     fill(box,
-      h('div', { class: 'vw-conns' }, connectCard('netflix'), connectCard('crunchyroll')),
+      old.length ? h('div', { class: 'vw-note' }, h('b', { text: 'Vuelve a leer Netflix' }), h('span', { text: 'Ahora trae carátulas, el título original y cuántos capítulos te faltan. Abre Netflix, elige el perfil de ' + old.map((a) => WHO[a.who]).join(' y ') + ' y pulsa «Volver a leer».' })) : null,
       V.data?.shows?.length ? h('div', { class: 'toolbar flat' }, h('div', { class: 'seg' }, [['all', 'Los dos'], ['vincenzo', 'Vincenzo'], ['emily', 'Emily']].map(([k, l]) => h('button', { class: V.who === k ? 'on' : '', text: l, onclick: () => { V.who = k; render(); } }))), h('button', { class: 'btn subtle small', disabled: V.busy, text: V.busy ? 'Actualizando…' : 'Actualizar', onclick: load })) : null,
+      V.data?.shows?.length ? aiBlock() : null,
       going.length ? [h('h2', { class: 'section-h', text: 'Siguen viendo' }), h('div', { class: 'vw-grid' }, going.slice(0, 18).map(showCard))] : null,
-      ready.length ? [h('h2', { class: 'section-h', text: 'Al día o terminadas' }), h('div', { class: 'vw-grid' }, ready.slice(0, 12).map(showCard))] : null,
-      movies.length ? [h('h2', { class: 'section-h', text: 'Películas recientes' }), h('div', { class: 'vw-grid' }, movies.map(showCard))] : null,
-      V.data?.shows?.length ? aiBlock() : h('p', { class: 'empty' }, h('b', { text: 'Conecta un perfil' }), 'Abre Netflix o Crunchyroll arriba, inicia sesión, elige el perfil y pulsa «Leer».')
+      upToDate.length ? [h('h2', { class: 'section-h', text: 'Al día, esperando capítulo' }), h('div', { class: 'vw-grid' }, upToDate.slice(0, 12).map(showCard))] : null,
+      finished.length ? [h('h2', { class: 'section-h', text: 'Terminadas' }), h('div', { class: 'vw-grid' }, finished.slice(0, 12).map(showCard))] : null,
+      movies.length ? [h('h2', { class: 'section-h', text: 'Películas vistas' }), h('div', { class: 'vw-grid' }, movies.map(showCard))] : null,
+      V.data?.shows?.length ? null : h('p', { class: 'empty' }, h('b', { text: 'Conecta un perfil' }), 'Abre Netflix o Crunchyroll abajo, inicia sesión, elige el perfil y pulsa «Leer».'),
+      h('h2', { class: 'section-h', text: 'Cuentas' }),
+      h('div', { class: 'vw-conns' }, connectCard('netflix'), connectCard('crunchyroll'))
     );
   }
+  const ai_ = ai;
+  // al terminar de leer un perfil, la app prepara las recomendaciones en segundo plano
+  window.api.stream.onAi?.(async () => {
+    try {
+      V.data = { ...(V.data || {}), ai: await window.api.stream.get().then((d) => d.ai) };
+      render();
+    } catch {}
+  });
   window.viendoUI = { show: render };
 })();

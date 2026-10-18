@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.23.1
+
+- **Viendo**: Netflix ahora trae la carátula y el título original de cada serie y película, lee todo el historial (no solo lo último) y las fechas bien. Los capítulos que faltan se calculan con el título original en TVmaze (o AniList para el anime), por el número del capítulo o, si no lo tiene, por los capítulos distintos que viste de esa temporada. Arriba sale **Para ver ahora** (las recomendaciones se preparan solas después de leer un perfil), y abajo *Siguen viendo*, *Al día, esperando capítulo*, *Terminadas* y *Películas vistas*. Si leíste Netflix con la 1.23, vuelve a leer el perfil una vez.
+- **Squads**: cada tarjeta lee de Notion los tickets de su responsable (abiertos, vencidos, los que vencen pronto y los cerrados del último mes) y muestra la lista de tickets abiertos (los vencidos primero, con su fecha) y las webs del squad que están en el pipeline con su estado.
+
 ## Novedades de la 1.23
 
 - **Viendo (Netflix y Crunchyroll)**: inicias sesión tú en una ventana de la app, eliges el perfil y pulsas «Leer como Vincenzo» o «Leer como Emily». ViperTeca lee el historial de visionado de ese perfil (solo lectura) y muestra lo que siguen viendo, el último capítulo visto, cuántos capítulos faltan (de Netflix mismo, de AniList para el anime y de TVmaze), cuándo sale el siguiente si la serie sigue en emisión, lo que está al día o terminado y las películas recientes.

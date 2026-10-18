@@ -223,6 +223,21 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_NFTEST) {
+        try {
+          const w = streaming.open('netflix');
+          await wait(9000);
+          log('NF url ' + w.webContents.getURL());
+          const probe = await w.webContents.executeJavaScript(`(async () => { const m = window.netflix && window.netflix.reactContext && window.netflix.reactContext.models; const b = m && m.serverDefs && m.serverDefs.data && m.serverDefs.data.BUILD_IDENTIFIER; const out = { hasCtx: !!m, build: b || null, who: m && m.userInfo && m.userInfo.data && { name: m.userInfo.data.name, status: m.userInfo.data.membershipStatus } }; if (b) { const r = await fetch('/api/shakti/' + b + '/viewingactivity?pg=0&pgSize=5', { credentials: 'include' }); out.shakti = r.status; out.shaktiBody = (await r.text()).slice(0, 300); } return out; })()`, true).catch((e) => ({ err: e.message }));
+          log('NF probe ' + JSON.stringify(probe));
+          await w.loadURL('https://www.netflix.com/viewingactivity');
+          await wait(5000);
+          const dom = await w.webContents.executeJavaScript(`(() => { const rows = [...document.querySelectorAll('li.retableRow, .retable li')]; return { n: rows.length, sample: rows.slice(0, 3).map((r) => r.outerHTML.slice(0, 500)) }; })()`, true).catch((e) => ({ err: e.message }));
+          log('NF dom ' + JSON.stringify(dom));
+          w.destroy();
+        } catch (e) { log('[error] nf ' + e.message); }
+        return app.quit();
+      }
       if (process.env.BJ_CRAWL) {
         for (const s of healthSites().slice(0, Number(process.env.BJ_CRAWL) || 3)) {
           const t0 = Date.now();
@@ -3687,7 +3702,8 @@ ipcMain.handle('squads:get', async (_e, force) => {
   let teamError = null;
   if (notion.linked(store.read)) {
     try {
-      team = await notion.team(rx, !!force);
+      team = await notion.team(rx, !!force, SQUAD_LEADERS);
+      if (team.errors?.length && !team.people.length) teamError = team.errors.join(' · ');
     } catch (e) {
       teamError = e.message;
       team = store.read('notion-team.json', null);
@@ -3698,7 +3714,7 @@ ipcMain.handle('squads:get', async (_e, force) => {
   const st = alertsState();
   const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const squads = Object.entries(SQUAD_LEADERS).map(([k, leader]) => {
-    const person = (team?.people || []).find((p) => norm(p.name).includes(norm(leader).split(' ')[0]) && (leader.split(' ').length < 2 || norm(p.name).includes(norm(leader).split(' ')[1].slice(0, 4)))) || (team?.people || []).find((p) => norm(p.name).startsWith(norm(leader).split(' ')[0]));
+    const person = (team?.people || []).find((p) => p.squad === k) || null;
     const webs = pipe.filter((r) => (String(r.squad || '').match(/squad\s*([a-d])/i)?.[1] || String(r.repo || '').match(/website-([a-d])-/i)?.[1] || '').toLowerCase() === k);
     const projects = vc.filter((p) => String(p.repo || p.name || '').match(/website-([a-d])-/i)?.[1]?.toLowerCase() === k);
     const weekAgo = Date.now() - 7 * 86400000;
@@ -3707,12 +3723,12 @@ ipcMain.handle('squads:get', async (_e, force) => {
       key: k,
       leader,
       person: person || null,
-      webs: { total: webs.length, live: webs.filter((r) => r.group === 'done' || /live/i.test(r.status)).length, doing: webs.filter((r) => r.group === 'doing').length, stopped: webs.filter((r) => r.group === 'stopped').length, list: webs.map((r) => ({ name: r.name, status: r.status, group: r.group, production: r.production })) },
+      webs: { total: webs.length, live: webs.filter((r) => r.group === 'done' || /live/i.test(r.status)).length, doing: webs.filter((r) => r.group === 'doing').length, stopped: webs.filter((r) => r.group === 'stopped').length, todo: webs.filter((r) => r.group === 'todo').length, list: webs.map((r) => ({ name: r.name, status: r.status, group: r.group, production: r.production, url: r.url, end: r.end })) },
       deploys: { week: projects.filter((p) => p.production?.at > weekAgo).length, failed: projects.filter((p) => p.latest?.state === 'ERROR').length, stale: projects.filter((p) => p.production?.at && p.production.at < Date.now() - 30 * 86400000).length, projects: projects.length },
       issues: { critical: issues.filter((i) => i.sev === 'critical').length, high: issues.filter((i) => i.sev === 'high').length, medium: issues.filter((i) => i.sev === 'medium').length, top: issues.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev]).slice(0, 4) },
     };
   });
-  return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
+  return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people, errors: team.errors || [] } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
 });
 
 
@@ -3728,9 +3744,18 @@ ipcMain.handle('stream:read', async (_e, platform, who) => {
   const w = WHO.includes(who) ? who : 'vincenzo';
   const r = p === 'netflix' ? await streaming.readNetflix() : p === 'crunchyroll' ? await streaming.readCrunchyroll() : null;
   if (!r) throw new Error('Plataforma desconocida');
+  if (p === 'netflix') await streaming.nfDecorate(ctxRW, r.items).catch(() => null);
   const all = store.read('streaming.json', {});
   all[p + ':' + w] = { platform: p, who: w, profile: r.profile, at: Date.now(), items: r.items.slice(0, 600) };
   store.write('streaming.json', all);
+  // las recomendaciones se preparan solas (en segundo plano) si no hay unas recientes
+  const ai = store.read('streaming-ai.json', null);
+  if (!streamAiBusy && (!ai || Date.now() - ai.at > 2 * 86400000)) {
+    streamAiBusy = streamAi().catch(() => null).finally(() => {
+      streamAiBusy = null;
+      if (win && !win.isDestroyed()) win.webContents.send('stream:ai-ready');
+    });
+  }
   return { count: r.items.length, profile: r.profile };
 });
 ipcMain.handle('stream:forget', (_e, key) => {
@@ -3741,9 +3766,13 @@ ipcMain.handle('stream:forget', (_e, key) => {
 });
 ipcMain.handle('stream:get', async () => {
   const all = store.read('streaming.json', {});
-  const accounts = Object.entries(all).map(([key, a]) => ({ key, platform: a.platform, who: a.who, profile: a.profile, at: a.at, count: a.items.length }));
+  const accounts = Object.entries(all).map(([key, a]) => ({ key, platform: a.platform, who: a.who, profile: a.profile, at: a.at, count: a.items.length, old: a.platform === 'netflix' && !a.items.some((x) => x.seriesId) }));
   const shows = [];
   for (const a of Object.values(all)) {
+    if (a.platform === 'netflix' && a.items.some((x) => !x.seriesId)) {
+      // lecturas de la 1.23: sin id de serie todavía; se arreglan las fechas al menos
+      for (const x of a.items) if (x.date && x.date > Date.now() + 86400000) x.date = null;
+    }
     const list = streaming.summarize(a).slice(0, 24);
     let i = 0;
     await Promise.all(Array.from({ length: 4 }, async () => {
@@ -3756,7 +3785,9 @@ ipcMain.handle('stream:get', async () => {
   shows.sort((x, y) => (y.last.date || 0) - (x.last.date || 0));
   return { accounts, shows, ai: store.read('streaming-ai.json', null) };
 });
-ipcMain.handle('stream:ai', async () => {
+let streamAiBusy = null;
+ipcMain.handle('stream:ai', () => streamAiBusy || streamAi());
+async function streamAi() {
   const all = store.read('streaming.json', {});
   if (!Object.keys(all).length) throw new Error('Lee primero al menos un perfil de Netflix o Crunchyroll.');
   const lines = [];
@@ -3772,7 +3803,7 @@ ipcMain.handle('stream:ai', async () => {
   const out = { at: Date.now(), data };
   store.write('streaming-ai.json', out);
   return out;
-});
+}
 
 // Workana en Brave (donde ya tienes la sesión iniciada)
 ipcMain.handle('wk:brave', (_e, url, text) => {
