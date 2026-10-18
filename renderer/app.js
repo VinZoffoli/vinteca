@@ -1139,6 +1139,8 @@ function showView(view) {
   $('#calView').hidden = view !== 'cal';
   $('#dayView').hidden = view !== 'day';
   if (view === 'day') window.dayUI?.show();
+  $('#viendoView').hidden = view !== 'viendo';
+  if (view === 'viendo') window.viendoUI?.show();
   $('#assistView').hidden = view !== 'assist';
   if (view === 'assist') window.assistUI?.show();
   $('#linkedinView').hidden = view !== 'linkedin';
@@ -2036,7 +2038,7 @@ function openPick() {
 // ---------- búsqueda rápida (Ctrl+K) ----------
 const VIEWS = [
   ['library', 'Juegos'], ['sagas', 'Sagas'], ['ach', 'Logros'], ['stats', 'Estadísticas'],
-  ['news', 'Novedades'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
+  ['news', 'Novedades'], ['viendo', 'Viendo: Netflix y Crunchyroll'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
   ['day', 'Mi día'], ['assist', 'Pregúntale a ViperTeca'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
   ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
   ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],

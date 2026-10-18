@@ -210,6 +210,7 @@ contextBridge.exposeInMainWorld('api', {
   prices: () => ipcRenderer.invoke('prices:get'),
   webAlerts: { get: () => ipcRenderer.invoke('webalerts:get'), run: (only) => ipcRenderer.invoke('webalerts:run', only), mute: (key, on) => ipcRenderer.invoke('webalerts:mute', key, on), onProgress: (cb) => ipcRenderer.on('webalerts:progress', (_e, p) => cb(p)), onDone: (cb) => ipcRenderer.on('webalerts:done', () => cb()) },
   squads: (force) => ipcRenderer.invoke('squads:get', force),
+  stream: { open: (p) => ipcRenderer.invoke('stream:open', p), read: (p, who) => ipcRenderer.invoke('stream:read', p, who), get: () => ipcRenderer.invoke('stream:get'), ai: () => ipcRenderer.invoke('stream:ai'), forget: (k) => ipcRenderer.invoke('stream:forget', k) },
   clips: { get: (id) => ipcRenderer.invoke('clips:get', id), open: (f) => ipcRenderer.invoke('clips:open', f), folder: (f) => ipcRenderer.invoke('clips:folder', f) },
   goals: { get: () => ipcRenderer.invoke('goals:get'), set: (g) => ipcRenderer.invoke('goals:set', g) },
   ginvSync: () => ipcRenderer.invoke('ginv:sync'),

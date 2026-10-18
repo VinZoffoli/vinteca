@@ -260,6 +260,9 @@ function snapshot(dir) {
         'ofertas': [`showView('deals')`, 5000],
         'w-alertas': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Alertas')?.click(), 1500)`, 5000],
         'w-squads': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`, 6000],
+        'viendo': [`showView('viendo')`, 9000],
+        'viendo-ai': [`window.api.stream.ai().then(() => document.querySelector('#viendoBody .toolbar .btn.subtle')?.click()).catch((e) => console.error('IA: ' + e.message))`, 200000],
+        'viendo-ai2': [`document.querySelector('.vw-ai')?.scrollIntoView()`, 1500],
         'c-menu': [`showView('casa-menu')`, 2500],
         'c-hogar': [`showView('casa-hogar')`, 2500],
         'c-comp': [`showView('casa-compartidos')`, 2500],
@@ -3216,6 +3219,12 @@ const mobileApi = {
     if (section === 'anime') {
       return Object.values(anime.mine(ctxRW).follows || {}).map((a) => ({ title: a.title, cover: /^https:/.test(a.cover || '') ? a.cover : '', next: a.next || null, status: a.status, start: a.start })).sort((a, z) => (a.next?.at || 9e15) - (z.next?.at || 9e15));
     }
+    if (section === 'viendo') {
+      const all = store.read('streaming.json', {});
+      const shows = [];
+      for (const a of Object.values(all)) for (const e of streaming.summarize(a).slice(0, 12)) shows.push({ ...(await streaming.enrich(ctxRW, e, a.platform).catch(() => ({ ...e, platform: a.platform }))), who: a.who });
+      return shows.sort((x, y) => (y.last.date || 0) - (x.last.date || 0)).slice(0, 30).map((s) => ({ name: s.name, platform: s.platform, who: s.who, left: s.left, total: s.total, next: s.next, cover: /^https:/.test(s.cover || '') ? s.cover : '', last: { date: s.last.date, episode: s.last.episodeTitle || s.last.episode, season: s.last.season } }));
+    }
     if (section === 'pc') {
       const s = await sensors.read().catch(() => null);
       return { shutdownAt, sensors: s ? { cpu: s.cpu, gpu: s.gpu, fans: (s.fans || []).slice(0, 6) } : null, focus: focus.status(), current: tracker.current ? { title: tracker.current.title, start: tracker.current.start } : null };
@@ -3497,7 +3506,7 @@ function aiJson(prompt, opts = {}) {
       reject(new Error('Claude tardó demasiado (más de 5 minutos). Prueba otra vez.'));
     }, 300000);
     try {
-      claudeChat.send({ cwd: assistDir(), chatId, text: prompt, model: opts.model || 'sonnet', access: 'ask', system: 'Eres un experto en Genshin Impact y escribes en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' }, (ev) => {
+      claudeChat.send({ cwd: assistDir(), chatId, text: prompt, model: opts.model || 'sonnet', access: 'ask', system: opts.system || 'Eres un experto en Genshin Impact y escribes en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' }, (ev) => {
         if (ev.type === 'assistant') for (const p of ev.message?.content || []) if (p.type === 'text') text += p.text;
         if (ev.type === 'result' && typeof ev.result === 'string') final = ev.result;
         if (ev.type === 'vt-end') {
@@ -3704,6 +3713,65 @@ ipcMain.handle('squads:get', async (_e, force) => {
     };
   });
   return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
+});
+
+
+// ---------- 1.23: Netflix y Crunchyroll (Viendo) ----------
+const streaming = require('./src/streaming');
+const WHO = ['vincenzo', 'emily'];
+ipcMain.handle('stream:open', (_e, platform) => {
+  streaming.open(String(platform));
+  return true;
+});
+ipcMain.handle('stream:read', async (_e, platform, who) => {
+  const p = String(platform);
+  const w = WHO.includes(who) ? who : 'vincenzo';
+  const r = p === 'netflix' ? await streaming.readNetflix() : p === 'crunchyroll' ? await streaming.readCrunchyroll() : null;
+  if (!r) throw new Error('Plataforma desconocida');
+  const all = store.read('streaming.json', {});
+  all[p + ':' + w] = { platform: p, who: w, profile: r.profile, at: Date.now(), items: r.items.slice(0, 600) };
+  store.write('streaming.json', all);
+  return { count: r.items.length, profile: r.profile };
+});
+ipcMain.handle('stream:forget', (_e, key) => {
+  const all = store.read('streaming.json', {});
+  delete all[String(key)];
+  store.write('streaming.json', all);
+  return true;
+});
+ipcMain.handle('stream:get', async () => {
+  const all = store.read('streaming.json', {});
+  const accounts = Object.entries(all).map(([key, a]) => ({ key, platform: a.platform, who: a.who, profile: a.profile, at: a.at, count: a.items.length }));
+  const shows = [];
+  for (const a of Object.values(all)) {
+    const list = streaming.summarize(a).slice(0, 24);
+    let i = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (i < list.length) {
+        const e = list[i++];
+        shows.push({ ...(await streaming.enrich(ctxRW, e, a.platform).catch(() => ({ ...e, platform: a.platform }))), who: a.who });
+      }
+    }));
+  }
+  shows.sort((x, y) => (y.last.date || 0) - (x.last.date || 0));
+  return { accounts, shows, ai: store.read('streaming-ai.json', null) };
+});
+ipcMain.handle('stream:ai', async () => {
+  const all = store.read('streaming.json', {});
+  if (!Object.keys(all).length) throw new Error('Lee primero al menos un perfil de Netflix o Crunchyroll.');
+  const lines = [];
+  for (const a of Object.values(all)) {
+    const list = streaming.summarize(a).slice(0, 40);
+    lines.push('Perfil de ' + (a.who === 'emily' ? 'Emily' : 'Vincenzo') + ' en ' + (a.platform === 'netflix' ? 'Netflix' : 'Crunchyroll') + ': ' + list.map((e) => e.name + (e.movie ? ' (película)' : ' (' + e.count + ' episodios vistos, último ' + new Date(e.last.date || Date.now()).toLocaleDateString('es') + ')')).join('; '));
+  }
+  const today = new Date().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' });
+  const prompt = 'Hoy es ' + today + '. Estos son los historiales de Netflix y Crunchyroll de dos perfiles (Vincenzo y Emily):\n' + lines.join('\n') + '\n\n' +
+    'Busca en la web lo que haga falta y responde:\n1) Para cada perfil, con qué debería seguir después de lo que está viendo (3 a 5, que estén en Netflix o Crunchyroll en Latinoamérica, explicando por qué según lo que vio).\n2) Recomendaciones para ver juntos (3), que les gusten a los dos.\n3) Próximos estrenos de las próximas 8 semanas en Netflix y en Crunchyroll (temporadas nuevas de lo que ya ven primero, y luego novedades que encajen con sus gustos), con fecha.\n' +
+    'Responde SOLO con este JSON: {"profiles":[{"who":"Vincenzo","next":[{"title":"","platform":"Netflix|Crunchyroll","why":""}]},{"who":"Emily","next":[]}],"together":[{"title":"","platform":"","why":""}],"upcoming":[{"title":"","platform":"","date":"","kind":"temporada nueva|estreno","why":""}],"sources":[{"title":"","url":""}]}';
+  const data = await aiJson(prompt, { system: 'Eres un experto en series, películas y anime y escribes en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' });
+  const out = { at: Date.now(), data };
+  store.write('streaming-ai.json', out);
+  return out;
 });
 
 // Workana en Brave (donde ya tienes la sesión iniciada)

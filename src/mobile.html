@@ -328,7 +328,7 @@ function genshin(d) {
 // ------------------------------------------------ MÁS
 function mas() {
   const tab = sub('mas', 'preguntar');
-  const out = [seg('mas', [['preguntar', 'Pregúntale'], ['trabajo', 'Trabajo'], ['anime', 'Anime'], ['pc', 'PC']])];
+  const out = [seg('mas', [['preguntar', 'Pregúntale'], ['viendo', 'Viendo'], ['trabajo', 'Trabajo'], ['anime', 'Anime'], ['pc', 'PC']])];
   if (tab === 'preguntar') {
     const c = S.chat;
     const input = h('textarea', { class: 'field', rows: '2', placeholder: 'Pregunta lo que quieras…', style: 'resize:none' });
@@ -354,6 +354,7 @@ function mas() {
     out.push(card('Tickets abiertos', String(d.tickets.length), list(d.tickets.map((t) => li(t.title, t.late ? 'vencido' : t.deadline || '', t.late ? 'hot' : '', t.status)))));
     out.push(card('Correo' + (d.mail.user ? ' · ' + d.mail.user : ''), d.mail.unread ? d.mail.unread + ' sin leer' : null, list(d.mail.list.map((m) => li(m.subject, null, m.unread ? 'hot' : '', m.from)))));
   }
+  if (tab === 'viendo') out.push(d.length ? card('Netflix y Crunchyroll', null, list(d.map((s) => li(s.name, s.left == null ? '' : s.left === 0 ? 'al día' : 'faltan ' + s.left, s.left ? '' : 'ok', [s.who === 'emily' ? 'Emily' : 'Vincenzo', s.platform === 'netflix' ? 'Netflix' : 'Crunchyroll', s.next ? 'nuevo ' + dd(s.next.at) : null].filter(Boolean).join(' · '))))) : h('p', { class: 'empty', text: 'Conecta Netflix o Crunchyroll en la app del PC (Viendo).' }));
   if (tab === 'anime') out.push(card('Lo que sigues', String(d.length), list(d.map((a) => li(a.title, a.next ? dd(a.next.at) : '', '', a.next ? 'episodio ' + a.next.episode + ' · ' + hm(a.next.at) : a.status === 'NOT_YET_RELEASED' ? 'por estrenarse' : 'sin episodios nuevos')))));
   if (tab === 'pc') {
     const s = d.sensors;

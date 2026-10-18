@@ -8,7 +8,7 @@ const { app, safeStorage } = require('electron');
 const dir = () => app.getPath('userData');
 const file = (name) => path.join(dir(), name);
 
-const PRECIOUS = /^(casa|settings|sessions|user-games|genshin-(tasks|wishes|gather|inventory)|gfarm-plan|workana|linkedin|alquileres|anime[\w-]*|assist-chat|purchase-dates|weekly|goals|genshin-events-done|genshin-ai|price-history|web-alerts)\.json$/;
+const PRECIOUS = /^(casa|settings|sessions|user-games|genshin-(tasks|wishes|gather|inventory)|gfarm-plan|workana|linkedin|alquileres|anime[\w-]*|assist-chat|purchase-dates|weekly|goals|genshin-events-done|genshin-ai|price-history|web-alerts|streaming|streaming-ai)\.json$/;
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 function read(name, fallback) {

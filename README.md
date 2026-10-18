@@ -258,6 +258,12 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.23
+
+- **Viendo (Netflix y Crunchyroll)**: inicias sesión tú en una ventana de la app, eliges el perfil y pulsas «Leer como Vincenzo» o «Leer como Emily». ViperTeca lee el historial de visionado de ese perfil (solo lectura) y muestra lo que siguen viendo, el último capítulo visto, cuántos capítulos faltan (de Netflix mismo, de AniList para el anime y de TVmaze), cuándo sale el siguiente si la serie sigue en emisión, lo que está al día o terminado y las películas recientes.
+- **Qué ver después y estrenos**: tu Claude Code mira los dos historiales y busca en la web con qué seguir para cada uno, tres recomendaciones para ver juntos y los próximos estrenos de las próximas 8 semanas en Netflix y Crunchyroll.
+- **En el iPhone**: Más → Viendo, con lo que falta de cada serie.
+
 ## Novedades de la 1.22
 
 - **Websites → Alertas**: cada 6 horas (y cuando pulsas «Revisar todas ahora») ViperTeca abre cada web publicada en una ventana oculta, como un visitante, y avisa solo de lo que la rompe: la web no carga o da error, carga en blanco, errores de JavaScript (los que dejan botones y menús sin funcionar), scripts, estilos, imágenes o llamadas a la API que fallan, enlaces y botones internos que llevan a una página que no existe, errores en vivo de Vercel (funciones y respuestas 5xx) y deploys de producción fallidos. Nada de rendimiento. Cada aviso dice el squad y su responsable; se pueden ignorar avisos concretos y ver lo arreglado en la semana. No se revisa mientras juegas.

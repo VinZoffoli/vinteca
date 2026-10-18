@@ -719,3 +719,39 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .ph-https-on { display: flex; gap: 16px; align-items: center; }
 .ph-https-on img { width: 150px; height: 150px; border-radius: 12px; background: #fff; padding: 5px; flex: none; }
 .ph-https-on .hint { margin: 4px 0 0; }
+
+/* ---------- 1.23: Viendo (Netflix y Crunchyroll) ---------- */
+.vw-conns { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 16px 0; }
+.vw-conn { display: grid; gap: 8px; padding: 16px 18px; border-radius: var(--r-card); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--pc) calc(16% * var(--glow)), var(--night-2)), var(--night-2) 60%); border: 1px solid color-mix(in srgb, var(--pc) 30%, var(--line)); box-shadow: var(--card-hi), var(--card-shadow); }
+.vw-conn header { display: flex; justify-content: space-between; align-items: center; }
+.vw-conn header b { font: 700 20px var(--display); color: var(--pc); }
+.vw-conn .hint { margin: 0; }
+.vw-who { display: grid; gap: 6px; }
+.vw-acc { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.vw-acc > div { display: grid; min-width: 0; }
+.vw-acc .hint { margin: 0; }
+.vw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.vw-show { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 14px; padding: 10px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.vw-cover { position: relative; width: 82px; aspect-ratio: 2 / 3; border-radius: 10px; overflow: hidden; background: var(--surface-2); display: grid; place-items: center; font: 700 28px var(--display); color: var(--muted); }
+.vw-cover img { width: 100%; height: 100%; object-fit: cover; }
+.vw-plat { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px; background: var(--pc); color: #fff; font: 700 9.5px var(--display); letter-spacing: .02em; }
+.vw-body { display: grid; gap: 4px; align-content: center; min-width: 0; }
+.vw-title { font: 700 16px/1.2 var(--display); }
+.vw-body .hint { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vw-bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.vw-bar i { display: block; height: 100%; border-radius: 3px; background: var(--pc); }
+.vw-left { margin: 0; font: 600 13.5px var(--display); color: var(--amber); }
+.vw-left.done { color: var(--green); }
+.vw-ai { margin-top: 10px; display: grid; gap: 12px; }
+.vw-recs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.vw-rec { padding: 16px 18px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.vw-rec.together { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--pink) calc(14% * var(--glow)), var(--night-2)), var(--night-2) 60%); }
+.vw-rec h3 { margin: 0 0 8px; font: 700 17px var(--display); }
+.vw-rec ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.vw-rec li b { font-weight: 650; }
+.vw-rec li .hint { margin: 2px 0 0; }
+.vw-tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; font: 700 11px var(--display); background: color-mix(in srgb, var(--pc) 22%, transparent); color: var(--pc); }
+.vw-up { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.vw-up li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.vw-up li > div { display: grid; }
+.vw-date { font: 700 13px var(--display); color: var(--amber); }
