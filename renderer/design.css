@@ -497,3 +497,146 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .md-skel { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; margin-top: 120px; }
 .md-skel .skel { height: 150px; border-radius: 22px; }
 @media (max-width: 900px) { .md-hero { flex-direction: column; align-items: flex-start; } .wg.wide { grid-column: auto; } .md-hourly { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* ---------- 1.21: precios ---------- */
+.pr-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.pr-low { padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); font: 700 11.5px var(--display); }
+.pr-ref { font-size: 11.5px; color: var(--muted); }
+.pr-spark { width: 120px; height: 26px; }
+.pr-spark polyline { fill: none; stroke: var(--cyan); stroke-width: 1.6; stroke-linejoin: round; }
+/* ---------- 1.21: clips ---------- */
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.clip { margin: 0; display: grid; gap: 4px; }
+.clip-v { position: relative; padding: 0; border: 0; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; cursor: pointer; }
+.clip-v video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.clip-play { position: absolute; inset: auto auto 8px 8px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, .6); color: #fff; font-size: 12px; pointer-events: none; }
+.clip figcaption { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+/* ---------- 1.21: reto del backlog ---------- */
+.goal-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 20px 24px; margin: 18px 0; border-radius: calc(var(--r-card) + 6px); background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--cyan) calc(14% * var(--glow)), var(--night-2)), var(--night-2) 60%); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.goal-card.won { background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--green) calc(20% * var(--glow)), var(--night-2)), var(--night-2) 60%); }
+.goal-card h2 { margin: 2px 0 4px; font: 700 26px/1.1 var(--display); font-stretch: 82%; }
+.goal-card .hint { margin: 0; }
+.goal-steps { display: flex; gap: 6px; margin-top: 12px; }
+.goal-steps i { width: 34px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.goal-steps i.on { background: var(--green); }
+.goal-set { display: grid; gap: 6px; justify-items: end; }
+/* ---------- 1.21: noche de juego ---------- */
+.gn-night { padding: 18px 20px; margin: 4px 0 20px; border-radius: calc(var(--r-card) + 6px); background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, #b98cff calc(18% * var(--glow)), var(--night-2)), var(--night-2) 60%); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.gn-night-head h2 { margin: 2px 0 10px; font: 700 24px var(--display); }
+.gn-night-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.gn-night-list li { display: grid; grid-template-columns: 28px 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.gn-n { font: 700 20px var(--display); color: var(--muted); text-align: center; }
+.gn-night-cover { width: 44px; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--surface); }
+.gn-night-cover img { width: 100%; height: 100%; object-fit: cover; }
+.gn-night-list li > div:nth-child(3) { display: grid; min-width: 0; }
+.gn-when { flex: 0 1 230px; }
+/* ---------- 1.21: eventos de Genshin ---------- */
+.gn-ev-done { margin-left: 8px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: none; color: var(--muted); font: 600 12px var(--display); cursor: pointer; transition: transform 160ms var(--ease-out), background-color 150ms; }
+.gn-ev-done:active { transform: scale(.95); }
+.gn-ev-done.on { background: color-mix(in srgb, var(--green) 18%, transparent); border-color: color-mix(in srgb, var(--green) 50%, var(--line)); color: var(--green); }
+/* ---------- 1.21: IA de Genshin ---------- */
+.ai { display: grid; gap: 14px; }
+.ai-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 10px; }
+.ai-head .section-h { margin: 0; }
+.ai-head .hint { margin: 2px 0 0; }
+.ai-tools { display: flex; gap: 10px; align-items: center; }
+.ai-wait { display: flex; gap: 10px; align-items: center; padding: 16px; border-radius: var(--r-card); background: var(--card-bg); border: 1px dashed var(--line); color: var(--muted); }
+.ai-advice { display: grid; gap: 12px; }
+.ai-sum { margin: 0; font-size: 15px; line-height: 1.55; }
+.ai-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ai-pick { padding: 14px 16px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); border-top: 3px solid var(--line); box-shadow: var(--card-hi), var(--card-shadow); }
+.ai-pick.v-tirar { border-top-color: var(--green); }
+.ai-pick.v-opcional { border-top-color: var(--amber); }
+.ai-pick.v-saltar { border-top-color: var(--pink); }
+.ai-pick.v-ahorrar { border-top-color: var(--cyan); }
+.ai-pick-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.ai-pick-h b { font: 700 17px var(--display); }
+.ai-verdict { font: 700 12.5px var(--display); color: var(--muted); }
+.ai-pick.v-tirar .ai-verdict { color: var(--green); }
+.ai-pick.v-saltar .ai-verdict { color: var(--pink); }
+.ai-pick.v-opcional .ai-verdict { color: var(--amber); }
+.ai-pick.v-ahorrar .ai-verdict { color: var(--cyan); }
+.ai-pick p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; }
+.ai-save { margin: 0; padding: 12px 16px; border-radius: var(--r-card); background: color-mix(in srgb, var(--cyan) 10%, var(--night-2)); border: 1px solid color-mix(in srgb, var(--cyan) 35%, var(--line)); }
+.ai-lore { padding: 18px 20px; border-radius: calc(var(--r-card) + 4px); background: radial-gradient(120% 160% at 0% 0%, color-mix(in srgb, var(--amber) calc(14% * var(--glow)), var(--night-2)), var(--night-2) 60%); border: 1px solid var(--card-line); }
+.ai-lore-h { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.ai-lore-t { margin: 8px 0 0; font-size: 15px; line-height: 1.65; max-width: 80ch; }
+.ai-hl { margin: 10px 0 0; padding-left: 18px; color: var(--muted); }
+.ai-versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.ai-ver { padding: 16px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); display: grid; gap: 8px; align-content: start; }
+.ai-ver header { display: flex; justify-content: space-between; align-items: baseline; }
+.ai-ver header b { font: 700 18px var(--display); }
+.ai-chars { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ai-chars li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; background: color-mix(in srgb, var(--el) 10%, var(--surface)); border-left: 3px solid var(--el); }
+.ai-chars li > div { display: grid; min-width: 0; }
+.ai-chars small { color: var(--muted); font-size: 11.5px; }
+.ai-star { font: 700 12px var(--display); color: var(--amber); }
+.ai-tag { padding: 2px 8px; border-radius: 999px; font: 600 11px var(--display); white-space: nowrap; }
+.ai-tag.ok { background: color-mix(in srgb, var(--green) 18%, transparent); color: var(--green); }
+.ai-tag.leak { background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber); }
+.ai-tag.rumor { background: var(--surface-2); color: var(--muted); }
+.ai-blur { filter: blur(5px); transition: filter 200ms ease; user-select: none; }
+.ai-src { margin: 0; }
+.ai-block { padding: 16px 18px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); }
+.ai-block h3 { margin: 0 0 6px; font: 700 17px var(--display); }
+.ai-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+.ai-team { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: var(--surface); }
+.ai-members { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-members span { padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font: 600 13px var(--display); }
+
+/* ================= 1.21: pulido premium por secciones ================= */
+/* cifras en tarjetas (Backlog, Websites, Genshin, Workana…) */
+.stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 0; border: 0; margin: 22px 0 18px; }
+.stat-strip > div { padding: 12px 14px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.stat-strip dt { font-size: 12px; color: var(--muted); }
+.stat-strip dd { margin-top: 4px; font: 700 22px/1.1 var(--display); font-stretch: 85%; font-variant-numeric: tabular-nums; }
+/* Logros y Estadísticas: cifras grandes en una cuadrícula ordenada */
+.ach-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; align-items: stretch; margin: 24px 0 18px; }
+.ach-stats .stat { display: grid; align-content: end; gap: 4px; padding: 16px 18px; border-radius: var(--r-card); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.ach-stats .stat b { font-size: 34px; font-stretch: 80%; }
+.ach-stats .stat span { margin: 0; max-width: none; font-size: 12.5px; }
+.ach-stats .stat.big, .ach-stats .stat.hero-stat { grid-row: span 2; justify-content: start; background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--plat) calc(16% * var(--glow)), var(--night-2)), var(--night-2) 65%); }
+.ach-stats .stat.big b, .ach-stats .stat.hero-stat b { font-size: 84px; }
+/* paneles de gráficos */
+.panel { padding: 6px 20px 18px; border-radius: calc(var(--r-card) + 4px); background: var(--card-bg); border: 1px solid var(--card-line); box-shadow: var(--card-hi), var(--card-shadow); }
+.bars { gap: 9px; }
+.bar-row { grid-template-columns: minmax(110px, 36%) 1fr; }
+.bar-label { color: var(--text); opacity: .85; }
+.bar-track { position: relative; }
+.bar-fill { height: 10px; border-radius: 999px; background: linear-gradient(90deg, color-mix(in srgb, var(--amber) 70%, var(--pink)), var(--amber)); box-shadow: 0 0 12px -2px color-mix(in srgb, var(--amber) 60%, transparent); transform-origin: left; animation: bar-in 600ms var(--ease-out) both; }
+.bars .bar-row:nth-child(n + 4) .bar-fill { background: color-mix(in srgb, var(--amber) 55%, var(--surface-2)); box-shadow: none; }
+@keyframes bar-in { from { transform: scaleX(.2); opacity: 0; } }
+.bar-value { font-weight: 600; }
+.stat-grid { gap: 14px; }
+/* Logros: vitrina */
+.ach-games { gap: 8px; }
+/* Genshin: los personajes de la vitrina como cartas */
+.gi-roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+.gi-chip { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 12px 8px 8px; border-radius: 16px; background: linear-gradient(150deg, color-mix(in srgb, var(--el) 16%, var(--night-2)), var(--night-2) 70%); border: 1px solid color-mix(in srgb, var(--el) 25%, var(--line)); transition: transform 200ms var(--ease-out), border-color 150ms, box-shadow 200ms; }
+.gi-chip .gi-face { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--el) 60%, transparent); }
+.gi-chip-txt b { font: 700 15px var(--display); }
+.gi-chip.on { background: linear-gradient(150deg, color-mix(in srgb, var(--el) 30%, var(--night-2)), var(--night-2) 75%); border-color: var(--el); box-shadow: 0 10px 26px -14px var(--el); }
+@media (hover: hover) and (pointer: fine) { .gi-chip:hover { transform: translateY(-2px); border-color: var(--el); } }
+.gi-chip:active { transform: scale(.98); }
+.gi-char { position: relative; overflow: hidden; padding: 24px 26px; border-radius: calc(var(--r-card) + 6px); background: radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--el) 24%, var(--night-2)), var(--night-2) 60%); border: 1px solid color-mix(in srgb, var(--el) 35%, var(--line)); border-top-width: 1px; box-shadow: var(--card-hi), var(--card-shadow); }
+.gi-char-head { grid-template-columns: 168px 1fr; gap: 24px; }
+.gi-portrait { width: 168px; height: 168px; border-radius: 22px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--el) 70%, transparent), 0 20px 40px -20px var(--el); }
+.gi-char-head h2 { font-size: 44px; letter-spacing: -0.01em; }
+.gi-talent { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--el) 50%, transparent); }
+.gi-arts { gap: 10px; }
+.gi-art { padding: 10px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.hc { border-radius: calc(var(--r-card) + 6px); box-shadow: var(--card-hi), var(--card-shadow); }
+.hc-art { border-radius: 18px; box-shadow: 0 24px 50px -24px var(--el); }
+.gi-head-in { align-items: center; }
+.gi-avatar { width: 104px; height: 104px; }
+.gi-tabs { flex-wrap: wrap; }
+/* Casa → Regalos: fotos enteras sobre un fondo suave */
+.gt-img { background: radial-gradient(120% 100% at 50% 0%, #fff, #f1ecf0) !important; }
+.gt-img img { object-fit: contain !important; padding: 14px; transition: transform 300ms var(--ease-out); }
+@media (hover: hover) and (pointer: fine) { .gt-grid > *:hover .gt-img img { transform: scale(1.04); } }
+.gt-grid > * { border-radius: calc(var(--r-card) + 2px); overflow: hidden; box-shadow: var(--card-hi), var(--card-shadow); }
+/* Resto Experience: listas de webs y tickets con más aire */
+.rx-card, .ks-group, .rx-day, .rx-col { border-radius: var(--r-card); }
+@media (prefers-reduced-motion: reduce) { .bar-fill { animation: none; } }
+.ach-stats .stat.big, .ach-stats .stat.hero-stat { grid-row: auto; grid-column: span 2; }
+.ach-stats .stat.big b, .ach-stats .stat.hero-stat b { font-size: 72px; line-height: .95; }

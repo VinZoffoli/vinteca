@@ -233,6 +233,23 @@ function snapshot(dir) {
         ajustes: [`openSettings?.(); setTimeout(() => { showSettingsTab?.('apariencia'); }, 500)`, 2500],
         logros: [`document.querySelector('dialog[open]')?.close(); showView('ach')`, 3000],
         asistente: [`showView('assist')`, 2000],
+        'r-cal': [`showView('cal')`, 3500],
+        'r-notion': [`showView('notion')`, 4000],
+        'r-webs': [`showView('webs')`, 4000],
+        'stats': [`showView('stats')`, 3500],
+        'ach': [`showView('ach')`, 3500],
+        'backlog': [`showView('backlog')`, 4000],
+        'c-compras': [`showView('casa-compras')`, 2500],
+        'c-presu': [`showView('casa-presupuesto')`, 3000],
+        'c-regalos': [`showView('casa-regalos')`, 2500],
+        'g-viene': [`showView('genshin'); setGenshinTab('viene'); setTimeout(() => document.querySelectorAll('.ai-head .btn')[1]?.click(), 1500)`, 200000],
+        'g-viene2': [`document.querySelector('.ai-versions')?.scrollIntoView()`, 1500],
+        'g-viene3': [`showView('genshin'); setGenshinTab('viene')`, 4000],
+        'g-viene4': [`document.querySelector('.ai-versions')?.scrollIntoView()`, 1500],
+        'g-perfil2': [`showView('genshin'); setGenshinTab('perfil')`, 6000],
+        'g-perfil3': [`document.querySelector('.gi-roster')?.scrollIntoView()`, 2500],
+        'amigos': [`showView('friends')`, 5000],
+        'ofertas': [`showView('deals')`, 5000],
         'c-menu': [`showView('casa-menu')`, 2500],
         'c-hogar': [`showView('casa-hogar')`, 2500],
         'c-comp': [`showView('casa-compartidos')`, 2500],
@@ -738,8 +755,9 @@ app.whenReady().then(() => {
   if (store.getSettings().lanAuto && !process.env.BJ_SNAPSHOT) lanServer().start().catch(() => {});
   protocol.handle('bjshot', async (req) => {
     const file = new URL(req.url).searchParams.get('f') || '';
-    if (!screens.isAllowed(file, await localCtx())) return new Response('', { status: 403 });
-    return net.fetch(pathToFileURL(file).toString());
+    const video = new URL(req.url).hostname === 'vid';
+    if (video ? !screens.isAllowedVideo(file) : !screens.isAllowed(file, await localCtx())) return new Response('', { status: 403 });
+    return net.fetch(pathToFileURL(file).toString(), { headers: req.headers });
   });
   if (store.getSettings().trackSessions !== false) tracker.start();
   if (!process.env.BJ_SNAPSHOT) {
@@ -780,6 +798,8 @@ app.whenReady().then(() => {
     setTimeout(gatherTick, 70000);
     setTimeout(paimonTick, 80000);
     setTimeout(weatherTick, 60000);
+    setTimeout(eventsTick, 100000);
+    setInterval(eventsTick, 3 * 3600000);
     setInterval(weatherTick, 30 * 60000);
     if (store.read('settings.json', {}).widgetOn) setTimeout(() => { try { openWidget(true); } catch {} }, 6000);
     setInterval(paimonTick, 60 * 60000);
@@ -1408,6 +1428,15 @@ async function priceAlerts() {
     steam.setRegion(st.country);
     const res = await steam.getWishlistDeals(store.getSteamKey(), steamId);
     store.write('wishlist.json', { ...res, country: st.country, fetchedAt: Date.now() });
+    const hist = prices.record(ctxRW, res.items);
+    const lowsMap = await prices.lows(ctxRW, res.items.filter((i) => i.price?.discountPct > 0).concat(res.items)).catch(() => store.read('price-lows.json', {}));
+    const lowSeen = store.read('price-low-alerts.json', {});
+    for (const i of res.items) {
+      if (!prices.atLow(i, hist, lowsMap[i.appid]) || lowSeen[i.appid] === i.price.discountPct) continue;
+      lowSeen[i.appid] = i.price.discountPct;
+      notify(i.name + ' está en su mínimo histórico', '−' + i.price.discountPct + '%: ' + i.price.final + '. Nunca estuvo más barato. Haz clic para verlo en Steam.', 'https://store.steampowered.com/app/' + i.appid + '/');
+    }
+    store.write('price-low-alerts.json', lowSeen);
     const seen = store.read('price-alerts.json', null);
     const now = {};
     for (const i of res.items) if (i.price?.discountPct > 0) now[i.appid] = i.price.discountPct;
@@ -3293,6 +3322,160 @@ ipcMain.handle('widget:open-app', () => {
   }
   return true;
 });
+
+
+// ---------- 1.21: precios, clips, retos, inventario y la IA de Genshin ----------
+const prices = require('./src/prices');
+ipcMain.handle('prices:get', () => ({ history: store.read('price-history.json', {}), lows: store.read('price-lows.json', {}) }));
+
+// Clips de vídeo de cada juego (Barra de juegos, NVIDIA, AMD)
+ipcMain.handle('clips:get', async (_e, id) => {
+  const g = libGame(id);
+  if (!g) return [];
+  return screens.clipsForGame(g).map((c) => ({ ...c, url: 'bjshot://vid/?f=' + encodeURIComponent(c.file) }));
+});
+ipcMain.handle('clips:open', (_e, file) => {
+  if (screens.isAllowedVideo(String(file || ''))) shell.openPath(String(file));
+});
+ipcMain.handle('clips:folder', (_e, file) => {
+  if (screens.isAllowedVideo(String(file || ''))) shell.showItemInFolder(String(file));
+});
+
+// Retos del backlog: cuántos juegos quieres terminar cada mes
+ipcMain.handle('goals:get', () => store.read('goals.json', { perMonth: 0, history: {} }));
+ipcMain.handle('goals:set', (_e, g) => {
+  const cur = store.read('goals.json', { perMonth: 0, history: {} });
+  const perMonth = Math.max(0, Math.min(30, Math.round(Number(g?.perMonth) || 0)));
+  const ym = new Date().toLocaleDateString('sv').slice(0, 7);
+  const out = { perMonth, history: { ...(cur.history || {}), [ym]: perMonth } };
+  store.write('goals.json', out);
+  return out;
+});
+
+// Inventario de Genshin desde la calculadora de HoYoLAB
+const genshinCalc = require('./src/genshin-calc');
+ipcMain.handle('ginv:sync', async () => {
+  const uid = store.getSettings().genshinUid;
+  if (!uid) throw new Error('Pon tu UID de Genshin primero.');
+  const cookie = hoyolab.cookie?.(store.read);
+  if (!cookie) throw new Error('Conecta tu cuenta de HoYoLAB en Genshin → Notas de HoYoLAB.');
+  const plan = store.read('gfarm-plan.json', []);
+  if (!plan.length) throw new Error('Añade personajes al plan de Farmeo primero.');
+  const r = await genshinCalc.inventory(cookie, uid, plan);
+  const farm = await genshinFarm.compute(plan, ctxRW).catch(() => null);
+  const inv = store.read('genshin-inventory.json', {});
+  const matched = genshinCalc.mergeInto(inv, r.items, (farm?.materials || []).map((m) => m.name));
+  store.write('genshin-inventory.json', inv);
+  return { inv, matched, read: r.total, skipped: r.skipped.length };
+});
+
+// Eventos de Genshin que terminan pronto y todavía no marcaste como hechos
+ipcMain.handle('gevents:done', () => store.read('genshin-events-done.json', {}));
+ipcMain.handle('gevents:toggle', (_e, id) => {
+  const d = store.read('genshin-events-done.json', {});
+  const k = String(id);
+  if (d[k]) delete d[k];
+  else d[k] = Date.now();
+  store.write('genshin-events-done.json', d);
+  return d;
+});
+function eventsTick() {
+  if (!settingsOn('eventAlerts')) return;
+  const news = store.read('genshin-news.json', null)?.data;
+  if (!news?.events) return;
+  const done = store.read('genshin-events-done.json', {});
+  const sent = store.read('genshin-events-notified.json', {});
+  const now = Date.now();
+  const soon = news.events.filter((e) => e.end > now && e.end - now < 48 * 3600000 && !/gachap|deseo|invocaci/i.test(e.kind || '') && !done[e.id] && !sent[e.id]);
+  if (!soon.length) return;
+  for (const e of soon) sent[e.id] = now;
+  store.write('genshin-events-notified.json', sent);
+  const name = (e) => (String(e.title).match(/«([^»]+)»/) || [])[1] || e.title;
+  notify(soon.length === 1 ? 'Termina pronto: ' + name(soon[0]) : soon.length + ' eventos de Genshin terminan pronto', soon.slice(0, 3).map((e) => name(e) + ' (' + Math.round((e.end - now) / 3600000) + ' h)').join(', ') + '. Márcalos como hechos en Genshin → Noticias.');
+}
+
+// IA de Genshin: tu Claude Code busca en la web (anuncios oficiales, filtraciones)
+// y responde en JSON. Se guarda unos días para no gastar en cada visita.
+function aiJson(prompt, opts = {}) {
+  return new Promise((resolve, reject) => {
+    const chatId = 'ai-' + Date.now();
+    let text = '';
+    let final = '';
+    const timer = setTimeout(() => {
+      claudeChat.stop(chatId);
+      reject(new Error('Claude tardó demasiado (más de 5 minutos). Prueba otra vez.'));
+    }, 300000);
+    try {
+      claudeChat.send({ cwd: assistDir(), chatId, text: prompt, model: opts.model || 'sonnet', access: 'ask', system: 'Eres un experto en Genshin Impact y escribes en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' }, (ev) => {
+        if (ev.type === 'assistant') for (const p of ev.message?.content || []) if (p.type === 'text') text += p.text;
+        if (ev.type === 'result' && typeof ev.result === 'string') final = ev.result;
+        if (ev.type === 'vt-end') {
+          clearTimeout(timer);
+          const src = final || text;
+          const m = src.match(/```json\s*([\s\S]*?)```/) || src.match(/(\{[\s\S]*\})/);
+          try {
+            resolve(JSON.parse(m ? m[1] : src));
+          } catch {
+            reject(new Error(ev.code && ev.stderr ? 'Claude Code no pudo responder: ' + ev.stderr.slice(0, 200) : 'Claude no devolvió datos válidos. Prueba otra vez.'));
+          }
+        }
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
+  });
+}
+function genshinContext() {
+  const chars = (store.read('hoyolab-cache.json', null)?.data?.characters || []).map((c) => c.name + ' (' + c.rarity + '★ ' + c.element + ', nv. ' + c.level + ', C' + c.constellation + (c.weapon ? ', ' + c.weapon : '') + ')');
+  let pools = [];
+  try {
+    pools = (genshinWish.summary(store.read('genshin-wishes.json', { items: {} }))?.pools || []).map((p) => p.name + ': ' + p.pity5 + ' tiradas desde el último 5★' + (p.key === 'character' ? (p.guaranteed ? ', próximo garantizado' : ', 50/50') : ''));
+  } catch {}
+  const news = store.read('genshin-news.json', null)?.data;
+  const banners = (news?.events || []).filter((e) => /gachap|deseo|invocaci/i.test(e.kind || '') && e.end > Date.now()).map((e) => e.title + ' (hasta ' + new Date(e.end).toLocaleDateString('es') + ')');
+  return {
+    today: new Date().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }),
+    version: news?.version ? news.version.number + ' «' + news.version.name + '»' : 'desconocida',
+    next: news?.next ? news.next.number + ' el ' + new Date(news.next.at).toLocaleDateString('es') : 'desconocida',
+    chars,
+    pools,
+    banners,
+  };
+}
+const AI_TTL = { insights: 3 * 86400000, advice: 86400000, teams: 7 * 86400000 };
+const aiBusy = {};
+ipcMain.handle('gai:get', async (_e, kind, force, extra) => {
+  if (!AI_TTL[kind]) throw new Error('Tipo desconocido');
+  const cache = store.read('genshin-ai.json', {});
+  if (!force && cache[kind] && Date.now() - cache[kind].at < AI_TTL[kind]) return cache[kind];
+  if (aiBusy[kind]) return aiBusy[kind];
+  const c = genshinContext();
+  const money = extra && typeof extra === 'object' ? 'Recursos para tirar: ' + Math.round(Number(extra.pulls) || 0) + ' tiradas disponibles hasta la próxima versión.' : '';
+  const prompts = {
+    insights: 'Hoy es ' + c.today + '. La versión actual de Genshin Impact es ' + c.version + ' y la próxima es la ' + c.next + '.\n' +
+      'Busca en la web (anuncios oficiales de HoYoverse y HoYoLAB, Game8, la wiki de Genshin, r/Genshin_Impact_Leaks y filtradores conocidos) y prepara:\n' +
+      '1) Un resumen de la historia (lore) de la versión actual: uno corto sin spoilers y otro completo con spoilers.\n' +
+      '2) Las tres próximas versiones: personajes que vendrán (con rareza, elemento, arma y región), fechas aproximadas, lo que se sabe de la historia y de dónde sale cada dato (oficial, filtración o rumor).\n' +
+      'Responde SOLO con este JSON: {"current":{"version":"","name":"","lore":"","spoilerLore":"","highlights":[""]},"upcoming":[{"version":"","when":"","characters":[{"name":"","rarity":5,"element":"","weapon":"","region":"","status":"oficial|filtración|rumor"}],"story":"","notes":""}],"sources":[{"title":"","url":""}]}',
+    advice: 'Hoy es ' + c.today + '. Banners actuales y próximos de Genshin Impact: ' + (c.banners.join('; ') || 'búscalos en la web') + '. Próxima versión: ' + c.next + '.\n' +
+      'Mis personajes: ' + (c.chars.join(', ') || 'no los sé (dímelo de forma general)') + '.\nMis tiradas: ' + (c.pools.join('; ') || 'sin datos') + '. ' + money + '\n' +
+      'Busca en la web qué tan buenos son los personajes de los banners actuales y de las próximas 2 versiones (según las filtraciones) y dime por quién tirar, por quién no y para quién ahorrar, teniendo en cuenta MIS personajes y equipos. Sé concreto.\n' +
+      'Responde SOLO con este JSON: {"summary":"","picks":[{"name":"","banner":"actual|próximo|filtrado","verdict":"Tirar|Opcional|Saltar|Ahorrar para","why":"","priority":1}],"saveFor":{"name":"","when":"","why":""}}',
+    teams: 'Hoy es ' + c.today + '. Busca en la web la temporada actual del Abismo de Espiral (piso 12: enemigos y bendición lunar) y del Teatro Imaginario (elementos permitidos e invitados).\n' +
+      'Mis personajes de Genshin Impact: ' + (c.chars.join(', ') || 'desconocidos') + '.\n' +
+      'Arma los mejores equipos posibles SOLO con mis personajes: dos para el Abismo (primera y segunda mitad) y una alineación para el Teatro, y dime qué personajes me convendría subir o conseguir.\n' +
+      'Responde SOLO con este JSON: {"abyss":{"season":"","blessing":"","teams":[{"half":"Primera mitad","members":["","","",""],"why":""},{"half":"Segunda mitad","members":["","","",""],"why":""}]},"theater":{"season":"","elements":[""],"lineup":[""],"why":""},"upgrades":[{"character":"","what":""}]}',
+  };
+  aiBusy[kind] = aiJson(prompts[kind]).then((data) => {
+    const all = store.read('genshin-ai.json', {});
+    all[kind] = { at: Date.now(), data };
+    store.write('genshin-ai.json', all);
+    return all[kind];
+  }).finally(() => delete aiBusy[kind]);
+  return aiBusy[kind];
+});
+ipcMain.handle('gai:cached', () => store.read('genshin-ai.json', {}));
 
 // Workana en Brave (donde ya tienes la sesión iniciada)
 ipcMain.handle('wk:brave', (_e, url, text) => {

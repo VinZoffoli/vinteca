@@ -54,4 +54,50 @@ function isAllowed(file, ctx) {
   return IMG.test(f) && roots(ctx).some((r) => f.startsWith(path.resolve(r).toLowerCase() + path.sep));
 }
 
-module.exports = { forGame, isAllowed, roots };
+// ---- clips de vídeo ----
+const VID = /[.](mp4|mkv|webm|mov)$/i;
+const videosDir = () => path.join(os.homedir(), 'Videos');
+function listVid(dir) {
+  try {
+    return fs.readdirSync(dir).filter((f) => VID.test(f)).map((f) => path.join(dir, f));
+  } catch {
+    return [];
+  }
+}
+/** Clips de un juego: Barra de juegos ("<Título> <fecha>.mp4"), NVIDIA y AMD (carpeta con el nombre del juego). */
+function clipsForGame(game) {
+  const t = norm(game.title);
+  if (t.length < 3) return [];
+  const v = videosDir();
+  let files = listVid(path.join(v, 'Captures')).filter((f) => norm(path.basename(f)).startsWith(t));
+  const folders = [v, path.join(v, 'NVIDIA'), path.join(v, 'Radeon ReLive'), path.join(v, 'AMD')];
+  for (const base of folders) {
+    let subs = [];
+    try {
+      subs = fs.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory());
+    } catch {}
+    for (const d of subs) {
+      const n = norm(d.name);
+      if (n === t || (n.length >= 4 && (n.startsWith(t) || t.startsWith(n)))) files = files.concat(listVid(path.join(base, d.name)));
+    }
+  }
+  return [...new Set(files)]
+    .map((file) => {
+      try {
+        const st = fs.statSync(file);
+        return { file, time: st.mtimeMs, size: st.size, name: path.basename(file) };
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.time - a.time)
+    .slice(0, 30);
+}
+/** Solo se sirven vídeos de la carpeta Vídeos del usuario. */
+function isAllowedVideo(file) {
+  const f = path.resolve(file).toLowerCase();
+  return VID.test(f) && f.startsWith(path.resolve(videosDir()).toLowerCase() + path.sep);
+}
+
+module.exports = { forGame, isAllowed, roots, clipsForGame, isAllowedVideo };

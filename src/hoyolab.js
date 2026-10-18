@@ -289,4 +289,4 @@ async function signInfo(read) {
   return { linked: true, signed: !!j.data?.is_sign, days: j.data?.total_sign_day || 0, today: j.data?.today || null, page: SIGN_PAGE };
 }
 
-module.exports = { login, overview, logout, linked, server, details, signInfo, SIGN_PAGE };
+module.exports = { login, overview, logout, linked, server, details, signInfo, SIGN_PAGE, cookie: loadCookies };

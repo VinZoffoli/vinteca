@@ -554,7 +554,7 @@ function renderDeals() {
         'button',
         { class: `deal${sale ? '' : ' nosale'}`, onclick: () => window.api.open(`https://store.steampowered.com/app/${it.appid}/`), title: 'Abrir en la tienda de Steam' },
         h('img', { src: it.cover, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }),
-        h('div', {}, h('h3', { text: it.name }), priceRow, ends, canRunBadge(it.appid))
+        h('div', {}, h('h3', { text: it.name }), priceRow, ends, window.priceBadge?.(it), canRunBadge(it.appid))
       );
     })
   );
@@ -2391,6 +2391,8 @@ const GI_TABS = [
   ['farmeo', 'Farmeo'],
   ['tiradas', 'Calculadora de tiradas'],
   ['mapa', 'Mapa'],
+  ['viene', 'Lo que viene'],
+  ['equipos', 'Equipos'],
   ['codigos', 'Códigos'],
 ];
 function genshinTabs() {
@@ -2420,6 +2422,8 @@ function genshinOtherTab() {
   if (gi.tab === 'codigos') return window.gplusUI?.renderCodes();
   if (gi.tab === 'tiradas') return window.gcalcUI?.render();
   if (gi.tab === 'mapa') return window.gmapUI?.render();
+  if (gi.tab === 'viene') return window.gaiUI?.coming();
+  if (gi.tab === 'equipos') return window.gaiUI?.teams();
   return renderPriorities();
 }
 
@@ -2502,7 +2506,8 @@ function renderGnews() {
           h('span', { class: 'gi-kind', text: e.kind }),
           h('span', { class: 'gn-ev-t', text: e.short }),
           h('span', { class: 'gn-ev-bar' }, h('i', { style: { width: `${total > 0 ? Math.min(100, (left / total) * 100) : 0}%` } })),
-          h('span', { class: 'gn-ev-d', text: `Termina ${daysLeft(e.end)}` })
+          h('span', { class: 'gn-ev-d', text: `Termina ${daysLeft(e.end)}` }),
+          window.geventDone?.(e)
         );
       })
     ),
@@ -2743,7 +2748,7 @@ function hoyoCharacterCard(c) {
             h(
               'div',
               { class: 'hc-relic' },
-              h('div', { class: 'hc-relic-head' }, h('div', {}, h('b', { text: a.name }), h('span', { class: 'hc-lv', text: `Nv. ${a.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(a.rarity || 5) }), window.artBadge?.(a)), a.icon && h('img', { src: a.icon, alt: '', referrerPolicy: 'no-referrer' })),
+              h('div', { class: 'hc-relic-head' }, h('div', {}, h('b', { text: a.name }), h('span', { class: 'hc-lv', text: `Nv. ${a.level}` }), h('span', { class: 'hc-stars', text: '★'.repeat(a.rarity || 5) }), window.artBadge?.(a, c.artifacts)), a.icon && h('img', { src: a.icon, alt: '', referrerPolicy: 'no-referrer' })),
               a.main && h('div', { class: `hc-main${isCrit(a.main.name) ? ' crit' : ''}` }, h('span', { text: a.main.name }), h('b', { text: a.main.final })),
               h(
                 'ul',
@@ -2938,7 +2943,7 @@ function genshinCharacter(c) {
                   h(
                     'div',
                     {},
-                    h('p', { class: 'gi-slot' }, a.slot, window.artBadge?.(a)),
+                    h('p', { class: 'gi-slot' }, a.slot, window.artBadge?.(a, c.artifacts)),
                     a.main && h('b', { text: `${a.main.name} ${a.main.value}` }),
                     h('ul', {}, a.subs.map((s) => h('li', { class: /CRIT/.test(s.name) ? 'crit' : '', text: `${s.name} +${s.value}` })))
                   )
@@ -3103,6 +3108,7 @@ function renderFriendsView() {
     results = h(
       'div',
       {},
+      window.gameNightCard?.(c),
       h('h2', { class: 'section-h', text: multi.length ? `Para jugar juntos (${multi.length})` : 'Para jugar juntos' }),
       multi.length ? h('div', { class: 'commons' }, multi.slice(0, 40).map(card2)) : h('p', { class: 'hint', text: 'No tenéis en común ningún juego multijugador o cooperativo.' }),
       all.length > multi.length && h('h2', { class: 'section-h', text: `Otros que tenéis todos (${all.length - multi.length})` }),
@@ -3446,6 +3452,7 @@ function fillGameExtras(g) {
   window.fillGamePerf?.(g);
   fillGameNews(g);
   fillGameShots(g);
+  window.fillGameClips?.(g);
   fillGameSaves(g);
   window.fillGameMods?.(g);
 }
@@ -3914,6 +3921,7 @@ function renderGame() {
     slot('gameSimilar'),
     slot('gameNews'),
     slot('gameShots'),
+    slot('gameClips'),
     slot('gameSaves'),
     slot('gameMods')
   );

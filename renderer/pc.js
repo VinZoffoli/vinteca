@@ -179,6 +179,7 @@
   }
   const weeksText = (w) => (w <= 1 ? 'Esta semana' : w <= 2 ? 'La semana que viene' : w <= 4.3 ? `En ${Math.ceil(w)} semanas` : `En ${Math.round(w / 4.3)} ${Math.round(w / 4.3) === 1 ? 'mes' : 'meses'}`);
 
+  document.addEventListener('vt-goal', () => backlogRender());
   function backlogRender() {
     const body = $('#backlogBody');
     if (!body || !state.lib) return;
@@ -196,6 +197,7 @@
     );
     fill(body,
       B.busy && h('div', { class: 'notice' }, h('span', { text: B.busy })),
+      window.backlogGoalCard?.(),
       h('dl', { class: 'stat-strip rx-stats' },
         h('div', {}, h('dt', { text: 'Tu ritmo' }), h('dd', { text: `${String(p.pace).replace('.', ',')} h por semana` })),
         h('div', {}, h('dt', { text: 'Te quedan' }), h('dd', { text: `${Math.round(totalLeft)} h en ${plural(p.known.length, 'juego', 'juegos')}` })),

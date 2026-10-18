@@ -258,6 +258,20 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.21
+
+- **Genshin → Lo que viene**: tu Claude Code busca en la web (anuncios oficiales, Game8, la wiki y filtraciones) y prepara el resumen de la historia de la versión actual (con y sin spoilers) y las tres próximas versiones con sus personajes, fechas y si cada dato es oficial, filtración o rumor, con las fuentes.
+- **Genshin → Por quién tirar**: según tus personajes, tus tiradas y los banners de ahora y los que vienen, quién vale la pena, quién no y para quién ahorrar.
+- **Genshin → Equipos**: equipos para el Abismo de Espiral y el Teatro Imaginario de la temporada actual armados solo con tus personajes, y qué te conviene subir.
+- **Genshin → Eventos**: «Hecho» en cada evento y aviso cuando uno que no hiciste termina en menos de 48 horas.
+- **Genshin → Inventario desde HoYoLAB**: «Leer de HoYoLAB» en Farmeo trae cuánto tienes de cada material del plan desde la calculadora oficial.
+- **Puntuación de artefactos más justa**: en personajes de apoyo se valoran las tiradas útiles (recarga, maestría, % de vida o ataque) en vez del crítico.
+- **Noche de juego** (Amigos): con los amigos elegidos, los 3 mejores juegos que tienen todos (multijugador, instalados, de la familia), la hora y una invitación lista para pegar en Discord o Steam.
+- **Clips** en la ficha de cada juego: los vídeos de la Barra de juegos de Windows y de NVIDIA o AMD, con vista previa al pasar el ratón.
+- **Reto del backlog**: una meta de juegos terminados al mes, con progreso y racha de meses cumplidos.
+- **Precio histórico** de la lista de deseados: un minigráfico con el precio de cada día, el mínimo histórico de Steam (CheapShark) y aviso cuando un juego llega a su mínimo.
+- **Diseño más pulido**: cifras en tarjetas en Logros, Estadísticas, Backlog y Websites, gráficos de barras nuevos, personajes de Genshin como cartas con su color de elemento y fotos de regalos enteras.
+
 ## Novedades de la 1.20
 
 - **Mi día rediseñado**: un encabezado con el saludo, un resumen de una línea y el clima, y debajo bloques por tema (Ahora, Casa, Trabajo y Ocio) en tarjetas tipo widget, con anillos de progreso para el presupuesto y la resina y la agenda en línea de tiempo.

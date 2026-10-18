@@ -7,30 +7,48 @@
   const num = (v) => parseFloat(String(v ?? '').replace(',', '.')) || 0;
   const isCR = (n) => /crit/i.test(n) && /prob/i.test(n);
   const isCD = (n) => /crit/i.test(n) && /da[ñn]o/i.test(n);
-  window.artScore = (a) => {
-    let cv = 0;
-    for (const s of a.subs || []) {
-      const v = num(s.final ?? s.value);
-      if (isCR(s.name)) cv += v * 2;
-      else if (isCD(s.name)) cv += v;
-    }
-    cv = Math.round(cv * 10) / 10;
+  // En personajes de apoyo (sin crítico en sus artefactos) se valoran las tiradas útiles:
+  // recarga, maestría y % de vida, ataque o defensa, medidas en «tiradas máximas».
+  const MAXROLL = [[/crit/i, null], [/recarga/i, 6.48], [/maestr/i, 23.31], [/vida/i, 5.83], [/ataque|atq/i, 5.83], [/defensa|def/i, 7.29]];
+  const pctOf = (s) => /%/.test(String(s.final ?? s.value ?? ''));
+  const cvOf = (a) => (a.subs || []).reduce((t, s) => t + (isCR(s.name) ? num(s.final ?? s.value) * 2 : isCD(s.name) ? num(s.final ?? s.value) : 0), 0);
+  const modeOf = (arts) => (arts && arts.length >= 3 && arts.reduce((t, a) => t + cvOf(a), 0) < 70 ? 'support' : 'crit');
+  window.artScore = (a, arts) => {
+    const cv = Math.round(cvOf(a) * 10) / 10;
     const lvl = Number(a.level) || 0;
+    if (modeOf(arts) === 'support') {
+      let rolls = 0;
+      for (const s of a.subs || []) {
+        if (/crit/i.test(s.name)) continue;
+        const m = MAXROLL.find(([re]) => re.test(s.name));
+        if (!m || !m[1]) continue;
+        const isFlat = !/maestr/i.test(s.name) && !pctOf(s);
+        rolls += (num(s.final ?? s.value) / m[1]) * (isFlat ? 0 : 1);
+      }
+      rolls = Math.round(rolls * 10) / 10;
+      const [cls, label] = rolls >= 6.5 ? ['top', 'Joya'] : rolls >= 5 ? ['great', 'Muy bueno'] : rolls >= 4 ? ['good', 'Bueno'] : rolls >= 3 ? ['meh', 'Normal'] : lvl < 16 ? ['meh', 'Por subir'] : ['bad', 'Para cambiar'];
+      return { cv, rolls, mode: 'support', cls, label };
+    }
     const [cls, label] = cv >= 45 ? ['top', 'Joya'] : cv >= 35 ? ['great', 'Muy bueno'] : cv >= 25 ? ['good', 'Bueno'] : cv >= 15 ? ['meh', 'Normal'] : lvl < 16 ? ['meh', 'Por subir'] : ['bad', 'Para cambiar'];
-    return { cv, cls, label };
+    return { cv, mode: 'crit', cls, label };
   };
-  window.artBadge = (a) => {
-    const s = window.artScore(a);
-    return h('span', { class: `art-score ${s.cls}`, title: `Valor crítico de las subestadísticas: ${s.cv}. Sirve para personajes de daño; en sanadores y apoyos mira la recarga, la vida o la maestría.` }, h('b', { text: String(Math.round(s.cv)) }), s.label);
+  window.artBadge = (a, arts) => {
+    const s = window.artScore(a, arts);
+    return s.mode === 'support'
+      ? h('span', { class: 'art-score ' + s.cls, title: 'Personaje de apoyo: cuento las tiradas útiles (recarga, maestría y % de vida, ataque o defensa). Esta pieza tiene ' + String(s.rolls).replace('.', ',') + ' tiradas.' }, h('b', { text: String(s.rolls).replace('.', ',') }), s.label)
+      : h('span', { class: 'art-score ' + s.cls, title: 'Valor crítico de las subestadísticas: ' + s.cv + ' (Prob. CRIT × 2 + Daño CRIT).' }, h('b', { text: String(Math.round(s.cv)) }), s.label);
   };
   window.artSummary = (arts) => {
     if (!arts?.length) return null;
-    const scored = arts.map((a) => ({ a, s: window.artScore(a) }));
+    const scored = arts.map((a) => ({ a, s: window.artScore(a, arts) }));
     const bad = scored.filter((x) => x.s.cls === 'bad');
-    const total = Math.round(scored.reduce((t, x) => t + x.s.cv, 0));
-    return h('p', { class: `art-sum ${bad.length ? 'warn' : ''}` },
-      h('b', { text: `Valor crítico total ${total}` }),
-      bad.length ? ` · Para cambiar: ${bad.map((x) => x.a.slot || x.a.name).join(', ')}. Busca piezas con Prob. o Daño CRIT en las subestadísticas.` : total >= 180 ? ' · Equipo de artefactos excelente.' : total >= 130 ? ' · Buen equipo de artefactos.' : ' · Se puede mejorar sin prisa.'
+    const support = scored[0].s.mode === 'support';
+    const total = support ? Math.round(scored.reduce((t, x) => t + x.s.rolls, 0) * 10) / 10 : Math.round(scored.reduce((t, x) => t + x.s.cv, 0));
+    const good = support ? total >= 25 : total >= 180;
+    const ok = support ? total >= 18 : total >= 130;
+    return h('p', { class: 'art-sum ' + (bad.length ? 'warn' : '') },
+      h('b', { text: support ? 'Build de apoyo · ' + String(total).replace('.', ',') + ' tiradas útiles' : 'Valor crítico total ' + total }),
+      bad.length ? ' · Para cambiar: ' + bad.map((x) => x.a.slot || x.a.name).join(', ') + (support ? '. Busca piezas con recarga, maestría o % de la estadística que escala.' : '. Busca piezas con Prob. o Daño CRIT en las subestadísticas.') : good ? ' · Equipo de artefactos excelente.' : ok ? ' · Buen equipo de artefactos.' : ' · Se puede mejorar sin prisa.'
     );
   };
 

@@ -207,6 +207,12 @@ contextBridge.exposeInMainWorld('api', {
   wkBrave: (url, text) => ipcRenderer.invoke('wk:brave', url, text),
   gmap: (fresh) => ipcRenderer.invoke('gmap:open', fresh),
   weather: (force) => ipcRenderer.invoke('weather:get', force),
+  prices: () => ipcRenderer.invoke('prices:get'),
+  clips: { get: (id) => ipcRenderer.invoke('clips:get', id), open: (f) => ipcRenderer.invoke('clips:open', f), folder: (f) => ipcRenderer.invoke('clips:folder', f) },
+  goals: { get: () => ipcRenderer.invoke('goals:get'), set: (g) => ipcRenderer.invoke('goals:set', g) },
+  ginvSync: () => ipcRenderer.invoke('ginv:sync'),
+  gevents: { done: () => ipcRenderer.invoke('gevents:done'), toggle: (id) => ipcRenderer.invoke('gevents:toggle', id) },
+  gai: { get: (kind, force, extra) => ipcRenderer.invoke('gai:get', kind, force, extra), cached: () => ipcRenderer.invoke('gai:cached') },
   widget: { toggle: (on) => ipcRenderer.invoke('widget:toggle', on), status: () => ipcRenderer.invoke('widget:status'), pin: () => ipcRenderer.invoke('widget:pin'), size: (h) => ipcRenderer.invoke('widget:size', h), openApp: () => ipcRenderer.invoke('widget:open-app') },
   searchIndex: () => ipcRenderer.invoke('search:index'),
   family: {

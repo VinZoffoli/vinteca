@@ -8,7 +8,7 @@ const { app, safeStorage } = require('electron');
 const dir = () => app.getPath('userData');
 const file = (name) => path.join(dir(), name);
 
-const PRECIOUS = /^(casa|settings|sessions|user-games|genshin-(tasks|wishes|gather|inventory)|gfarm-plan|workana|linkedin|alquileres|anime[\w-]*|assist-chat|purchase-dates|weekly)\.json$/;
+const PRECIOUS = /^(casa|settings|sessions|user-games|genshin-(tasks|wishes|gather|inventory)|gfarm-plan|workana|linkedin|alquileres|anime[\w-]*|assist-chat|purchase-dates|weekly|goals|genshin-events-done|genshin-ai|price-history)\.json$/;
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 function read(name, fallback) {
@@ -134,6 +134,7 @@ function getSettings() {
     sundaySummary: s.sundaySummary !== false,
     paimonAlert: s.paimonAlert !== false,
     weatherAlerts: s.weatherAlerts !== false,
+    eventAlerts: s.eventAlerts !== false,
     mailAlerts: s.mailAlerts !== false,
     tempLimits: s.tempLimits || { cpu: 90, gpu: 85 },
     genshinUid: s.genshinUid || '',
@@ -154,7 +155,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert', 'weatherAlerts'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert', 'weatherAlerts', 'eventAlerts'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});

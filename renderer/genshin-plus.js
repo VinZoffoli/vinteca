@@ -109,6 +109,7 @@
         return h('div', { class: 'gf-inv' },
           h('p', { class: 'hint', text: `Mora: necesitas ${r.mora.toLocaleString('es')}${inv.Mora ? `, te faltan ${moraLeft.toLocaleString('es')}` : ''} (sin contar la experiencia). Anota en cada material cuánto tienes y te digo lo que falta.` }),
           h('label', { class: 'gf-have' }, h('span', { text: 'Tengo de mora' }), moraIn),
+          window.ginvSyncButton?.((inv) => { F.inv = inv; redraw(); }),
           h('span', { class: 'gf-inv-sum', text: `${done} de ${r.materials.length} materiales completos` })
         );
       })(),
