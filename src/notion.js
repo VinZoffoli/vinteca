@@ -379,6 +379,102 @@ async function overview(ctx, force) {
   return data;
 }
 
+
+// ---- equipo: tickets de todos, para la vista de Squads ----
+const ids = (v) => {
+  let arr = [];
+  try {
+    arr = JSON.parse(v || '[]');
+  } catch {
+    arr = String(v || '').split(',');
+  }
+  return arr.map((x) => (String(x).match(/[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}/i) || [])[0]).filter(Boolean).map((x) => x.replace(/-/g, ''));
+};
+async function rowsAll(ctx, data, pages = 5) {
+  const out = [];
+  let cursor;
+  for (let i = 0; i < pages; i++) {
+    const j = await query(ctx, { ...data, ...(cursor ? { start_cursor: cursor } : {}) });
+    out.push(...(j.results || []));
+    if (!j.has_more || !j.next_cursor) break;
+    cursor = j.next_cursor;
+  }
+  return out;
+}
+/** Nombres de las personas del espacio de trabajo (caché de 7 días). */
+async function users(ctx) {
+  const c = ctx.read('notion-users.json', null);
+  if (c && Date.now() - c.at < 7 * 86400000) return c.map;
+  const map = {};
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const j = parseJson(await tool(ctx, 'get-users', cursor ? { start_cursor: cursor, page_size: 100 } : { page_size: 100 })) || {};
+    for (const u of j.results || j.users || []) if (u.id) map[String(u.id).replace(/-/g, '')] = u.name || u.email || u.id;
+    if (!j.has_more || !j.next_cursor) break;
+    cursor = j.next_cursor;
+  }
+  ctx.write('notion-users.json', { at: Date.now(), map });
+  return map;
+}
+/**
+ * Tickets abiertos de todo el equipo y los terminados del último mes, por persona:
+ * abiertos, vencidos, cerrados por semana, puntualidad y días medios de resolución.
+ */
+async function team(ctx, force) {
+  const c = ctx.read('notion-team.json', null);
+  if (!force && c && Date.now() - c.at < 30 * 60000) return c;
+  const notDone = { type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is_not', value: [{ type: 'is_option', value: 'Done' }, { type: 'is_option', value: 'Canceled' }] };
+  const done = { type: 'group', operator: 'and', filters: [{ type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is', value: { type: 'is_option', value: 'Done' } }, { type: 'property', property: 'Last edited time', propertyType: 'last_edited_time', operator: 'date_is_on_or_after', value: { type: 'relative', value: 'one_month_ago' } }] };
+  const [open, closed, names] = await Promise.all([
+    rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: notDone, limit: 100 }),
+    rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: done, limit: 100 }).catch(() => []),
+    users(ctx).catch(() => ({})),
+  ]);
+  const now = Date.now();
+  const today = new Date().toLocaleDateString('sv');
+  const P = {};
+  const person = (id) => (P[id] ||= { id, name: names[id] || 'Persona ' + id.slice(0, 6), open: 0, late: 0, soon: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] });
+  for (const r of open) {
+    const t = ticket(r);
+    for (const id of ids(r.Responsible)) {
+      const p = person(id);
+      p.open++;
+      if (t.deadline && t.deadline < today) p.late++;
+      else if (t.deadline && new Date(t.deadline + 'T23:59:59').getTime() - now < 3 * 86400000) p.soon++;
+      p.tickets.push({ title: t.title, deadline: t.deadline, status: t.status, url: t.url, late: !!(t.deadline && t.deadline < today) });
+    }
+  }
+  for (const r of closed) {
+    const t = ticket(r);
+    const end = t.edited ? new Date(t.edited).getTime() : null;
+    if (!end) continue;
+    const week = Math.floor((now - end) / (7 * 86400000));
+    for (const id of ids(r.Responsible)) {
+      const p = person(id);
+      if (week >= 0 && week < 4) p.closed[3 - week]++;
+      if (t.deadline) {
+        p.withDeadline++;
+        if (end <= new Date(t.deadline + 'T23:59:59').getTime() + 86400000) p.onTime++;
+      }
+      if (t.created) p.days.push((end - new Date(t.created).getTime()) / 86400000);
+    }
+  }
+  const people = Object.values(P).map((p) => ({
+    id: p.id,
+    name: p.name,
+    open: p.open,
+    late: p.late,
+    soon: p.soon,
+    closed: p.closed,
+    onTimePct: p.withDeadline ? Math.round((p.onTime / p.withDeadline) * 100) : null,
+    avgDays: p.days.length ? Math.round((p.days.reduce((a, b) => a + b, 0) / p.days.length) * 10) / 10 : null,
+    tickets: p.tickets.sort((a, b) => String(a.deadline || '9').localeCompare(String(b.deadline || '9'))).slice(0, 12),
+  }));
+  const out = { at: Date.now(), people, openTotal: open.length, closedTotal: closed.length };
+  ctx.write('notion-team.json', out);
+  return out;
+}
+
 function logout({ read, write }) {
   access = null;
   session = null;
@@ -425,4 +521,4 @@ async function watch(ctx) {
   return { first: !prev, events };
 }
 
-module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze, watch };
+module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze, watch, team };

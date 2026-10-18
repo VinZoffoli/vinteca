@@ -35,6 +35,12 @@
               h('button', { class: 'btn ghost small', text: 'Descargar Tailscale', onclick: () => window.api.open('https://tailscale.com/download') })
             )
       ),
+      ts && h('section', { class: 'rx-card ph-https' },
+        h('h3', { text: 'Avisos en el iPhone' }),
+        l.httpsUrl
+          ? h('div', { class: 'ph-https-on' }, h('img', { src: l.httpsQr, alt: 'Código QR del enlace seguro' }), h('div', {}, h('b', { text: 'Enlace seguro listo (con candado)' }), h('p', { class: 'hint', text: 'Escanéalo y añade ViperTeca a la pantalla de inicio desde este enlace. Después, en Más → PC, pulsa «Activar avisos»: te llegarán al iPhone los mismos avisos que ves en el PC, aunque estés fuera de casa. También funciona sin conexión con lo último que viste.' })))
+          : [h('p', { class: 'hint', text: 'El iPhone solo acepta avisos de una app con candado (https). Tailscale da ese certificado gratis: actívalo una vez en tu panel de Tailscale (DNS → HTTPS Certificates → Enable) y luego pulsa aquí.' }), h('div', { class: 'row' }, h('button', { class: 'btn primary small', text: 'Crear el enlace seguro', onclick: () => lanAction(window.api.lanHttps) }), h('button', { class: 'btn subtle small', text: 'Abrir el panel de Tailscale', onclick: () => window.api.open('https://login.tailscale.com/admin/dns') }))]
+      ),
       h('section', { class: 'rx-card' },
         h('h3', { text: 'Instalarla como app en el iPhone' }),
         h('ol', { class: 'ph-steps' },

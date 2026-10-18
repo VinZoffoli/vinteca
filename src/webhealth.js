@@ -185,4 +185,52 @@ async function deployments({ read, write }) {
   return out;
 }
 
-module.exports = { setSecret, getSecret, check, checkAll, pagespeed, deployments, vercelTeams };
+
+/**
+ * Errores en vivo de la producción de un proyecto (registros de Vercel): errores
+ * de funciones y respuestas 5xx de las últimas horas. Vercel guarda 1 h en Hobby
+ * y 1 día en Pro. La respuesta es un flujo: se lee unos segundos y se corta.
+ */
+async function runtimeErrors(read, p, sinceMs = 3 * 3600000) {
+  const token = getSecret(read, 'vercelEnc');
+  if (!token || !p?.id || !p.production?.id) return [];
+  const s = read('settings.json', {});
+  const q = new URLSearchParams();
+  if (s.vercelTeam) q.set('teamId', s.vercelTeam);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 9000);
+  const out = [];
+  try {
+    const r = await fetch('https://api.vercel.com/v1/projects/' + p.id + '/deployments/' + p.production.id + '/runtime-logs?' + q, { headers: { Authorization: 'Bearer ' + token }, signal: ctrl.signal });
+    if (!r.ok || !r.body) return [];
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line) continue;
+        try {
+          const j = JSON.parse(line);
+          if (j.source === 'delimiter') continue;
+          const at = Number(j.timestampInMs) || 0;
+          if (at && at < Date.now() - sinceMs) continue;
+          if (['error', 'fatal'].includes(j.level) || Number(j.responseStatusCode) >= 500) out.push({ at, level: j.level, status: Number(j.responseStatusCode) || null, path: String(j.requestPath || '').slice(0, 200), msg: String(j.message || '').slice(0, 300) });
+        } catch {}
+      }
+      if (out.length > 300) break;
+    }
+  } catch {
+  } finally {
+    clearTimeout(timer);
+    ctrl.abort();
+  }
+  return out;
+}
+
+module.exports = { setSecret, getSecret, check, checkAll, pagespeed, deployments, vercelTeams, runtimeErrors };

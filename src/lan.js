@@ -62,7 +62,10 @@ const same = (a, b) => {
 
 class LanServer {
   /** @param games () => juegos  @param launch (id) => abre el juego en el PC */
-  constructor({ games, launch, token, shopping, day, mobile, iconPath }) {
+  constructor({ games, launch, token, shopping, day, mobile, iconPath, tls }) {
+    this.tls = tls || null; // { cert, key } de Tailscale para HTTPS (avisos en el iPhone)
+    this.secure = null;
+    this.securePort = null;
     this.shopping = shopping || null;
     this.day = day || null;
     this.mobile = mobile || null;
@@ -114,12 +117,19 @@ class LanServer {
     const ts = tailscaleIp();
     const tsHost = tsName || ts;
     const tsUrl = ts && this.mobile ? `http://${tsHost}:${this.port}/m?t=${this.token}` : null;
-    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr, mUrl, mQr: mUrl && qrSvg(mUrl), tailscale: ts ? { ip: ts, name: tsName } : null, tsUrl, tsQr: tsUrl && qrSvg(tsUrl) };
+    // con HTTPS (certificado de Tailscale) el iPhone puede recibir avisos y abrir sin conexión
+    const httpsUrl = this.secure && tsName ? `https://${tsName}:${this.securePort}/m?t=${this.token}` : null;
+    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr, mUrl, mQr: mUrl && qrSvg(mUrl), tailscale: ts ? { ip: ts, name: tsName } : null, tsUrl, tsQr: tsUrl && qrSvg(tsUrl), httpsUrl, httpsQr: httpsUrl && qrSvg(httpsUrl) };
   }
 
   async start() {
     await readTailscaleName().catch(() => null);
-    return this.listen();
+    const info = await this.listen();
+    if (this.tls && !this.secure) {
+      await this.startSecure();
+      return this.info();
+    }
+    return info;
   }
 
   listen() {
@@ -145,6 +155,24 @@ class LanServer {
     if (this.server) this.server.close();
     this.server = null;
     this.port = null;
+    if (this.secure) this.secure.close();
+    this.secure = null;
+    this.securePort = null;
+  }
+
+  /** Servidor HTTPS en el 47843 con el certificado de Tailscale (mismo contenido). */
+  startSecure(tls) {
+    if (tls) this.tls = tls;
+    if (this.secure || !this.tls) return Promise.resolve(!!this.secure);
+    const srv = require('https').createServer({ cert: this.tls.cert, key: this.tls.key }, (req, res) => this.handle(req, res));
+    return new Promise((resolve) => {
+      srv.once('error', () => resolve(false));
+      srv.listen(47843, '0.0.0.0', () => {
+        this.secure = srv;
+        this.securePort = srv.address().port;
+        resolve(true);
+      });
+    });
   }
 
   send(res, code, type, body) {
@@ -153,7 +181,7 @@ class LanServer {
       'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
-      'Content-Security-Policy': "default-src 'none'; img-src 'self' https: data:; manifest-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'",
+      'Content-Security-Policy': "default-src 'none'; img-src 'self' https: data:; manifest-src 'self'; worker-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline' 'self'; connect-src 'self'",
     });
     res.end(body);
   }
@@ -188,6 +216,24 @@ class LanServer {
       if (req.method === 'GET' && (u.pathname === '/m' || u.pathname === '/m/')) {
         const page = require('fs').readFileSync(require('path').join(__dirname, 'mobile.html'), 'utf8').replaceAll('__T__', this.token);
         return this.send(res, 200, 'text/html; charset=utf-8', page);
+      }
+      if (req.method === 'GET' && u.pathname === '/m/sw.js') {
+        res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'Service-Worker-Allowed': '/' });
+        return res.end(SW_PAGE.replaceAll('__T__', this.token));
+      }
+      if (req.method === 'GET' && u.pathname === '/api/m/push/key') return this.send(res, 200, 'application/json', JSON.stringify({ key: this.mobile.pushKey ? this.mobile.pushKey() : null }));
+      if (req.method === 'POST' && u.pathname === '/api/m/push/sub') {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 8000) return this.send(res, 413, 'application/json', '{"ok":false}');
+        }
+        let sub = null;
+        try {
+          sub = JSON.parse(body || 'null');
+        } catch {}
+        const ok = sub && this.mobile.pushSub ? await this.mobile.pushSub(sub, u.searchParams.get('test') === '1') : false;
+        return this.send(res, 200, 'application/json', JSON.stringify({ ok: !!ok }));
       }
       if (req.method === 'GET' && u.pathname === '/m/manifest.webmanifest') {
         const t = encodeURIComponent(this.token);
@@ -382,5 +428,29 @@ async function load(){
 }
 load();setInterval(load,60000);
 </script></body></html>`;
+
+const SW_PAGE = `// ViperTeca: avisos y copia sin conexión de la app del celular
+const CACHE = 'vt-m-1';
+self.addEventListener('install', (e) => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// la página y los datos: primero la red; si el PC no responde, lo último guardado
+self.addEventListener('fetch', (e) => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== 'GET' || !(u.pathname === '/m' || u.pathname === '/m/' || u.pathname === '/api/m' || u.pathname.startsWith('/m/icon'))) return;
+  e.respondWith(fetch(e.request).then((r) => {
+    if (r.ok) caches.open(CACHE).then((c) => c.put(e.request, r.clone()));
+    return r.clone();
+  }).catch(() => caches.match(e.request, { ignoreSearch: false }).then((r) => r || caches.match(e.request, { ignoreSearch: true }))));
+});
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { title: 'ViperTeca', body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'ViperTeca', { body: d.body || '', tag: d.tag, icon: '/m/icon.png?t=__T__', badge: '/m/icon.png?t=__T__' }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window' }).then((l) => (l[0] ? l[0].focus() : self.clients.openWindow('/m?t=__T__'))));
+});
+`;
 
 module.exports = { LanServer, localIp, tailscaleIp };

@@ -363,6 +363,10 @@ function mas() {
     const pc = async (what, ok, ask) => { if (ask && !confirm(ask)) return; await act('pc', { do: what }, ok); setTimeout(() => load('pc', true), 1200); };
     const B = (icon, label, what, ok, cls, ask) => h('button', { class: 'pcbtn ' + (cls || ''), onclick: () => pc(what, ok, ask) }, h('span', { text: icon }), label);
     out.push(card('Música y volumen', null, h('div', { class: 'pcgrid' }, B('🔉', 'Bajar', 'vol-down', null), B('🔇', 'Silencio', 'mute', null), B('🔊', 'Subir', 'vol-up', null), B('⏮', 'Anterior', 'prev', null), B('⏯', 'Pausa', 'play-pause', null), B('⏭', 'Siguiente', 'next', null))));
+    out.push(card('Avisos en este iPhone', S.pushOn ? 'activados' : null,
+      SWOK
+        ? h('button', { class: 'btn ' + (S.pushOn ? '' : 'primary'), text: S.pushOn ? 'Mandar uno de prueba' : 'Activar avisos', onclick: enablePush })
+        : h('p', { class: 'hint', style: 'color:var(--muted);margin:0', text: 'Para recibir avisos, abre la app desde el enlace con candado (https) de «En el móvil» en el PC y añádela a la pantalla de inicio.' })));
     out.push(card('Modo enfoque', d.focus?.mode === 'on' ? 'activo' : d.focus?.mode === 'waiting' ? 'esperando un juego' : 'apagado', h('div', { class: 'pcgrid' }, B('🎯', d.focus?.mode === 'off' ? 'Activar' : 'Desactivar', 'focus', d.focus?.mode === 'off' ? 'Modo enfoque activado' : 'Modo enfoque desactivado', d.focus?.mode !== 'off' ? 'on' : ''))));
     out.push(card('El PC', d.shutdownAt && d.shutdownAt > Date.now() ? 'se apaga ' + until(d.shutdownAt) : null, h('div', { class: 'pcgrid' },
       B('🔒', 'Bloquear', 'lock', 'PC bloqueado'),
@@ -388,6 +392,24 @@ function render() {
   main.scrollTop = keep;
   $('#tabs').replaceChildren(...TABS.map(([k, l]) => h('button', { class: k === t ? 'on' : '', 'aria-current': k === t ? 'page' : null, onclick: () => { if (S.tab === k) { main.scrollTo({ top: 0, behavior: 'smooth' }); return; } S.tab = k; localStorage.setItem('vt-tab', k); main.scrollTop = 0; render(); if (k !== 'mas') load(k); } }, svg(ICONS[k]), h('span', { text: l }))));
 }
+// ---- avisos y uso sin conexión (necesitan HTTPS: el enlace de Tailscale con candado)
+const SWOK = location.protocol === 'https:' && 'serviceWorker' in navigator;
+if (SWOK) navigator.serviceWorker.register('/m/sw.js?t=' + encodeURIComponent(T), { scope: '/' }).catch(() => {});
+const b64ToU8 = (s) => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+async function enablePush() {
+  try {
+    if (!SWOK || !('PushManager' in window)) return toast('Abre ViperTeca desde el icono de la pantalla de inicio (enlace con candado).');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return toast('Sin permiso para avisos: actívalo en Ajustes → Notificaciones → ViperTeca.');
+    const reg = await navigator.serviceWorker.ready;
+    const { key } = await api('/api/m/push/key');
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(key) }));
+    const r = await api('/api/m/push/sub?test=1', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(sub) });
+    toast(r.ok ? 'Avisos activados: te llegó uno de prueba.' : 'No se pudo activar.');
+    S.pushOn = true; render();
+  } catch (e) { toast('No se pudo activar: ' + (e.message || e)); }
+}
+if (SWOK && 'PushManager' in window) navigator.serviceWorker.ready.then((r) => r.pushManager.getSubscription()).then((s) => { S.pushOn = !!s; }).catch(() => {});
 render();
 if (S.tab !== 'mas') load(S.tab);
 // se actualiza solo cada minuto mientras la tienes delante

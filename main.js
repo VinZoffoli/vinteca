@@ -223,6 +223,14 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_CRAWL) {
+        for (const s of healthSites().slice(0, Number(process.env.BJ_CRAWL) || 3)) {
+          const t0 = Date.now();
+          await runSiteChecks({ only: s.url, notifyNew: false }).catch((e) => log('[error] crawl ' + e.message));
+          const st = alertsState();
+          log('CRAWL ' + s.url + ' ' + (Date.now() - t0) + 'ms ' + JSON.stringify(st.sites[s.url]) + ' issues=' + JSON.stringify(Object.values(st.issues).filter((i) => i.site === s.url && i.open).map((i) => i.sev + ':' + i.title)));
+        }
+      }
       const CODE = {
         dia: [`showView('day')`, 4000],
         biblioteca: [`showView('library')`, 2500],
@@ -250,6 +258,8 @@ function snapshot(dir) {
         'g-perfil3': [`document.querySelector('.gi-roster')?.scrollIntoView()`, 2500],
         'amigos': [`showView('friends')`, 5000],
         'ofertas': [`showView('deals')`, 5000],
+        'w-alertas': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Alertas')?.click(), 1500)`, 5000],
+        'w-squads': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`, 6000],
         'c-menu': [`showView('casa-menu')`, 2500],
         'c-hogar': [`showView('casa-hogar')`, 2500],
         'c-comp': [`showView('casa-compartidos')`, 2500],
@@ -700,7 +710,7 @@ function snapshot(dir) {
   });
 }
 
-const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/act\.hoyolab\.com\/ys\/event\/signin-sea-v3\/|https:\/\/www\.gamerpower\.com\/(open\/)?[\w-]+$|https:\/\/www\.nexusmods\.com\/[a-z0-9]+\/mods\/(\d+)?$|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started|https:\/\/www\.(grupoins\.com|rtv\.co\.cr|csv\.go\.cr|tse\.go\.cr|migracion\.go\.cr|bccr\.fi\.cr)\/|https:\/\/tailscale\.com\/(download|kb)\b)/;
+const ALLOWED = /^(steam:\/\/(rungameid|install|uninstall|store)\/|com\.epicgames\.launcher:\/\/apps\/|https:\/\/(store\.steampowered\.com|steamcommunity\.com|github\.com|www\.epicgames\.com|store\.epicgames\.com)\/|uplay:\/\/launch\/|link2ea:\/\/launchgame\/|https:\/\/(www\.nintenderos\.com|www\.nintendolife\.com)\/|wemod:\/\/play\?titleId=\d+&gameId=\d+$|https:\/\/www\.wemod\.com\/cheats\/|https:\/\/www\.nexusmods\.com\/search\?|https:\/\/enka\.network\/u\/\d+\/?$|https:\/\/developer\.spotify\.com\/dashboard|https:\/\/www\.hoyolab\.com\/article\/\d+$|https:\/\/(openrgb\.org|pawnio\.eu)\/|https:\/\/www\.workana\.com\/(job|dashboard|freelancer)\/?|spotify:(track|playlist|album|artist):[A-Za-z0-9]+$|https:\/\/howlongtobeat\.com\/\?q=|https:\/\/www\.youtube\.com\/results\?|https:\/\/www\.google\.com\/search\?|https:\/\/calendar\.google\.com\/calendar\/|https:\/\/meet\.google\.com\/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}$|https:\/\/github\.com\/LibreHardwareMonitor\/|https:\/\/howlongtobeat\.com\/game\/\d+$|https:\/\/anilist\.co\/anime\/\d+|https:\/\/act\.hoyolab\.com\/ys\/event\/signin-sea-v3\/|https:\/\/www\.gamerpower\.com\/(open\/)?[\w-]+$|https:\/\/www\.nexusmods\.com\/[a-z0-9]+\/mods\/(\d+)?$|https:\/\/www\.youtube\.com\/watch\?v=[\w-]+$|https:\/\/vercel\.com\/account\/(settings\/)?tokens|https:\/\/developers\.google\.com\/speed\/docs\/insights\/v5\/get-started|https:\/\/www\.(grupoins\.com|rtv\.co\.cr|csv\.go\.cr|tse\.go\.cr|migracion\.go\.cr|bccr\.fi\.cr)\/|https:\/\/tailscale\.com\/(download|kb)\b|https:\/\/login\.tailscale\.com\/admin\/dns$)/;
 function openSafe(url) {
   if (typeof url !== 'string' || !ALLOWED.test(url)) return false;
   shell.openExternal(url);
@@ -809,6 +819,10 @@ app.whenReady().then(() => {
     setTimeout(paimonTick, 80000);
     setTimeout(weatherTick, 60000);
     setTimeout(eventsTick, 100000);
+    setTimeout(siteChecksTick, 4 * 60000);
+    // el certificado de Tailscale dura 90 días: se renueva solo cada mes
+    setTimeout(() => { const t = loadTls(); if (t && t.age > 30 * 86400000 && lan) enableHttps().catch(() => {}); }, 3 * 60000);
+    setInterval(siteChecksTick, 30 * 60000);
     setInterval(eventsTick, 3 * 3600000);
     setInterval(weatherTick, 30 * 60000);
     if (store.read('settings.json', {}).widgetOn) setTimeout(() => { try { openWidget(true); } catch {} }, 6000);
@@ -1303,6 +1317,9 @@ const notify = (title, body, url, opts = {}) => {
   const n = new Notification({ title, body, silent: true });
   if (url) n.on('click', () => openSafe(url));
   n.show();
+  try {
+    pushToPhone(title, body, opts);
+  } catch {}
 };
 const fmtMin = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${Math.round(m % 60) ? ` ${Math.round(m % 60)} min` : ''}` : `${Math.max(1, Math.round(m))} min`);
 
@@ -1686,6 +1703,7 @@ function lanServer() {
       token: s.lanToken,
       day: () => daySummary(),
       mobile: mobileApi,
+      tls: loadTls(),
       iconPath: path.join(__dirname, 'build', 'icon.png'),
       // lista de compras de Casa, para verla y marcarla desde el celular
       shopping: {
@@ -3071,7 +3089,70 @@ ipcMain.handle('gmap:open', (_e, fresh) => {
 // Lo que ve y puede hacer la app del celular. Solo lectura, salvo marcar compras,
 // pagos, recordatorios y recolecciones, anotar gastos, abrir juegos y preguntar.
 const mobileCasaChanged = () => win && !win.isDestroyed() && win.webContents.send('casa:changed');
+// Avisos en el iPhone: certificado HTTPS de Tailscale y suscripciones Web Push
+const webpush = require('./src/webpush');
+function tsCertPaths() {
+  const dir = path.join(app.getPath('userData'), 'tls');
+  return { dir, cert: path.join(dir, 'ts.crt'), key: path.join(dir, 'ts.key') };
+}
+function tsExe() {
+  const p = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Tailscale', 'tailscale.exe');
+  return require('fs').existsSync(p) ? p : null;
+}
+/** Pide (o renueva) el certificado HTTPS del PC a Tailscale y enciende el servidor seguro. */
+async function enableHttps() {
+  const exe = tsExe();
+  if (!exe) throw new Error('No encuentro Tailscale en este PC.');
+  const info = lan ? lan.info() : null;
+  const name = info?.tailscale?.name;
+  if (!name) throw new Error('Tailscale no está conectado (no tengo el nombre del PC en tu red).');
+  const p = tsCertPaths();
+  require('fs').mkdirSync(p.dir, { recursive: true });
+  await new Promise((resolve, reject) => {
+    require('child_process').execFile(exe, ['cert', '--cert-file', p.cert, '--key-file', p.key, name], { windowsHide: true, timeout: 60000 }, (err, _o, se) => {
+      if (!err) return resolve();
+      const m = String(se || err.message);
+      reject(new Error(/not enabled|HTTPS/i.test(m) ? 'Activa «HTTPS Certificates» en tu panel de Tailscale (DNS → HTTPS Certificates) y vuelve a intentarlo.' : 'Tailscale no dio el certificado: ' + m.trim().split('\n').pop()));
+    });
+  });
+  const fs = require('fs');
+  await lan.startSecure({ cert: fs.readFileSync(p.cert), key: fs.readFileSync(p.key) });
+  return lan.info();
+}
+function loadTls() {
+  const p = tsCertPaths();
+  const fs = require('fs');
+  try {
+    return { cert: fs.readFileSync(p.cert), key: fs.readFileSync(p.key), age: Date.now() - fs.statSync(p.cert).mtimeMs };
+  } catch {
+    return null;
+  }
+}
+ipcMain.handle('lan:https', () => enableHttps());
+const pushSubs = () => store.read('push-subs.json', []);
+let pushQueue = Promise.resolve();
+function pushToPhone(title, body, opts = {}) {
+  const subs = pushSubs();
+  if (!subs.length || store.read('settings.json', {}).pushPhone === false) return;
+  pushQueue = pushQueue.then(async () => {
+    const keep = [];
+    for (const s of subs) {
+      const r = await webpush.send(ctxRW, s, { title, body, urgent: opts.urgent, tag: opts.tag });
+      if (r !== 'gone') keep.push(s);
+    }
+    if (keep.length !== subs.length) store.write('push-subs.json', keep);
+  }).catch(() => {});
+}
 const mobileApi = {
+  pushKey: () => webpush.keys(ctxRW).pub,
+  async pushSub(sub, test) {
+    if (!sub?.endpoint || !/^https:\/\//.test(sub.endpoint) || !sub.keys?.p256dh || !sub.keys?.auth) return false;
+    const list = pushSubs().filter((s) => s.endpoint !== sub.endpoint);
+    list.push({ endpoint: sub.endpoint, keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) }, at: Date.now() });
+    store.write('push-subs.json', list.slice(-5));
+    if (test) await webpush.send(ctxRW, sub, { title: 'ViperTeca', body: 'Listo: los avisos de ViperTeca llegarán a este iPhone.' });
+    return true;
+  },
   async get(section) {
     const now = Date.now();
     const d0 = new Date().setHours(0, 0, 0, 0);
@@ -3486,6 +3567,144 @@ ipcMain.handle('gai:get', async (_e, kind, force, extra) => {
   return aiBusy[kind];
 });
 ipcMain.handle('gai:cached', () => store.read('genshin-ai.json', {}));
+
+
+// ---------- 1.22: alertas críticas de las webs y Squads de Resto Experience ----------
+const sitecheck = require('./src/sitecheck');
+const SQUAD_LEADERS = { a: 'Vincenzo', b: 'Camila Jouce', c: 'Luis Chrestia', d: 'Emily' };
+const SEV_ORDER = { critical: 0, high: 1, medium: 2 };
+/** Squad de una web (a, b, c, d u other): por el pipeline de Notion o por el repo website-x-… */
+function squadOfSite(url, name) {
+  const host = sitecheck.hostOf(url);
+  const pipe = (store.read('notion-cache.json', null)?.data?.pipeline?.rows || []).find((r) => r.production && sitecheck.hostOf(r.production) === host);
+  const m = String(pipe?.squad || '').match(/squad\s*([a-d])/i) || String(pipe?.repo || '').match(/website-([a-d])-/i);
+  if (m) return m[1].toLowerCase();
+  const vp = (store.read('vercel.json', null)?.projects || []).find((p) => p.domain && sitecheck.hostOf(p.domain) === host);
+  const m2 = String(vp?.repo || vp?.name || name || '').match(/website-([a-d])-/i);
+  return m2 ? m2[1].toLowerCase() : 'other';
+}
+const alertsState = () => store.read('web-alerts.json', { at: null, issues: {}, muted: {}, sites: {} });
+let alertsRun = null;
+async function runSiteChecks({ only, notifyNew = true } = {}) {
+  if (alertsRun) return alertsRun;
+  alertsRun = (async () => {
+    const sites = healthSites().filter((s) => !only || s.url === only);
+    const st = alertsState();
+    const vc = store.read('vercel.json', null)?.projects || [];
+    const fresh = [];
+    let n = 0;
+    for (const s of sites) {
+      n++;
+      if (win && !win.isDestroyed()) win.webContents.send('webalerts:progress', { n, total: sites.length, name: s.name });
+      let r = await sitecheck.crawl(s.url).catch((e) => ({ page: { status: 0, error: e.message }, jsErrors: [], failed: [], broken: [] }));
+      // si la web parece caída o en blanco, se vuelve a probar antes de avisar
+      if (!r.page?.status || r.page.status >= 500 || r.blank) r = await sitecheck.crawl(s.url).catch(() => r);
+      const found = sitecheck.issuesOf(s, r);
+      // errores en vivo de Vercel (funciones y 5xx) de la producción de esta web
+      const vp = vc.find((p) => p.domain && sitecheck.hostOf(p.domain) === sitecheck.hostOf(s.url));
+      if (vp) {
+        if (vp.production?.state === 'ERROR') found.push({ key: s.url + '|deploy|' + vp.production.id, site: s.url, name: s.name, kind: 'deploy', sev: 'high', title: 'El último deploy de producción falló', detail: (vp.production.commit || '') + (vp.production.branch ? ' · ' + vp.production.branch : ''), target: vp.production.id });
+        const errs = await webhealth.runtimeErrors(store.read, vp).catch(() => []);
+        const groups = {};
+        for (const e of errs) {
+          const sig = (e.status ? e.status + ' ' : '') + (e.path || '') + ' ' + e.msg.replace(/\d+/g, '#').slice(0, 80);
+          (groups[sig] ||= []).push(e);
+        }
+        for (const [sig, list] of Object.entries(groups)) {
+          const fatal = list.some((e) => e.level === 'fatal');
+          if (list.length < 3 && !fatal) continue;
+          const e = list[0];
+          found.push({ key: s.url + '|runtime|' + sig, site: s.url, name: s.name, kind: 'runtime', sev: fatal || (e.status >= 500 && list.length >= 10) ? 'critical' : 'high', title: (e.status >= 500 ? 'Error ' + e.status : 'Error del servidor') + (e.path ? ' en ' + e.path : '') + ' (' + list.length + ' veces en 3 h)', detail: e.msg, target: sig });
+        }
+      }
+      const squad = squadOfSite(s.url, s.name);
+      const now = Date.now();
+      const keys = new Set();
+      for (const f of found) {
+        keys.add(f.key);
+        const old = st.issues[f.key];
+        const seen = old && old.open ? old.seen + 1 : 1;
+        const it = { ...f, squad, leader: SQUAD_LEADERS[squad] || null, firstAt: old && old.open ? old.firstAt : now, lastAt: now, seen, open: true, notified: old && old.open ? old.notified : false };
+        // los errores de JavaScript se confirman en dos revisiones seguidas (pueden ser puntuales)
+        const confirmed = f.kind === 'js' ? seen >= 2 : true;
+        if (confirmed && !it.notified && !st.muted[f.key]) {
+          it.notified = true;
+          fresh.push(it);
+        }
+        st.issues[f.key] = it;
+      }
+      for (const [k, it] of Object.entries(st.issues)) if (it.site === s.url && it.open && !keys.has(k)) Object.assign(it, { open: false, resolvedAt: now });
+      st.sites[s.url] = { at: now, name: s.name, squad, status: r.page?.status || 0, links: r.links || 0, ms: r.ms || null, title: r.title || '' };
+    }
+    // limpieza: los resueltos hace más de 14 días se olvidan
+    for (const [k, it] of Object.entries(st.issues)) if (!it.open && it.resolvedAt < Date.now() - 14 * 86400000) delete st.issues[k];
+    st.at = Date.now();
+    store.write('web-alerts.json', st);
+    if (notifyNew && fresh.length && settingsOn('webAlerts')) {
+      const bySite = {};
+      for (const it of fresh) (bySite[it.site] ||= []).push(it);
+      const entries = Object.values(bySite).sort((a, b) => Math.min(...a.map((x) => SEV_ORDER[x.sev])) - Math.min(...b.map((x) => SEV_ORDER[x.sev])));
+      for (const list of entries.slice(0, 4)) {
+        const it = list.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev])[0];
+        const who = it.squad !== 'other' ? 'Squad ' + it.squad.toUpperCase() + (it.leader ? ' (' + it.leader + ')' : '') + ' · ' : '';
+        notify((it.sev === 'critical' ? '🔴 ' : '🟠 ') + it.name + ': ' + it.title, who + (list.length > 1 ? list.length + ' problemas. ' : '') + (it.detail || '').split('\n')[0].slice(0, 140), null, { urgent: it.sev === 'critical' });
+      }
+      if (entries.length > 4) notify('Más webs con problemas', (entries.length - 4) + ' webs más tienen errores nuevos. Míralas en Websites → Alertas.');
+    }
+    if (win && !win.isDestroyed()) win.webContents.send('webalerts:done');
+    return st;
+  })().finally(() => (alertsRun = null));
+  return alertsRun;
+}
+ipcMain.handle('webalerts:get', () => ({ ...alertsState(), running: !!alertsRun, leaders: SQUAD_LEADERS }));
+ipcMain.handle('webalerts:run', (_e, only) => runSiteChecks({ only: only ? String(only) : null }).then(() => ({ ...alertsState(), leaders: SQUAD_LEADERS })));
+ipcMain.handle('webalerts:mute', (_e, key, on) => {
+  const st = alertsState();
+  if (on) st.muted[String(key)] = Date.now();
+  else delete st.muted[String(key)];
+  store.write('web-alerts.json', st);
+  return st;
+});
+async function siteChecksTick() {
+  if (!settingsOn('webAlerts') || focus.mode === 'on') return; // mientras juegas no se revisa nada
+  const st = alertsState();
+  if (st.at && Date.now() - st.at < 5.5 * 3600000) return;
+  await runSiteChecks().catch(() => null);
+}
+
+// Squads: responsables, ritmo (Notion), webs y alertas de cada uno
+ipcMain.handle('squads:get', async (_e, force) => {
+  let team = null;
+  let teamError = null;
+  if (notion.linked(store.read)) {
+    try {
+      team = await notion.team(rx, !!force);
+    } catch (e) {
+      teamError = e.message;
+      team = store.read('notion-team.json', null);
+    }
+  }
+  const pipe = store.read('notion-cache.json', null)?.data?.pipeline?.rows || [];
+  const vc = store.read('vercel.json', null)?.projects || [];
+  const st = alertsState();
+  const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const squads = Object.entries(SQUAD_LEADERS).map(([k, leader]) => {
+    const person = (team?.people || []).find((p) => norm(p.name).includes(norm(leader).split(' ')[0]) && (leader.split(' ').length < 2 || norm(p.name).includes(norm(leader).split(' ')[1].slice(0, 4)))) || (team?.people || []).find((p) => norm(p.name).startsWith(norm(leader).split(' ')[0]));
+    const webs = pipe.filter((r) => (String(r.squad || '').match(/squad\s*([a-d])/i)?.[1] || String(r.repo || '').match(/website-([a-d])-/i)?.[1] || '').toLowerCase() === k);
+    const projects = vc.filter((p) => String(p.repo || p.name || '').match(/website-([a-d])-/i)?.[1]?.toLowerCase() === k);
+    const weekAgo = Date.now() - 7 * 86400000;
+    const issues = Object.values(st.issues).filter((i) => i.open && i.squad === k && !st.muted[i.key]);
+    return {
+      key: k,
+      leader,
+      person: person || null,
+      webs: { total: webs.length, live: webs.filter((r) => r.group === 'done' || /live/i.test(r.status)).length, doing: webs.filter((r) => r.group === 'doing').length, stopped: webs.filter((r) => r.group === 'stopped').length, list: webs.map((r) => ({ name: r.name, status: r.status, group: r.group, production: r.production })) },
+      deploys: { week: projects.filter((p) => p.production?.at > weekAgo).length, failed: projects.filter((p) => p.latest?.state === 'ERROR').length, stale: projects.filter((p) => p.production?.at && p.production.at < Date.now() - 30 * 86400000).length, projects: projects.length },
+      issues: { critical: issues.filter((i) => i.sev === 'critical').length, high: issues.filter((i) => i.sev === 'high').length, medium: issues.filter((i) => i.sev === 'medium').length, top: issues.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev]).slice(0, 4) },
+    };
+  });
+  return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
+});
 
 // Workana en Brave (donde ya tienes la sesión iniciada)
 ipcMain.handle('wk:brave', (_e, url, text) => {
