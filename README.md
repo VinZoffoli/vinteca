@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.24
+
+- **Websites → Squads → La semana del equipo**: qué trabajó esta semana cada responsable (Vincenzo, Camila Jouce, Luis Chrestia, Emily) y en qué seguirá la próxima, con lo que tu Claude Code saca de tres fuentes: los commits y ramas de GitHub de la organización (con la sesión de GitHub CLI de este PC, `gh auth login`), los deploys a producción de Vercel y los tickets de Notion. Muestra commits, deploys, tickets cerrados y deploys fallidos de cada uno, y lo que conviene vigilar. Se prepara solo una vez cada 12 horas al abrir Squads, o con «Volver a preparar». Las cuentas de GitHub y Vercel de cada persona se pueden cambiar en `settings.json` (`teamIds`).
+- **Notion con una sola cuenta**: basta con tu conexión. ViperTeca lee los tickets de los cuatro responsables en una sola lectura (por páginas, una tras otra) y los reparte por el campo Responsible. Arreglado el fallo que desconectaba Notion: dos consultas renovaban la sesión a la vez y Notion invalidaba la segunda. Si la conexión falla sale un solo aviso con el botón «Conectar Notion».
+
 ## Novedades de la 1.23.2
 
 - **Tickets vencidos hace más de un mes**: ViperTeca los da por hechos (solo en la app; en Notion siguen igual). No cuentan como abiertos ni vencidos en Squads, Notion ni Mi día, y la tarjeta de cada squad dice cuántos se dieron por hechos.

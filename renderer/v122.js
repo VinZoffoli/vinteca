@@ -169,8 +169,20 @@
         h('button', { class: 'btn ghost small', disabled: S.busy, text: S.busy ? 'Actualizando…' : 'Actualizar', onclick: () => sLoad(true) }),
         h('span', { class: 'hint', text: [d.team ? 'Notion: ' + d.team.openTotal + ' tickets abiertos en el equipo, leídos ' + relTime(d.team.at / 1000) : d.notion ? 'Leyendo Notion…' : 'Notion sin conectar', d.vercel ? null : 'Vercel sin conectar (deploys en 0)'].filter(Boolean).join(' · ') }),
         d.teamError && h('span', { class: 'hint bad', text: d.teamError }),
-        d.team?.errors?.length ? h('span', { class: 'hint', text: d.team.errors.join(' · ') }) : null
+        !d.notion || /caduc|conecta/i.test(d.teamError || '')
+          ? h('button', { class: 'btn primary small', text: 'Conectar Notion', title: 'Se abre Notion en el navegador y das acceso tú. Basta con tu cuenta.', onclick: async () => {
+              try {
+                await window.api.re.notionLogin();
+                toast('Notion conectado. Leyendo los tickets del equipo…');
+                sLoad(true);
+              } catch (e) {
+                toast(errMsg(e), true);
+              }
+            } })
+          : null,
+        d.team?.errors?.length && !d.teamError ? h('span', { class: 'hint', text: d.team.errors.join(' · ') }) : null
       ),
+      window.teamWeekUI?.block(() => S.rerender?.()),
       h('div', { class: 'sq-grid' }, d.squads.map(card)),
       h('section', { class: 'rx-card sq-compare' },
         h('h3', { text: 'Comparativa (solo para ti)' }),

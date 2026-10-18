@@ -116,8 +116,15 @@ async function login({ read, write }) {
   });
 }
 
+// Notion cambia la llave de renovación cada vez que se usa: si dos consultas
+// renuevan a la vez, la segunda usa una llave vieja y se pierde la conexión.
+let renewing = null;
 async function accessToken(ctx) {
   if (access && Date.now() < access.until) return access.token;
+  if (!renewing) renewing = renew(ctx).finally(() => (renewing = null));
+  return renewing;
+}
+async function renew(ctx) {
   const refresh = loadRefresh(ctx.read);
   if (!refresh) throw new Error('Conecta tu cuenta de Notion.');
   try {
@@ -126,7 +133,8 @@ async function accessToken(ctx) {
     access = { token: t.access_token, until: Date.now() + ((t.expires_in || 3600) - 60) * 1000 };
     return access.token;
   } catch (e) {
-    if (e.code === 'invalid_grant') save(ctx.read, ctx.write, { notionEnc: null });
+    // solo se desconecta si la llave guardada sigue siendo la que falló
+    if (e.code === 'invalid_grant' && loadRefresh(ctx.read) === refresh) save(ctx.read, ctx.write, { notionEnc: null });
     throw e;
   }
 }
@@ -226,6 +234,7 @@ function ticketRaw(r) {
     }
   })();
   return {
+    who: people.map((p) => String(p).replace(/^user:\/\//, '').replace(/[^0-9a-f]/gi, '').toLowerCase()),
     id: r.url.split('/').pop(),
     num: r['userDefined:ID'] || null,
     url: r.url,
@@ -428,25 +437,56 @@ async function users(ctx) {
   return map;
 }
 /**
- * Tickets de cada responsable (uno por squad): abiertos, vencidos, cerrados por
- * semana, puntualidad y días medios. Se pregunta a Notion por cada persona.
+ * Tickets de cada responsable (uno por squad). Se lee la base de tickets una
+ * sola vez con tu conexión y se reparte por la persona en "Responsible".
  * @param leaders { a: 'Vincenzo', b: 'Camila Jouce', … }
  */
 async function team(ctx, force, leaders = {}) {
   const c = ctx.read('notion-team.json', null);
-  if (!force && c && Date.now() - c.at < 30 * 60000) return c;
-  const names = await users(ctx).catch(() => ({}));
+  if (!force && c && c.v === 2 && Date.now() - c.at < 30 * 60000) return c;
+  // si la conexión falla, un solo aviso (no uno por persona)
+  const names = await users(ctx);
   const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const dashed = (id) => id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
   const findId = (leader) => {
     const n = norm(leader);
     const all = Object.entries(names);
     return (all.find(([, v]) => norm(v) === n) || all.find(([, v]) => norm(v).startsWith(n + ' ')) || all.find(([, v]) => norm(v).startsWith(n)) || [])[0] || null;
   };
-  const notDone = { type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is_not', value: [{ type: 'is_option', value: 'Done' }, { type: 'is_option', value: 'Canceled' }] };
-  const doneMonth = [{ type: 'property', property: 'Status', propertyType: 'status', operator: 'status_is', value: { type: 'is_option', value: 'Done' } }, { type: 'property', property: 'Last edited time', propertyType: 'last_edited_time', operator: 'date_is_on_or_after', value: { type: 'relative', value: 'one_month_ago' } }];
+  // Una sola lectura (por páginas, una tras otra) de los tickets de los responsables:
+  // abiertos y los cerrados del último mes. Los vencidos hace más de un mes solo se cuentan.
+  const ids = Object.values(leaders).map(findId).filter(Boolean);
+  const dashed = (id) => id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+  const T = '"' + TICKETS + '"';
+  const anyOf = '(' + ids.map(() => '"Responsible" LIKE ?').join(' OR ') + ')';
+  const likes = ids.map((id) => '%' + dashed(id) + '%');
+  const rows = [];
+  for (let off = 0; ids.length && off < 1500; off += 100) {
+    const j = await query(ctx, {
+      mode: 'sql',
+      data_source_urls: [TICKETS],
+      query: 'SELECT url, "What to Do", "Status", "date:Deadline:start", "Created time", "Last edited time", "Responsible" FROM ' + T + ' WHERE ' + anyOf +
+        " AND ((\"Status\" NOT IN ('Done','Canceled') AND (\"date:Deadline:start\" IS NULL OR \"date:Deadline:start\" >= date('now','-30 day'))) OR (\"Status\" = 'Done' AND date(\"Last edited time\") >= date('now','-31 day'))) ORDER BY url LIMIT 100 OFFSET " + off,
+      params: likes,
+    });
+    rows.push(...(j.results || []));
+    if ((j.results || []).length < 100) break;
+  }
+  const staleRows = ids.length
+    ? (await query(ctx, { mode: 'sql', data_source_urls: [TICKETS], query: 'SELECT "Responsible" FROM ' + T + ' WHERE ' + anyOf + " AND \"Status\" NOT IN ('Done','Canceled') AND \"date:Deadline:start\" < date('now','-30 day') LIMIT 1000", params: likes }).catch(() => ({ results: [] }))).results || []
+    : [];
+  const all = rows.map(ticket);
+  const open = all.filter((t) => t.group !== 'done');
+  const closed = all.filter((t) => t.group === 'done' && !t.stale);
+  const staleOf = (id) => staleRows.filter((r) => String(r.Responsible || '').replace(/-/g, '').toLowerCase().includes(id.toLowerCase())).length;
   const now = Date.now();
   const today = new Date().toLocaleDateString('sv');
+  const monday = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.getTime();
+  })();
+  const short = (t) => ({ title: t.title, status: t.status, deadline: t.deadline, url: t.url });
   const people = [];
   const errors = [];
   for (const [squad, leader] of Object.entries(leaders)) {
@@ -455,37 +495,28 @@ async function team(ctx, force, leaders = {}) {
       errors.push(leader + ' no aparece entre las personas de Notion');
       continue;
     }
-    const who = { type: 'property', property: 'Responsible', propertyType: 'person', operator: 'person_contains', value: { type: 'exact', value: 'user://' + dashed(id) } };
-    let open = [];
-    let closed = [];
-    try {
-      [open, closed] = await Promise.all([
-        rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: { type: 'group', operator: 'and', filters: [who, notDone] }, sort: [{ property: 'Deadline', direction: 'ascending' }], limit: 100 }),
-        rowsAll(ctx, { mode: 'rows', data_source_url: TICKETS, filter: { type: 'group', operator: 'and', filters: [who, ...doneMonth] }, limit: 100 }).catch(() => []),
-      ]);
-    } catch (e) {
-      errors.push(leader + ': ' + e.message);
-      continue;
-    }
-    const p = { id, squad, leader, name: names[id] || leader, open: 0, late: 0, soon: 0, stale: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] };
-    for (const r of open) {
-      const t = ticket(r);
+    const mine = (t) => t.who.includes(id.toLowerCase());
+    const p = { open: 0, late: 0, soon: 0, stale: staleOf(id), closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [], week: { closed: [], touched: [], next: [] } };
+    for (const t of open.filter(mine)) {
       if (t.stale) {
         p.stale++;
         continue;
       }
       p.open++;
+      const due = t.deadline ? new Date(t.deadline + 'T23:59:59').getTime() : null;
       const late = !!(t.deadline && t.deadline < today);
       if (late) p.late++;
-      else if (t.deadline && new Date(t.deadline + 'T23:59:59').getTime() - now < 3 * 86400000) p.soon++;
-      p.tickets.push({ title: t.title.replace(/\*\*|\\\|/g, '').replace(/\s+/g, ' ').trim(), deadline: t.deadline, status: t.status, url: t.url, late });
+      else if (due && due - now < 3 * 86400000) p.soon++;
+      p.tickets.push({ ...short(t), late });
+      if (t.edited && new Date(t.edited).getTime() >= monday) p.week.touched.push(short(t));
+      if (due && due >= now - 86400000 && due < now + 8 * 86400000) p.week.next.push(short(t));
     }
-    for (const r of closed) {
-      const t = ticket(r);
+    for (const t of closed.filter(mine)) {
       const end = t.edited ? new Date(t.edited).getTime() : null;
       if (!end) continue;
       const week = Math.floor((now - end) / (7 * 86400000));
       if (week >= 0 && week < 4) p.closed[3 - week]++;
+      if (end >= monday) p.week.closed.push(short(t));
       if (t.deadline) {
         p.withDeadline++;
         if (end <= new Date(t.deadline + 'T23:59:59').getTime() + 86400000) p.onTime++;
@@ -493,10 +524,10 @@ async function team(ctx, force, leaders = {}) {
       if (t.created) p.days.push((end - new Date(t.created).getTime()) / 86400000);
     }
     people.push({
-      id: p.id,
+      id,
       squad,
       leader,
-      name: p.name,
+      name: names[id] || leader,
       open: p.open,
       late: p.late,
       soon: p.soon,
@@ -505,9 +536,10 @@ async function team(ctx, force, leaders = {}) {
       onTimePct: p.withDeadline ? Math.round((p.onTime / p.withDeadline) * 100) : null,
       avgDays: p.days.length ? Math.round((p.days.reduce((x, y) => x + y, 0) / p.days.length) * 10) / 10 : null,
       tickets: p.tickets.sort((x, y) => Number(y.late) - Number(x.late) || String(x.deadline || '9').localeCompare(String(y.deadline || '9'))).slice(0, 15),
+      week: p.week,
     });
   }
-  const out = { at: Date.now(), people, errors, openTotal: people.reduce((x, p) => x + p.open, 0), closedTotal: people.reduce((x, p) => x + p.closed.reduce((y, z) => y + z, 0), 0) };
+  const out = { v: 2, at: Date.now(), people, errors, openTotal: people.reduce((x, p) => x + p.open, 0), closedTotal: people.reduce((x, p) => x + p.closed.reduce((y, z) => y + z, 0), 0) };
   if (people.length) ctx.write('notion-team.json', out);
   return out;
 }

@@ -275,6 +275,7 @@ function snapshot(dir) {
         'ofertas': [`showView('deals')`, 5000],
         'w-alertas': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Alertas')?.click(), 1500)`, 5000],
         'w-squads': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`, 6000],
+        'w-week': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(); window.api.teamWeek.run().then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()).catch((e) => console.error('SEMANA: ' + e.message))`, 240000],
         'viendo': [`showView('viendo')`, 9000],
         'viendo-ai': [`window.api.stream.ai().then(() => document.querySelector('#viendoBody .toolbar .btn.subtle')?.click()).catch((e) => console.error('IA: ' + e.message))`, 200000],
         'viendo-ai2': [`document.querySelector('.vw-ai')?.scrollIntoView()`, 1500],
@@ -3731,6 +3732,35 @@ ipcMain.handle('squads:get', async (_e, force) => {
   return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people, errors: team.errors || [] } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
 });
 
+
+// ---------- 1.24: la semana del equipo (GitHub + Vercel + Notion) ----------
+const teamweek = require('./src/teamweek');
+let teamWeekBusy = null;
+async function teamWeekRun() {
+  const data = await teamweek.collect({
+    read: store.read,
+    vercelApi: webhealth.vercelApi,
+    notionTeam: () => (notion.linked(store.read) ? notion.team(rx, false, SQUAD_LEADERS) : Promise.reject(new Error('sin conectar'))),
+    leaders: SQUAD_LEADERS,
+    pipeline: store.read('notion-cache.json', null)?.data?.pipeline?.rows || [],
+  });
+  if (!data.sources.github && !data.sources.vercel && !data.sources.notion) throw new Error(data.errors.join(' · ') || 'No pude leer GitHub, Vercel ni Notion.');
+  let ai = null;
+  let aiError = null;
+  try {
+    ai = await aiJson(teamweek.prompt(data), { system: 'Eres el líder técnico de un equipo de desarrollo web y escribes resúmenes semanales claros en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' });
+  } catch (e) {
+    aiError = e.message;
+  }
+  const out = { ...data, ai, aiError };
+  store.write('team-week.json', out);
+  return out;
+}
+ipcMain.handle('teamweek:get', () => store.read('team-week.json', null));
+ipcMain.handle('teamweek:run', () => {
+  if (!teamWeekBusy) teamWeekBusy = teamWeekRun().finally(() => (teamWeekBusy = null));
+  return teamWeekBusy;
+});
 
 // ---------- 1.23: Netflix y Crunchyroll (Viendo) ----------
 const streaming = require('./src/streaming');

@@ -233,4 +233,4 @@ async function runtimeErrors(read, p, sinceMs = 3 * 3600000) {
   return out;
 }
 
-module.exports = { setSecret, getSecret, check, checkAll, pagespeed, deployments, vercelTeams, runtimeErrors };
+module.exports = { setSecret, getSecret, check, checkAll, pagespeed, deployments, vercelTeams, runtimeErrors, vercelApi: vercel };
