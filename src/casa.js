@@ -59,8 +59,18 @@ function seedGifts() {
   ];
 }
 
-function load({ read, write }) {
-  let d = read('casa.json', null);
+function load({ read, write, readStrict }) {
+  // Si el archivo existe pero no se pudo leer (ocupado o dañado), NO se empieza de
+  // cero: se usa la copia anterior y, si tampoco se puede, se avisa con un error.
+  let d;
+  if (readStrict) {
+    try {
+      d = readStrict('casa.json');
+    } catch (e) {
+      d = read('casa.json.bak', null);
+      if (!d) throw e;
+    }
+  } else d = read('casa.json', null);
   if (!d) d = seed();
   if (!d.gifts) {
     d.gifts = seedGifts();
@@ -71,7 +81,57 @@ function load({ read, write }) {
     d.tramites = seedTramites();
     write('casa.json', d);
   }
+  if (!d.maintenance) {
+    // tareas típicas de la casa (se editan o borran en Casa → Hogar)
+    const m = (name, everyMonths, note = '') => ({ id: id(), name, everyMonths, last: null, note });
+    d.maintenance = [m('Cambiar el filtro del agua', 6), m('Limpiar el aire acondicionado', 6), m('Revisar el gas y la manguera', 12), m('Fumigar la casa', 6), m('Limpiar los canoas', 6)];
+    d.warranties = d.warranties || [];
+    d.recipes = d.recipes || [];
+    d.menu = d.menu || {};
+    d.shared = d.shared || { people: ['Yo', 'Abuela', 'Abuelo', 'Emi'], items: [] };
+    write('casa.json', d);
+  }
   return d;
+}
+
+const DAYS = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'];
+const addMonths = (iso, n) => {
+  const d = new Date(iso + 'T12:00:00');
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d.toLocaleDateString('sv');
+};
+/** Cuándo vence una garantía y cuándo toca cada tarea de mantenimiento. */
+const warrantyEnd = (w) => (w.bought && w.months ? addMonths(w.bought, w.months) : null);
+const maintNext = (m) => (m.last ? addMonths(m.last, m.everyMonths || 6) : null);
+
+/** Quién le debe a quién en los gastos compartidos (saldos y pagos sugeridos). */
+function sharedBalances(sh) {
+  const bal = {};
+  for (const p of sh?.people || []) bal[p] = 0;
+  for (const it of sh?.items || []) {
+    const between = (it.between?.length ? it.between : sh.people).filter(Boolean);
+    if (!between.length || !it.amount) continue;
+    const part = it.amount / between.length;
+    bal[it.paidBy] = (bal[it.paidBy] || 0) + it.amount;
+    for (const p of between) bal[p] = (bal[p] || 0) - part;
+  }
+  const debt = Object.entries(bal).filter(([, v]) => v < -0.5).map(([p, v]) => [p, -v]).sort((a, b) => b[1] - a[1]);
+  const cred = Object.entries(bal).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]);
+  const moves = [];
+  let i = 0;
+  let j = 0;
+  while (i < debt.length && j < cred.length) {
+    const amt = Math.min(debt[i][1], cred[j][1]);
+    moves.push({ from: debt[i][0], to: cred[j][0], amount: Math.round(amt) });
+    debt[i][1] -= amt;
+    cred[j][1] -= amt;
+    if (debt[i][1] < 0.5) i++;
+    if (cred[j][1] < 0.5) j++;
+  }
+  return { balances: Object.fromEntries(Object.entries(bal).map(([k, v]) => [k, Math.round(v)])), moves };
 }
 
 // Trámites de Costa Rica: marchamo, Riteve, licencia y cédula
@@ -121,6 +181,14 @@ function save({ write }, d) {
     },
     // Cuidados de los gatitos: vacunas, desparasitación, veterinario…
     catCare: (d.catCare || []).slice(0, 1000).map((x) => ({ id: str(x.id, 20) || id(), cat: str(x.cat, 60), type: ['vacuna', 'desparasitacion', 'pulgas', 'veterinario', 'otro'].includes(x.type) ? x.type : 'otro', date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, next: /^\d{4}-\d{2}-\d{2}$/.test(x.next || '') ? x.next : null, note: str(x.note, 300), done: !!x.done })).filter((x) => x.cat),
+    recipes: (d.recipes || []).slice(0, 300).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 100), ingredients: (x.ingredients || []).map((g) => str(g, 80)).filter(Boolean).slice(0, 40), note: str(x.note, 300) })).filter((x) => x.name),
+    menu: Object.fromEntries(DAYS.map((k) => [k, { almuerzo: str(d.menu?.[k]?.almuerzo, 100), cena: str(d.menu?.[k]?.cena, 100) }])),
+    warranties: (d.warranties || []).slice(0, 300).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 120), store: str(x.store, 80), bought: /^\d{4}-\d{2}-\d{2}$/.test(x.bought || '') ? x.bought : null, months: intOr(x.months, 0, 240) ?? 12, photo: okImage(x.photo), link: /^https:\/\/\S+$/.test(x.link || '') ? str(x.link, 600) : '', note: str(x.note, 400) })).filter((x) => x.name),
+    maintenance: (d.maintenance || []).slice(0, 200).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name, 120), everyMonths: intOr(x.everyMonths, 1, 120) ?? 6, last: /^\d{4}-\d{2}-\d{2}$/.test(x.last || '') ? x.last : null, note: str(x.note, 300) })).filter((x) => x.name),
+    shared: {
+      people: (d.shared?.people || ['Yo']).map((p) => str(p, 40)).filter(Boolean).slice(0, 20),
+      items: (d.shared?.items || []).slice(-1000).map((x) => ({ id: str(x.id, 20) || id(), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : new Date().toLocaleDateString('sv'), desc: str(x.desc, 160), amount: Math.max(0, Number(x.amount) || 0), paidBy: str(x.paidBy, 40), between: (x.between || []).map((p) => str(p, 40)).filter(Boolean).slice(0, 20), settle: !!x.settle })).filter((x) => x.amount > 0 && x.paidBy),
+    },
     tramites: (d.tramites || []).slice(0, 100).map((x) => ({ id: str(x.id, 20) || id(), kind: TRAMITES[x.kind] ? x.kind : 'otro', name: str(x.name, 120) || TRAMITES[x.kind]?.label || 'Trámite', due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || '') ? x.due : null, plate: str(x.plate, 12).toUpperCase(), note: str(x.note, 400), lastDone: /^\d{4}-\d{2}-\d{2}$/.test(x.lastDone || '') ? x.lastDone : null })).filter((x) => x.name),
     payments: (d.payments || []).slice(0, 200).map((x) => ({ id: str(x.id, 20) || id(), name: str(x.name), group: str(x.group, 40) || 'Personal', day: intOr(x.day, 1, 31), amount: x.amount === '' || x.amount == null ? null : Number(x.amount) || null, currency: str(x.currency, 5) || 'CRC', notifyDays: intOr(x.notifyDays, 0, 30) ?? 3, note: str(x.note, 300), paid: Object.fromEntries(Object.entries(x.paid || {}).filter(([k]) => /^\d{4}-\d{2}$/.test(k)).slice(-36)) })).filter((x) => x.name),
     reminders: (d.reminders || []).slice(0, 500).map((x) => ({ id: str(x.id, 20) || id(), title: str(x.title, 160), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : null, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '', note: str(x.note, 500), notifyDays: intOr(x.notifyDays, 0, 60) ?? 1, done: !!x.done })).filter((x) => x.title && x.date),
@@ -265,6 +333,22 @@ function dueNotices({ read, write }) {
     else if (days === 0) once(`tram:${t.id}:${t.due}:0`, { title: `Hoy vence: ${t.name}`, body: t.note || 'Márcalo como hecho en Casa → Trámites.' });
     else if (days < 0 && days >= -3) once(`tram:${t.id}:${t.due}:late`, { title: `${t.name} está vencido`, body: `Venció el ${fecha}.` });
   }
+  // Garantías: un mes y una semana antes de que se acaben
+  for (const w of d.warranties || []) {
+    const end = warrantyEnd(w);
+    if (!end) continue;
+    const days = Math.round((new Date(end + 'T00:00:00').getTime() - startOfDay(now)) / DAY);
+    if (days === 30) once(`war:${w.id}:30`, { title: `La garantía de ${w.name} vence en un mes`, body: `El ${new Date(end + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })}. Si falla algo, reclama antes.` });
+    else if (days === 7) once(`war:${w.id}:7`, { title: `La garantía de ${w.name} vence en una semana`, body: w.store ? `Comprado en ${w.store}.` : 'Revisa que todo funcione bien.' });
+  }
+  // Mantenimiento de la casa: una semana antes y el día
+  for (const m of d.maintenance || []) {
+    const next = maintNext(m);
+    if (!next) continue;
+    const days = Math.round((new Date(next + 'T00:00:00').getTime() - startOfDay(now)) / DAY);
+    if (days === 7) once(`mnt:${m.id}:${next}:7`, { title: `En una semana: ${m.name}`, body: m.note || 'Casa → Hogar.' });
+    else if (days === 0) once(`mnt:${m.id}:${next}:0`, { title: `Hoy toca: ${m.name}`, body: 'Cuando lo hagas, márcalo en Casa → Hogar.' });
+  }
   // Presupuesto del mes: aviso al 90 % y al pasarse
   const b = budgetStatus(d, now, read('fx.json', null)?.sell);
   if (b.limit) {
@@ -308,4 +392,4 @@ function budgetStatus(d, now = Date.now(), rate = null) {
   return { month, limit: d.budget?.limit || null, currency, spent, planned, lines: same, byKind, rate, other: lines.filter((l) => l.currency && l.currency !== currency) };
 }
 
-module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, budgetStatus, riteveMonth, TRAMITES, COUNTRIES };
+module.exports = { load, save, holidays, dueNotices, nextDue, nextBirthday, budgetStatus, riteveMonth, TRAMITES, COUNTRIES, warrantyEnd, maintNext, sharedBalances, DAYS };

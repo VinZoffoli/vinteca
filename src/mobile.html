@@ -103,6 +103,13 @@ h4.sec{margin:16px 2px 6px;font:600 13px var(--display);color:var(--muted);lette
 .msg.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:6px}
 .msg.wait{color:var(--muted)}
 .empty{color:var(--muted);text-align:center;padding:30px 10px}
+.off{margin:0 0 12px;padding:10px 14px;border-radius:14px;background:rgba(255,194,71,.12);border:1px solid rgba(255,194,71,.4);color:#ffe2a6;font-size:14px}
+.pcgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pcbtn{display:grid;justify-items:center;gap:4px;padding:14px 6px;border-radius:16px;background:var(--bg2);border:1px solid var(--line);font-size:13px;font-weight:600;transition:transform .16s var(--ease),background-color .15s}
+.pcbtn:active{transform:scale(.94);background:var(--card)}
+.pcbtn span{font-size:22px;line-height:1}
+.pcbtn.danger{color:#ffb3b5;border-color:rgba(239,58,63,.45)}
+.pcbtn.on{background:rgba(239,58,63,.18);border-color:var(--accent)}
 .err{margin:0 0 12px;padding:12px 14px;border-radius:14px;background:rgba(239,58,63,.12);border:1px solid rgba(239,58,63,.4);color:#ffd0d2}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 6px calc(var(--safe-b) + 6px);background:rgba(26,18,20,.82);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border-top:1px solid rgba(255,255,255,.07)}
 nav.tabs button{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--faint);font-size:11px;font-weight:600;transition:color .2s,transform .16s var(--ease)}
@@ -176,8 +183,14 @@ const sub = (key, def) => S.sub[key] || def;
 async function load(section, force) {
   if (!force && S.data[section] && Date.now() - S.at[section] < 30000) return;
   S.busy = true; renderHead();
-  try { S.data[section] = await api('/api/m?s=' + section); S.at[section] = Date.now(); S.error = null; }
-  catch (e) { S.error = e.message || 'No llego al PC. ¿Está ViperTeca abierta?'; }
+  try {
+    S.data[section] = await api('/api/m?s=' + section); S.at[section] = Date.now(); S.error = null; S.offline = null;
+    try { localStorage.setItem('vt-cache:' + section, JSON.stringify({ at: S.at[section], data: S.data[section] })); } catch {}
+  } catch (e) {
+    const c = (() => { try { return JSON.parse(localStorage.getItem('vt-cache:' + section) || 'null'); } catch { return null; } })();
+    if (c) { S.data[section] = c.data; S.at[section] = c.at; S.offline = c.at; S.error = null; }
+    else S.error = e.message && !/fetch|network|load/i.test(e.message) ? e.message : 'No llego al PC. ¿Está ViperTeca abierta y Tailscale encendido?';
+  }
   S.busy = false; render();
 }
 async function act(a, params, ok) {
@@ -199,6 +212,7 @@ function hoy(d) {
       h('div', { class: 'stat' }, h('small', { text: d.fx ? 'Dólar hoy' : 'Correos sin leer' }), h('b', { text: d.fx ? '₡' + Math.round(d.fx.sell) : String(d.mail?.count ?? '—') }))
     ),
     nx && h('section', { class: 'hero' }, h('small', { text: nx.start <= Date.now() ? 'Reunión en curso' : 'Próxima reunión · ' + until(nx.start) }), h('h2', { text: nx.title }), h('p', { text: hm(nx.start) + ' – ' + hm(nx.end) }), nx.link && /^https:\/\/meet\.google\.com\//.test(nx.link) && h('a', { class: 'btn primary', href: nx.link, style: 'margin-top:12px;text-decoration:none', text: 'Unirse' })),
+    d.weather && card('Clima en Guápiles', d.weather.today ? 'máx. ' + Math.round(d.weather.today.max) + '° · lluvia ' + d.weather.today.prob + ' %' : null, h('p', { class: 'big', text: Math.round(d.weather.now.temp) + '° · ' + d.weather.now.text })),
     d.missed?.length ? card('Mientras jugabas', plural(d.missed.length, 'aviso', 'avisos'), list(d.missed.slice(0, 6).map((m) => li(m.title, hm(m.at))))) : null,
     card('Agenda de hoy', null, list(d.meetings.map((m) => li(m.title, m.allDay ? 'todo el día' : hm(m.start), m.end < Date.now() ? 'past' : '')))),
     card('Pagos que vienen', null, list(d.pays.map((p) => li(p.name + (p.group && p.group !== 'Personal' ? ' (' + p.group + ')' : ''), when(p.days), p.days <= 0 ? 'hot' : '', p.amount ? money(p.amount, p.currency) : null)))),
@@ -346,7 +360,15 @@ function mas() {
     out.push(d.current ? h('section', { class: 'hero' }, h('small', { text: 'Jugando ahora' }), h('h2', { text: d.current.title }), h('p', { text: 'desde las ' + hm(d.current.start) })) : null);
     out.push(s ? h('div', { class: 'strip' }, h('div', { class: 'stat' }, h('small', { text: 'CPU' }), h('b', { text: s.cpu?.temp != null ? Math.round(s.cpu.temp) + ' °C' : '—' }), h('small', { text: s.cpu?.load != null ? Math.round(s.cpu.load) + ' % de uso' : '' })), h('div', { class: 'stat' }, h('small', { text: 'GPU' }), h('b', { text: s.gpu?.temp != null ? Math.round(s.gpu.temp) + ' °C' : '—' }), h('small', { text: s.gpu?.load != null ? Math.round(s.gpu.load) + ' % de uso' : '' }))) : h('p', { class: 'empty', text: 'Sin sensores: abre LibreHardwareMonitor en el PC.' }));
     if (s?.fans?.length) out.push(card('Ventiladores', null, list(s.fans.map((f) => li(f.name, f.rpm + ' rpm')))));
-    out.push(card('Modo enfoque', null, h('p', { text: d.focus?.mode === 'on' ? 'Activo en ' + (d.focus.game?.title || 'un juego') : d.focus?.mode === 'waiting' ? 'Esperando a que abras un juego' : 'Apagado' })));
+    const pc = async (what, ok, ask) => { if (ask && !confirm(ask)) return; await act('pc', { do: what }, ok); setTimeout(() => load('pc', true), 1200); };
+    const B = (icon, label, what, ok, cls, ask) => h('button', { class: 'pcbtn ' + (cls || ''), onclick: () => pc(what, ok, ask) }, h('span', { text: icon }), label);
+    out.push(card('Música y volumen', null, h('div', { class: 'pcgrid' }, B('🔉', 'Bajar', 'vol-down', null), B('🔇', 'Silencio', 'mute', null), B('🔊', 'Subir', 'vol-up', null), B('⏮', 'Anterior', 'prev', null), B('⏯', 'Pausa', 'play-pause', null), B('⏭', 'Siguiente', 'next', null))));
+    out.push(card('Modo enfoque', d.focus?.mode === 'on' ? 'activo' : d.focus?.mode === 'waiting' ? 'esperando un juego' : 'apagado', h('div', { class: 'pcgrid' }, B('🎯', d.focus?.mode === 'off' ? 'Activar' : 'Desactivar', 'focus', d.focus?.mode === 'off' ? 'Modo enfoque activado' : 'Modo enfoque desactivado', d.focus?.mode !== 'off' ? 'on' : ''))));
+    out.push(card('El PC', d.shutdownAt && d.shutdownAt > Date.now() ? 'se apaga ' + until(d.shutdownAt) : null, h('div', { class: 'pcgrid' },
+      B('🔒', 'Bloquear', 'lock', 'PC bloqueado'),
+      B('🌙', 'Suspender', 'sleep', 'Suspendiendo el PC', '', '¿Suspender el PC? ViperTeca dejará de responder hasta que lo despiertes.'),
+      d.shutdownAt && d.shutdownAt > Date.now() ? B('↩️', 'Cancelar apagado', 'cancel-shutdown', 'Apagado cancelado') : B('⏻', 'Apagar', 'shutdown', 'El PC se apaga en 1 minuto', 'danger', '¿Apagar el PC? Se apaga en 1 minuto y puedes cancelarlo desde aquí.')
+    )));
   }
   return out;
 }
@@ -361,7 +383,8 @@ function render() {
   const d = t === 'mas' ? true : S.data[t];
   const head = h('header', { class: 'hd' }, h('div', {}, h('h1', { text: TITLES[t]() }), h('p', { text: t === 'hoy' ? new Date().toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase()) : S.at[t] ? 'Actualizado a las ' + hm(S.at[t]) : 'ViperTeca en tu PC' })), h('button', { class: 'refresh' + (S.busy ? ' spin' : ''), 'aria-label': 'Actualizar', onclick: () => load(t === 'mas' ? sub('mas', 'preguntar') : t, true) }, svg(ICONS.refresh)));
   const body = S.error && !S.data[t] ? [h('p', { class: 'err', text: S.error })] : !d ? [h('div', { class: 'skel' }), h('div', { class: 'skel' }), h('div', { class: 'skel' })] : t === 'hoy' ? hoy(d) : t === 'casa' ? casa(d) : t === 'juegos' ? juegos(d) : t === 'genshin' ? genshin(d) : mas();
-  main.replaceChildren(h('div', { class: 'view' }, head, S.error && S.data[t] ? h('p', { class: 'err', text: S.error }) : null, body));
+  const off = S.offline && t !== 'mas' ? h('p', { class: 'off', text: 'Sin conexión con el PC · datos guardados ' + (new Date(S.offline).toDateString() === new Date().toDateString() ? 'a las ' + hm(S.offline) : 'del ' + dd(S.offline)) }) : null;
+  main.replaceChildren(h('div', { class: 'view' }, head, off, S.error && S.data[t] ? h('p', { class: 'err', text: S.error }) : null, body));
   main.scrollTop = keep;
   $('#tabs').replaceChildren(...TABS.map(([k, l]) => h('button', { class: k === t ? 'on' : '', 'aria-current': k === t ? 'page' : null, onclick: () => { if (S.tab === k) { main.scrollTo({ top: 0, behavior: 'smooth' }); return; } S.tab = k; localStorage.setItem('vt-tab', k); main.scrollTop = 0; render(); if (k !== 'mas') load(k); } }, svg(ICONS[k]), h('span', { text: l }))));
 }

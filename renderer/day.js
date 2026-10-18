@@ -30,80 +30,172 @@
   }
   const li = (main, side, cls) => h('li', { class: cls || '' }, h('span', { text: main }), side && h('b', { text: side }));
 
+  // Mi día, al estilo de los widgets de iOS: un encabezado con el clima y el
+  // resumen, y debajo bloques por tema (Ahora, Casa, Trabajo, Ocio).
+  const ringSvg = (v, cls) => {
+    const r = 30;
+    const c = 2 * Math.PI * r;
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    el.setAttribute('viewBox', '0 0 72 72');
+    el.setAttribute('class', 'md-ring ' + (cls || ''));
+    el.innerHTML = '<circle cx="36" cy="36" r="' + r + '" class="bg"/><circle cx="36" cy="36" r="' + r + '" class="fg" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - Math.max(0, Math.min(1, v))) + '"/>';
+    return el;
+  };
+  const WX_ICON = (code) => (code === 0 ? '☀️' : code <= 2 ? '🌤️' : code === 3 ? '☁️' : code <= 48 ? '🌫️' : code <= 57 ? '🌦️' : code <= 67 ? '🌧️' : code <= 77 ? '❄️' : code <= 82 ? '🌧️' : code <= 86 ? '❄️' : '⛈️');
+  function wg(title, opts, ...kids) {
+    const body = kids.flat().filter(Boolean);
+    if (!body.length && !opts.keep) return null;
+    return h('section', { class: 'wg ' + (opts.size || '') + ' ' + (opts.tone || '') },
+      h('header', { class: 'wg-h' },
+        h('span', { class: 'wg-dot', style: { background: opts.color || 'var(--amber)' } }),
+        h('h3', { text: title }),
+        opts.view && h('button', { class: 'wg-more', 'aria-label': 'Abrir ' + title, onclick: () => showView(opts.view) }, '›')
+      ),
+      body.length ? body : h('p', { class: 'wg-empty', text: opts.empty || 'Nada por aquí.' })
+    );
+  }
+  const rows = (list) => (list.length ? h('ul', { class: 'wg-list' }, list) : null);
+  const row = (main, side, cls, sub) => h('li', { class: cls || '' }, h('div', {}, h('span', { text: main }), sub && h('small', { text: sub })), side != null && h('b', { text: side }));
+
   function dayRender() {
     const box = $('#dayBody');
     if (!box) return;
     const d = D.data;
-    if (!d) return fill(box, h('p', { class: 'hint', text: D.error || 'Preparando tu día…' }));
+    if (!d) return fill(box, h('div', { class: 'md-skel' }, [1, 2, 3, 4, 5, 6].map(() => h('div', { class: 'skel' }))));
     const now = new Date();
     const hello = now.getHours() < 12 ? 'Buenos días' : now.getHours() < 19 ? 'Buenas tardes' : 'Buenas noches';
-    $('#dayTitle').textContent = `${hello}, Vincenzo`;
-    $('#daySub').textContent = now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase());
-    const nextMeet = d.meetings.find((m) => !m.allDay);
+    const meets = d.meetings.filter((m) => !m.allDay);
+    const nextMeet = meets.find((m) => m.end > Date.now());
+    const w = d.weather;
     const b = d.budget;
+    // resumen de una línea, como en la pantalla de bloqueo
+    const bits = [];
+    bits.push(meets.length ? plural(meets.length, 'reunión', 'reuniones') : 'sin reuniones');
+    const payToday = d.pays.filter((p) => p.days <= 0).length;
+    if (payToday) bits.push(plural(payToday, 'pago para hoy', 'pagos para hoy'));
+    if (d.bdays.some((x) => x.days === 0)) bits.push('un cumpleaños');
+    if (w?.today?.heavy) bits.push(w.today.text.toLowerCase());
+    else if (w?.today && w.today.prob >= 60) bits.push('probable lluvia');
+    const summary = bits.join(' · ');
+    const late = d.tickets.filter((t) => t.late).length;
+
     fill(box,
-      h('div', { class: 'dy-strip' },
-        h('div', {}, h('dt', { text: 'Reuniones hoy' }), h('dd', { text: String(d.meetings.filter((m) => !m.allDay).length) })),
-        h('div', {}, h('dt', { text: 'Pagos esta semana' }), h('dd', { class: d.pays.some((p) => p.days <= 0) ? 'hot' : '', text: String(d.pays.length) })),
-        h('div', {}, h('dt', { text: 'Correos sin leer' }), h('dd', { text: d.mail ? String(d.mail.count) : '—' })),
-        h('div', {}, h('dt', { text: 'Tickets que vencen' }), h('dd', { class: d.tickets.some((t) => t.late) ? 'hot' : '', text: String(d.tickets.length) })),
-        h('div', {}, h('dt', { text: 'Por comprar' }), h('dd', { text: String(d.shopping) })),
-        d.fx && h('div', { title: `Compra ₡${d.fx.buy} · tipo de cambio del Banco Central` }, h('dt', { text: 'Dólar hoy' }), h('dd', { text: `₡${Math.round(d.fx.sell)}` }))
-      ),
-      d.missed?.length ? h('section', { class: 'dy-missed' },
-        h('div', { class: 'dy-head' }, h('h3', { text: `Mientras jugabas · ${plural(d.missed.length, 'aviso', 'avisos')}` }), h('button', { class: 'btn subtle small', text: 'Ya los vi', onclick: async () => { await window.api.dnd.clear(); D.data.missed = []; dayRender(); } })),
-        h('ul', { class: 'dy-list' }, d.missed.slice(0, 8).map((m) => h('li', {}, h('span', { text: m.body ? `${m.title} · ${m.body.split('\n')[0]}` : m.title }), h('b', { text: hm(m.at) }))))
-      ) : null,
-      d.week && h('section', { class: 'dy-week' },
-        h('p', { class: 'dy-kicker', text: new Date().getDay() === 0 ? 'La semana que viene' : 'Esta semana' }),
-        h('div', { class: 'dy-week-grid' },
-          h('div', {}, h('b', { text: String(d.week.meetings.length) }), h('span', { text: d.week.meetings.length === 1 ? 'reunión' : 'reuniones' })),
-          h('div', {}, h('b', { text: String(d.week.pays.length) }), h('span', { text: d.week.pays.length === 1 ? 'pago' : 'pagos' })),
-          h('div', {}, h('b', { text: String(d.week.bdays.length) }), h('span', { text: 'cumpleaños' })),
-          h('div', {}, h('b', { text: String(d.week.rems.length + d.week.tramites.length) }), h('span', { text: 'recordatorios y trámites' }))
+      // ---------- encabezado
+      h('header', { class: 'md-hero' },
+        h('div', { class: 'md-hello' },
+          h('p', { class: 'md-date', text: now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (c) => c.toUpperCase()) }),
+          h('h1', { text: hello + ', Vincenzo' }),
+          h('p', { class: 'md-sum', text: summary.charAt(0).toUpperCase() + summary.slice(1) + '.' })
         ),
-        [...d.week.bdays.map((b) => `cumple de ${b.name} ${when(b.days)}`), ...d.week.tramites.map((t) => `vence ${t.name} ${when(t.days)}`), ...d.week.premieres.map((a) => `estreno de ${a.title}`)].length
-          ? h('p', { class: 'hint', text: [...d.week.bdays.map((b) => `cumple de ${b.name} ${when(b.days)}`), ...d.week.tramites.map((t) => `vence ${t.name} ${when(t.days)}`), ...d.week.premieres.map((a) => `estreno de ${a.title}`)].join(' · ') })
-          : null
+        w && h('div', { class: 'md-wx', title: w.stale ? 'Sin conexión: último dato guardado' : 'Clima de Guápiles' },
+          h('span', { class: 'md-wx-ico', 'aria-hidden': 'true', text: WX_ICON(w.now.code) }),
+          h('div', {},
+            h('b', { text: Math.round(w.now.temp) + '°' }),
+            h('span', { text: w.now.text }),
+            w.today && h('small', { text: 'Máx. ' + Math.round(w.today.max) + '° · Mín. ' + Math.round(w.today.min) + '° · lluvia ' + w.today.prob + ' %' })
+          )
+        )
       ),
-      nextMeet && h('section', { class: 'dy-next' },
-        h('p', { class: 'dy-kicker', text: nextMeet.start <= Date.now() ? 'Reunión en curso' : `Próxima reunión · ${until(nextMeet.start)}` }),
-        h('h2', { text: nextMeet.title }),
-        h('p', { class: 'hint', text: `${hm(nextMeet.start)} – ${hm(nextMeet.end)}` }),
-        nextMeet.link && h('button', { class: 'btn primary small', text: 'Unirse', onclick: () => window.api.cal.open(nextMeet.link) })
+
+      // ---------- avisos que no pueden esperar
+      d.missed?.length ? h('section', { class: 'md-banner cyan' },
+        h('div', {}, h('b', { text: 'Mientras jugabas · ' + plural(d.missed.length, 'aviso', 'avisos') }), h('span', { text: d.missed.slice(0, 3).map((m) => m.title).join(' · ') })),
+        h('button', { class: 'btn subtle small', text: 'Ya los vi', onclick: async () => { await window.api.dnd.clear(); D.data.missed = []; dayRender(); } })
+      ) : null,
+      d.week && h('section', { class: 'md-week' },
+        h('p', { class: 'md-kicker', text: now.getDay() === 0 ? 'La semana que viene' : 'Esta semana' }),
+        h('div', { class: 'md-week-grid' },
+          [[d.week.meetings.length, d.week.meetings.length === 1 ? 'reunión' : 'reuniones'], [d.week.pays.length, d.week.pays.length === 1 ? 'pago' : 'pagos'], [d.week.bdays.length, 'cumpleaños'], [d.week.rems.length + d.week.tramites.length, 'recordatorios y trámites']].map(([n, l]) => h('div', {}, h('b', { text: String(n) }), h('span', { text: l })))
+        )
       ),
-      h('div', { class: 'dy-grid' },
-        card('Agenda de hoy', 'cal', d.meetings.length ? h('ul', { class: 'dy-list' }, d.meetings.map((m) => li(m.title, m.allDay ? 'Todo el día' : hm(m.start), m.end < Date.now() ? 'past' : ''))) : null),
-        card('Pagos que vienen', 'casa-pagos', d.pays.length ? h('ul', { class: 'dy-list' }, d.pays.map((p) => li(`${p.name}${p.group && p.group !== 'Personal' ? ` (${p.group})` : ''}${p.amount ? ` · ${money(p.amount, p.currency)}` : ''}`, p.days < 0 ? 'Atrasado' : when(p.days), p.days <= 0 ? 'hot' : ''))) : null),
-        card('Cumpleaños', 'casa-cumples', d.bdays.length ? h('ul', { class: 'dy-list' }, d.bdays.map((x) => li(`${x.name}${x.kind === 'gato' ? ' (gatito)' : ''}${x.age ? ` · cumple ${x.age}` : ''}`, when(x.days), x.days === 0 ? 'hot' : ''))) : null),
-        card('Recordatorios', 'casa-recordatorios', d.rems.length ? h('ul', { class: 'dy-list' }, d.rems.map((r) => li(r.title, when(r.days)))) : null),
-        card('Trámites', 'casa-tramites', d.tramites?.length ? h('ul', { class: 'dy-list' }, d.tramites.map((t) => li(t.name, t.days < 0 ? 'Vencido' : when(t.days), t.days <= 7 ? 'hot' : ''))) : null),
-        card('Gatitos', 'casa-gatitos', d.cats.length ? h('ul', { class: 'dy-list' }, d.cats.map((c) => li(`${c.cat}: ${{ vacuna: 'vacuna', desparasitacion: 'desparasitación', pulgas: 'antipulgas', veterinario: 'veterinario', otro: c.note || 'cuidado' }[c.type]}`, when(c.days), c.days <= 0 ? 'hot' : ''))) : null),
-        card('Tickets de Notion', 'notion', d.tickets.length ? [h('ul', { class: 'dy-list' }, d.tickets.slice(0, 6).map((t) => li(t.title, t.late ? 'Vencido' : t.deadline, t.late ? 'hot' : ''))), d.tickets.length > 6 && h('p', { class: 'hint', text: `y ${d.tickets.length - 6} más` })] : null),
-        card('Correo', 'mail', d.mail?.count ? h('ul', { class: 'dy-list' }, d.mail.last.map((m) => li(m.subject, m.from))) : null),
-        card('Anime', 'news', d.anime.length ? h('ul', { class: 'dy-list' }, d.anime.map((a) => li(`${a.title} · ${a.what}`, `${new Date(a.at).toDateString() === new Date().toDateString() ? 'hoy' : 'mañana'} ${hm(a.at)}`))) : null),
-        card('Genshin', 'genshin', [
-          d.resin && h('p', { class: `dy-big ${d.resin.value >= d.resin.max ? 'hot' : ''}`, text: `Resina ${d.resin.value}/${d.resin.max}` }),
-          h('ul', { class: 'dy-list' }, d.resets.map((r) => li(r.name, until(r.at)))),
-          d.gather?.length && h('ul', { class: 'dy-list' }, d.gather.map((g) => li(g.name, g.readyAt <= Date.now() ? 'Listo para recoger' : until(g.readyAt), g.readyAt <= Date.now() ? 'hot' : ''))),
-        ]),
-        card('Presupuesto del mes', 'casa-presupuesto', b.limit ? [h('p', { class: 'dy-big', text: `${money(b.spent, b.currency)} de ${money(b.limit, b.currency)}` }), h('div', { class: 'dy-bar' }, h('i', { class: b.spent > b.limit ? 'hot' : '', style: { width: `${Math.min(100, (b.spent / b.limit) * 100)}%` } }))] : h('p', { class: 'hint', text: 'Pon un límite en Casa → Presupuesto para ver cuánto llevas.' })),
-        card('Juegos gratis ahora', 'news', d.giveaways.length ? h('ul', { class: 'dy-list' }, d.giveaways.map((g) => li(g.title, g.store))) : null),
-        d.pulls ? card('Websites', 'webs', h('p', { class: 'hint', text: `${plural(d.pulls, 'web necesita', 'webs necesitan')} git pull.` })) : null
+
+      // ---------- ahora
+      h('h2', { class: 'md-sec', text: 'Ahora' }),
+      h('div', { class: 'md-grid' },
+        nextMeet
+          ? h('section', { class: 'wg wide md-meet' },
+              h('p', { class: 'md-kicker', text: nextMeet.start <= Date.now() ? 'Reunión en curso' : 'Próxima reunión · ' + until(nextMeet.start) }),
+              h('h2', { text: nextMeet.title }),
+              h('p', { class: 'md-meet-time', text: hm(nextMeet.start) + ' – ' + hm(nextMeet.end) }),
+              h('div', { class: 'md-meet-act' }, nextMeet.link && h('button', { class: 'btn primary', text: 'Unirse', onclick: () => window.api.cal.open(nextMeet.link) }), h('button', { class: 'btn ghost', text: 'Ver agenda', onclick: () => showView('cal') }))
+            )
+          : h('section', { class: 'wg wide md-meet free' }, h('p', { class: 'md-kicker', text: 'Agenda' }), h('h2', { text: meets.length ? 'Ya no quedan reuniones hoy' : 'Hoy no tienes reuniones' }), h('p', { class: 'md-meet-time', text: 'Buen momento para avanzar tickets o descansar.' })),
+        h('section', { class: 'wg md-stats' },
+          [
+            ['Pagos esta semana', d.pays.length, d.pays.some((p) => p.days <= 0) ? 'hot' : '', 'casa-pagos'],
+            ['Tickets que vencen', d.tickets.length, late ? 'hot' : '', 'notion'],
+            ['Correos sin leer', d.mail ? d.mail.count : '—', '', 'mail'],
+            ['Por comprar', d.shopping, '', 'casa-compras'],
+          ].map(([l, v, cls, view]) => h('button', { class: 'md-stat', onclick: () => showView(view) }, h('b', { class: cls, text: String(v) }), h('span', { text: l })))
+        ),
+        d.fx && h('section', { class: 'wg md-fx' },
+          h('header', { class: 'wg-h' }, h('span', { class: 'wg-dot', style: { background: 'var(--green)' } }), h('h3', { text: 'Dólar hoy' })),
+          h('b', { class: 'md-big', text: '₡' + d.fx.sell.toLocaleString('es', { minimumFractionDigits: 2 }) }),
+          h('small', { class: 'wg-sub', text: 'venta · compra ₡' + d.fx.buy })
+        ),
+        w && w.hours?.length ? h('section', { class: 'wg wide md-hours' },
+          h('header', { class: 'wg-h' }, h('span', { class: 'wg-dot', style: { background: 'var(--cyan)' } }), h('h3', { text: 'Próximas horas en Guápiles' })),
+          h('ol', { class: 'md-hourly' }, w.hours.map((x) => h('li', { class: x.prob >= 60 ? 'rain' : '' }, h('small', { text: x.time.slice(11, 16) }), h('span', { 'aria-hidden': 'true', text: WX_ICON(x.code) }), h('b', { text: Math.round(x.temp) + '°' }), h('em', { text: x.prob + ' %' }))))
+        ) : null
       ),
-      D.backup && h('p', { class: 'hint dy-foot' },
-        D.backup.available ? `Copia en OneDrive: ${D.backup.last ? `la última es del ${D.backup.last}` : 'todavía ninguna'}. ` : 'No encuentro OneDrive en este PC. ',
-        D.backup.available && h('button', { class: 'btn subtle small', text: 'Hacer copia ahora', onclick: async () => { try { D.backup = await window.api.backup.run(); toast('Copia guardada en OneDrive.'); dayRender(); } catch (e) { toast(errMsg(e), true); } } }),
-        D.backup.available && D.backup.last && h('button', { class: 'btn subtle small', text: 'Abrir carpeta', onclick: () => window.api.backup.open() })
+
+      // ---------- casa
+      h('h2', { class: 'md-sec', text: 'Casa' }),
+      h('div', { class: 'md-grid' },
+        wg('Pagos que vienen', { view: 'casa-pagos', color: 'var(--green)', keep: true, empty: 'Nada que pagar esta semana.' }, rows(d.pays.map((p) => row(p.name + (p.group && p.group !== 'Personal' ? ' (' + p.group + ')' : ''), p.days < 0 ? 'Atrasado' : when(p.days), p.days <= 0 ? 'hot' : '', p.amount ? money(p.amount, p.currency) : null)))),
+        b.limit
+          ? h('section', { class: 'wg md-budget' },
+              h('header', { class: 'wg-h' }, h('span', { class: 'wg-dot', style: { background: 'var(--amber)' } }), h('h3', { text: 'Presupuesto' }), h('button', { class: 'wg-more', 'aria-label': 'Abrir presupuesto', onclick: () => showView('casa-presupuesto') }, '›')),
+              h('div', { class: 'md-ringbox' }, ringSvg(b.spent / b.limit, b.spent > b.limit ? 'hot' : ''), h('div', {}, h('b', { text: Math.round((b.spent / b.limit) * 100) + ' %' }), h('small', { text: 'usado' }))),
+              h('small', { class: 'wg-sub', text: money(b.spent, b.currency) + ' de ' + money(b.limit, b.currency) })
+            )
+          : wg('Presupuesto', { view: 'casa-presupuesto', color: 'var(--amber)', keep: true, empty: 'Pon un límite del mes y te muestro cuánto llevas.' }),
+        wg('Cumpleaños', { view: 'casa-cumples', color: 'var(--pink)' }, rows(d.bdays.map((x) => row(x.name + (x.kind === 'gato' ? ' 🐾' : ''), when(x.days), x.days === 0 ? 'hot' : '', x.age ? 'cumple ' + x.age : null)))),
+        wg('Recordatorios', { view: 'casa-recordatorios', color: 'var(--amber)' }, rows(d.rems.map((r) => row(r.title, when(r.days))))),
+        wg('Trámites', { view: 'casa-tramites', color: 'var(--cyan)' }, rows((d.tramites || []).map((t) => row(t.name, t.days < 0 ? 'Vencido' : when(t.days), t.days <= 7 ? 'hot' : '')))),
+        wg('Hogar', { view: 'casa-hogar', color: 'var(--green)' }, rows((d.hogar || []).map((x) => row(x.name, x.days < 0 ? 'Atrasado' : when(x.days), x.days <= 0 ? 'hot' : '')))),
+        wg('Gatitos', { view: 'casa-gatitos', color: 'var(--pink)' }, rows(d.cats.map((c) => row(c.cat, when(c.days), c.days <= 0 ? 'hot' : '', { vacuna: 'vacuna', desparasitacion: 'desparasitación', pulgas: 'antipulgas', veterinario: 'veterinario', otro: c.note || 'cuidado' }[c.type]))))
       ),
-      h('section', { class: 'dy-phone' },
-        D.lan?.dayQr ? h('img', { src: D.lan.dayQr, alt: 'Código QR de Mi día para el celular' }) : null,
-        h('div', {},
-          h('h3', { text: 'Mi día en el celular' }),
-          D.lan?.dayQr
-            ? h('p', { class: 'hint', text: 'Escanéalo con la cámara del celular (en la misma wifi) y tendrás esta pantalla allí, actualizada cada minuto.' })
-            : h('p', { class: 'hint', text: 'Enciende el acceso desde el celular y te doy un código QR para ver tu día desde el teléfono, en la misma wifi.' }),
-          !D.lan?.dayQr && h('button', { class: 'btn ghost small', text: 'Encender acceso desde el celular', onclick: async () => { try { D.lan = await window.api.lanStart(); dayRender(); } catch (e) { toast(errMsg(e), true); } } })
+
+      // ---------- trabajo
+      h('h2', { class: 'md-sec', text: 'Trabajo' }),
+      h('div', { class: 'md-grid' },
+        wg('Agenda de hoy', { view: 'cal', color: 'var(--amber)', size: 'tall', keep: true, empty: 'Sin reuniones hoy.' },
+          d.meetings.length ? h('ol', { class: 'md-timeline' }, d.meetings.map((m) => h('li', { class: m.end < Date.now() ? 'past' : m.start <= Date.now() ? 'now' : '' }, h('time', { text: m.allDay ? 'Todo el día' : hm(m.start) }), h('span', { text: m.title })))) : null
+        ),
+        wg('Tickets de Notion', { view: 'notion', color: 'var(--pink)', size: 'tall' }, rows(d.tickets.slice(0, 7).map((t) => row(t.title, t.late ? 'Vencido' : t.deadline, t.late ? 'hot' : ''))), d.tickets.length > 7 && h('p', { class: 'wg-sub', text: 'y ' + (d.tickets.length - 7) + ' más' })),
+        wg('Correo', { view: 'mail', color: 'var(--cyan)' }, d.mail?.count ? [h('b', { class: 'md-big', text: String(d.mail.count) }), h('small', { class: 'wg-sub', text: 'sin leer' }), rows(d.mail.last.map((m) => row(m.subject, null, '', m.from)))] : null),
+        d.pulls ? wg('Websites', { view: 'webs', color: 'var(--green)' }, h('b', { class: 'md-big', text: String(d.pulls) }), h('small', { class: 'wg-sub', text: d.pulls === 1 ? 'web necesita git pull' : 'webs necesitan git pull' })) : null
+      ),
+
+      // ---------- ocio
+      h('h2', { class: 'md-sec', text: 'Ocio' }),
+      h('div', { class: 'md-grid' },
+        h('section', { class: 'wg md-genshin' },
+          h('header', { class: 'wg-h' }, h('span', { class: 'wg-dot', style: { background: 'var(--cyan)' } }), h('h3', { text: 'Genshin' }), h('button', { class: 'wg-more', 'aria-label': 'Abrir Genshin', onclick: () => showView('genshin') }, '›')),
+          d.resin ? h('div', { class: 'md-ringbox' }, ringSvg(d.resin.value / d.resin.max, d.resin.value >= d.resin.max ? 'hot' : 'cyan'), h('div', {}, h('b', { text: String(d.resin.value) }), h('small', { text: 'de ' + d.resin.max + ' resina' }))) : null,
+          rows([...d.resets.map((r) => row(r.name, until(r.at))), ...(d.gather || []).map((g) => row(g.name, g.readyAt <= Date.now() ? 'Listo' : until(g.readyAt), g.readyAt <= Date.now() ? 'hot' : ''))])
+        ),
+        wg('Anime', { view: 'news', color: 'var(--pink)' }, rows(d.anime.map((x) => row(x.title, (new Date(x.at).toDateString() === new Date().toDateString() ? 'hoy ' : 'mañana ') + hm(x.at), '', x.what)))),
+        wg('Juegos gratis', { view: 'news', color: 'var(--green)' }, rows(d.giveaways.map((g) => row(g.title, g.store))))
+      ),
+
+      // ---------- pie
+      h('footer', { class: 'md-foot' },
+        h('section', { class: 'md-phone' },
+          D.lan?.dayQr ? h('img', { src: D.lan.mQr || D.lan.dayQr, alt: 'Código QR de ViperTeca para el celular' }) : null,
+          h('div', {},
+            h('b', { text: 'ViperTeca en tu iPhone' }),
+            h('p', { class: 'hint', text: D.lan?.dayQr ? 'Escanéalo con la cámara. Con Tailscale funciona fuera de casa (código en «En el móvil»).' : 'Enciende el acceso desde el celular y tendrás la app en el teléfono.' }),
+            h('div', { class: 'row' },
+              !D.lan?.dayQr && h('button', { class: 'btn ghost small', text: 'Encender', onclick: async () => { try { D.lan = await window.api.lanStart(); dayRender(); } catch (e) { toast(errMsg(e), true); } } }),
+              h('button', { class: 'btn ghost small', text: 'Widget de escritorio', onclick: async () => { const on = await window.api.widget.toggle(); toast(on ? 'Widget abierto: arrástralo donde quieras.' : 'Widget cerrado.'); } })
+            )
+          )
+        ),
+        D.backup && h('p', { class: 'hint md-backup' },
+          D.backup.available ? 'Copia en OneDrive: ' + (D.backup.last ? 'la última es del ' + D.backup.last : 'todavía ninguna') + '. ' : 'No encuentro OneDrive en este PC. ',
+          D.backup.available && h('button', { class: 'btn subtle small', text: 'Hacer copia ahora', onclick: async () => { try { D.backup = await window.api.backup.run(); toast('Copia guardada en OneDrive.'); dayRender(); } catch (e) { toast(errMsg(e), true); } } })
         )
       )
     );

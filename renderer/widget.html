@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>ViperTeca · widget</title>
+<style>
+:root { --night: #16122a; --night-2: #1c1734; --surface: #211b3d; --surface-2: #2b2450; --line: #3a3166; --text: #f1edff; --muted: #a39cc3; --faint: #6f6797; --amber: #ffb547; --pink: #ff5c8a; --cyan: #62e0e8; --green: #7ee2a8; --display: "Bahnschrift", "Segoe UI Variable Display", sans-serif; }
+html, body { margin: 0; background: transparent; color: var(--text); font: 13px/1.4 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; overflow: hidden; user-select: none; }
+.w { margin: 8px; padding: 14px 16px 12px; border-radius: 22px; background: color-mix(in srgb, var(--night-2) 88%, transparent); border: 1px solid color-mix(in srgb, var(--line) 80%, transparent); box-shadow: 0 18px 40px -18px rgba(0, 0, 0, .85), inset 0 1px 0 rgba(255, 255, 255, .06); -webkit-app-region: drag; backdrop-filter: blur(20px); }
+.top { display: flex; justify-content: space-between; align-items: flex-start; }
+.clock { font: 700 38px/1 var(--display); letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.date { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.tools { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+.tools button { width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .07); color: var(--muted); font: 600 12px var(--display); cursor: pointer; }
+.tools button:hover { color: var(--text); background: rgba(255, 255, 255, .14); }
+.tools button.on { color: var(--amber); }
+.wx { display: flex; gap: 8px; align-items: center; margin: 10px 0 4px; }
+.wx span { font-size: 22px; }
+.wx b { font: 700 18px var(--display); }
+.wx small { color: var(--muted); }
+.list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, .06); }
+.list li i { width: 8px; height: 8px; border-radius: 50%; justify-self: center; font-style: normal; }
+.list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list li b { font: 600 12px var(--display); color: var(--muted); white-space: nowrap; }
+.list li.hot b { color: var(--pink); }
+.open { margin-top: 8px; width: 100%; padding: 7px; border-radius: 12px; border: 0; background: rgba(255, 255, 255, .07); color: var(--text); font: 600 12.5px var(--display); cursor: pointer; -webkit-app-region: no-drag; }
+.open:hover { background: rgba(255, 255, 255, .13); }
+</style>
+</head>
+<body>
+<div class="w">
+  <div class="top">
+    <div><div class="clock" id="clock">--:--</div><div class="date" id="date"></div></div>
+    <div class="tools"><button id="pin" title="Siempre visible">📌</button><button id="close" title="Cerrar el widget">✕</button></div>
+  </div>
+  <div class="wx" id="wx"></div>
+  <ul class="list" id="list"></ul>
+  <button class="open" id="open">Abrir ViperTeca</button>
+</div>
+<script src="appearance.js"></script>
+<script>
+'use strict';
+const $ = (s) => document.getElementById(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const hm = (t) => new Date(t).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+const until = (t) => { const m = Math.round((t - Date.now()) / 60000); if (m <= 0) return 'ahora'; if (m < 60) return 'en ' + m + ' min'; const h = Math.floor(m / 60); return h < 48 ? 'en ' + h + ' h' : 'en ' + Math.round(h / 24) + ' d'; };
+const when = (d) => (d <= 0 ? 'hoy' : d === 1 ? 'mañana' : 'en ' + d + ' d');
+const ICON = (c) => (c === 0 ? '☀️' : c <= 2 ? '🌤️' : c === 3 ? '☁️' : c <= 48 ? '🌫️' : c <= 67 ? '🌧️' : c <= 82 ? '🌧️' : '⛈️');
+function tick() {
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+  $('date').textContent = now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+async function load() {
+  let d;
+  try { d = await window.api.day(); } catch { return; }
+  const wx = $('wx');
+  wx.replaceChildren();
+  if (d.weather) wx.append(el('span', '', ICON(d.weather.now.code)), el('b', '', Math.round(d.weather.now.temp) + '°'), el('small', '', d.weather.now.text + (d.weather.today ? ' · lluvia ' + d.weather.today.prob + ' %' : '')));
+  const items = [];
+  const next = d.meetings.find((m) => !m.allDay && m.end > Date.now());
+  if (next) items.push(['var(--amber)', next.title, next.start <= Date.now() ? 'ahora' : hm(next.start), false]);
+  for (const p of d.pays.slice(0, 2)) items.push(['var(--green)', p.name, when(p.days), p.days <= 0]);
+  if (d.resin) items.push(['var(--cyan)', 'Resina ' + d.resin.value + '/' + d.resin.max, d.resin.value >= d.resin.max ? 'llena' : d.resin.fullAt ? until(d.resin.fullAt) : '', d.resin.value >= d.resin.max]);
+  if (d.fx) items.push(['var(--green)', 'Dólar', '₡' + d.fx.sell, false]);
+  const late = d.tickets.filter((t) => t.late).length;
+  if (d.tickets.length) items.push(['var(--pink)', 'Tickets que vencen', String(d.tickets.length) + (late ? ' (' + late + ' vencidos)' : ''), late > 0]);
+  for (const b of d.bdays.filter((x) => x.days <= 1)) items.push(['var(--pink)', 'Cumple de ' + b.name, when(b.days), b.days === 0]);
+  const list = $('list');
+  list.replaceChildren(...items.slice(0, 7).map(([c, t, s, hot]) => { const li = el('li', hot ? 'hot' : ''); const i = el('i'); i.style.background = c; li.append(i, el('span', '', t), el('b', '', s)); return li; }));
+  // la ventana mide lo mismo que la tarjeta (sin zonas transparentes que tapen clics)
+  requestAnimationFrame(() => window.api.widget.size(document.querySelector('.w').getBoundingClientRect().height + 16));
+}
+$('close').onclick = () => window.api.widget.toggle(false);
+$('open').onclick = () => window.api.widget.openApp();
+$('pin').onclick = async () => { const top = await window.api.widget.pin(); $('pin').classList.toggle('on', top); };
+$('pin').classList.add('on');
+tick();
+load();
+setInterval(tick, 10000);
+setInterval(load, 60000);
+</script>
+</body>
+</html>

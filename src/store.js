@@ -8,19 +8,73 @@ const { app, safeStorage } = require('electron');
 const dir = () => app.getPath('userData');
 const file = (name) => path.join(dir(), name);
 
+const PRECIOUS = /^(casa|settings|sessions|user-games|genshin-(tasks|wishes|gather|inventory)|gfarm-plan|workana|linkedin|alquileres|anime[\w-]*|assist-chat|purchase-dates|weekly)\.json$/;
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function read(name, fallback) {
   try {
-    return JSON.parse(fs.readFileSync(file(name), 'utf8'));
-  } catch {
+    return readStrict(name) ?? fallback;
+  } catch (e) {
+    // Con tus datos importantes no se finge que el archivo está vacío (eso hacía que
+    // se guardara encima uno nuevo y se perdiera todo): se usa la copia anterior o se
+    // avisa con un error.
+    if (PRECIOUS.test(name)) {
+      try {
+        const bak = readStrict(name + '.bak');
+        if (bak) return bak;
+      } catch {}
+      throw e;
+    }
     return fallback;
   }
 }
 
+/**
+ * Lee un archivo distinguiendo "no existe" (devuelve null) de "no se pudo leer"
+ * (lanza un error). Si Windows lo tiene ocupado o está a medio escribir, lo
+ * vuelve a intentar unas veces antes de rendirse.
+ */
+function readStrict(name) {
+  let last;
+  for (let i = 0; i < 6; i++) {
+    try {
+      return JSON.parse(fs.readFileSync(file(name), 'utf8'));
+    } catch (e) {
+      if (e.code === 'ENOENT') return null;
+      last = e;
+      pause(40 * (i + 1));
+    }
+  }
+  throw new Error(`No pude leer ${name}: ${last?.message || 'error desconocido'}`);
+}
+
+// Los datos que escribes tú guardan además la versión anterior (.bak), por si acaso
 function write(name, data) {
   fs.mkdirSync(dir(), { recursive: true });
-  const tmp = file(name + '.tmp');
+  // nombre temporal único: dos procesos a la vez no se pisan el archivo temporal
+  const tmp = file(`${name}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`);
   fs.writeFileSync(tmp, JSON.stringify(data));
-  fs.renameSync(tmp, file(name));
+  if (PRECIOUS.test(name)) {
+    try {
+      const cur = fs.readFileSync(file(name), 'utf8');
+      JSON.parse(cur); // solo se guarda como copia si está sano
+      fs.writeFileSync(file(name + '.bak'), cur);
+    } catch {}
+  }
+  for (let i = 0; i < 5; i++) {
+    try {
+      fs.renameSync(tmp, file(name));
+      return;
+    } catch (e) {
+      if (i === 4) {
+        try {
+          fs.unlinkSync(tmp);
+        } catch {}
+        throw e;
+      }
+      pause(50 * (i + 1));
+    }
+  }
 }
 
 function getSettings() {
@@ -79,6 +133,7 @@ function getSettings() {
     gatherAlerts: s.gatherAlerts !== false,
     sundaySummary: s.sundaySummary !== false,
     paimonAlert: s.paimonAlert !== false,
+    weatherAlerts: s.weatherAlerts !== false,
     mailAlerts: s.mailAlerts !== false,
     tempLimits: s.tempLimits || { cpu: 90, gpu: 85 },
     genshinUid: s.genshinUid || '',
@@ -99,7 +154,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert'];
+const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert', 'weatherAlerts'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});
@@ -134,4 +189,4 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   return getSettings();
 }
 
-module.exports = { read, write, getSettings, getSteamKey, saveSettings };
+module.exports = { read, readStrict, write, getSettings, getSteamKey, saveSettings };

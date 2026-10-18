@@ -353,6 +353,211 @@
     ];
   }
 
+  // =========================================================== MENÚ SEMANAL
+  const WEEK = [['lun', 'Lunes'], ['mar', 'Martes'], ['mie', 'Miércoles'], ['jue', 'Jueves'], ['vie', 'Viernes'], ['sab', 'Sábado'], ['dom', 'Domingo']];
+  const plainTxt = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  function recipeForm(r) {
+    const d = K.d;
+    const isNew = !r;
+    form(isNew ? 'Nueva receta' : 'Editar: ' + r.name, [
+      { key: 'name', label: 'Nombre', value: r?.name || '', required: true, placeholder: 'Arroz con pollo, gallo pinto…' },
+      { key: 'ingredients', label: 'Ingredientes (separados por coma)', type: 'textarea', value: (r?.ingredients || []).join(', '), placeholder: 'arroz, pollo, chile dulce, culantro' },
+      { key: 'note', label: 'Nota', value: r?.note || '' },
+    ], (v) => {
+      const row = { name: v.name, ingredients: v.ingredients.split(/[,\n]/).map((x) => x.trim()).filter(Boolean), note: v.note };
+      if (isNew) d.recipes.push({ id: uid(), ...row });
+      else Object.assign(r, row);
+      commit();
+    }, isNew ? null : () => { d.recipes = d.recipes.filter((x) => x !== r); commit(); });
+  }
+  function menu() {
+    const d = K.d;
+    d.recipes ||= [];
+    d.menu ||= {};
+    const todayIdx = (new Date().getDay() + 6) % 7;
+    const recipeOf = (name) => d.recipes.find((r) => plainTxt(r.name) === plainTxt(name));
+    const slot = (k, meal) => {
+      const input = h('input', { class: 'mn-in', value: d.menu[k]?.[meal] || '', placeholder: meal === 'almuerzo' ? 'Almuerzo' : 'Cena', 'aria-label': meal + ' del ' + k });
+      input.setAttribute('list', 'mnRecipes');
+      input.addEventListener('change', () => { d.menu[k] = { ...(d.menu[k] || {}), [meal]: input.value.trim() }; save(); render(); });
+      const r = recipeOf(input.value);
+      return h('div', { class: 'mn-slot' + (input.value && !r ? ' free' : '') }, h('small', { text: meal === 'almuerzo' ? 'Almuerzo' : 'Cena' }), input, r && r.ingredients.length ? h('span', { class: 'mn-ing', text: r.ingredients.join(', ') }) : null);
+    };
+    const toShopping = () => {
+      const want = new Map();
+      for (const [k] of WEEK) for (const meal of ['almuerzo', 'cena']) for (const g of recipeOf(d.menu[k]?.[meal])?.ingredients || []) want.set(plainTxt(g), g);
+      const have = new Set(d.shopping.filter((x) => !x.done).map((x) => plainTxt(x.name)));
+      const add = [...want].filter(([k]) => !have.has(k)).map(([, g]) => g);
+      for (const g of add) d.shopping.push({ id: uid(), name: g[0].toUpperCase() + g.slice(1), qty: '', cat: d.shopCats.includes('Súper') ? 'Súper' : d.shopCats[0], done: false, at: Date.now() });
+      commit();
+      toast(add.length ? plural(add.length, 'ingrediente pasado', 'ingredientes pasados') + ' a la lista de compras.' : 'Ya tienes todo en la lista de compras.');
+    };
+    return [
+      h('div', { class: 'toolbar flat' },
+        h('button', { class: 'btn primary small', text: 'Pasar ingredientes a compras', onclick: toShopping }),
+        h('button', { class: 'btn ghost small', text: 'Nueva receta', onclick: () => recipeForm(null) }),
+        h('button', { class: 'btn subtle small', text: 'Vaciar la semana', onclick: () => { d.menu = {}; commit(); } }),
+        h('span', { class: 'hint', text: 'Escribe la comida o elige una receta: sus ingredientes van solos a la lista de compras.' })
+      ),
+      h('datalist', { id: 'mnRecipes' }, d.recipes.map((r) => h('option', { value: r.name }))),
+      h('div', { class: 'mn-week' }, WEEK.map(([k, l], i) => h('section', { class: 'mn-day' + (i === todayIdx ? ' today' : '') }, h('h3', {}, l, i === todayIdx && h('span', { class: 'mn-today', text: 'Hoy' })), slot(k, 'almuerzo'), slot(k, 'cena')))),
+      h('section', { class: 'rx-card mn-recipes' },
+        h('h3', {}, 'Tus recetas', h('span', { class: 'count', text: String(d.recipes.length) })),
+        d.recipes.length
+          ? h('ul', { class: 'mn-rlist' }, d.recipes.slice().sort((a, b) => a.name.localeCompare(b.name, 'es')).map((r) => h('li', {}, h('div', {}, h('b', { text: r.name }), h('span', { class: 'hint', text: r.ingredients.join(', ') || 'Sin ingredientes' })), h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => recipeForm(r) }))))
+          : h('p', { class: 'hint', text: 'Guarda tus comidas de siempre con sus ingredientes y arma la semana en segundos.' })
+      ),
+    ];
+  }
+
+  // =========================================================== HOGAR: MANTENIMIENTO Y GARANTÍAS
+  const isoToday = () => new Date().toLocaleDateString('sv');
+  const addM = (iso, n) => { const x = new Date(iso + 'T12:00:00'); const day = x.getDate(); x.setDate(1); x.setMonth(x.getMonth() + n); x.setDate(Math.min(day, lastDay(x.getFullYear(), x.getMonth()))); return x.toLocaleDateString('sv'); };
+  const daysTo = (iso) => Math.round((new Date(iso + 'T00:00:00') - startOfDay()) / DAY);
+  function maintForm(m) {
+    const d = K.d;
+    const isNew = !m;
+    form(isNew ? 'Nueva tarea de la casa' : 'Editar: ' + m.name, [
+      { key: 'name', label: 'Qué hay que hacer', value: m?.name || '', required: true, placeholder: 'Cambiar el filtro del agua…' },
+      { key: 'everyMonths', label: 'Cada cuántos meses', type: 'number', min: 1, max: 120, value: m?.everyMonths ?? 6 },
+      { key: 'last', label: 'La última vez que se hizo', type: 'date', value: m?.last || '' },
+      { key: 'note', label: 'Nota', value: m?.note || '', placeholder: 'Marca del filtro, técnico, teléfono…' },
+    ], (v) => {
+      const row = { name: v.name, everyMonths: Number(v.everyMonths) || 6, last: v.last || null, note: v.note };
+      if (isNew) d.maintenance.push({ id: uid(), ...row });
+      else Object.assign(m, row);
+      commit();
+    }, isNew ? null : () => { d.maintenance = d.maintenance.filter((x) => x !== m); commit(); });
+  }
+  function warrantyForm(w) {
+    const d = K.d;
+    const isNew = !w;
+    form(isNew ? 'Nueva garantía' : 'Editar: ' + w.name, [
+      { key: 'name', label: 'Qué es', value: w?.name || '', required: true, placeholder: 'Refrigeradora, monitor, celular…' },
+      { key: 'store', label: 'Dónde lo compraste', value: w?.store || '' },
+      { key: 'bought', label: 'Fecha de compra', type: 'date', value: w?.bought || isoToday() },
+      { key: 'months', label: 'Meses de garantía', type: 'number', min: 0, max: 240, value: w?.months ?? 12 },
+      { key: 'link', label: 'Manual o factura (enlace https, opcional)', value: w?.link || '' },
+      { key: 'note', label: 'Nota', value: w?.note || '', placeholder: 'Número de serie, factura…' },
+    ], (v) => {
+      if (v.link && !/^https:\/\//.test(v.link)) return 'El enlace tiene que empezar por https://';
+      const row = { name: v.name, store: v.store, bought: v.bought || null, months: Number(v.months) || 0, link: v.link, note: v.note };
+      if (isNew) d.warranties.push({ id: uid(), photo: '', ...row });
+      else Object.assign(w, row);
+      commit();
+    }, isNew ? null : () => { d.warranties = d.warranties.filter((x) => x !== w); commit(); });
+  }
+  function pickPhoto(w) {
+    const input = h('input', { type: 'file', accept: 'image/*' });
+    input.addEventListener('change', async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      try { w.photo = await shrink(f); commit(); toast('Foto guardada.'); } catch (e) { toast(errMsg(e), true); }
+    });
+    input.click();
+  }
+  function hogar() {
+    const d = K.d;
+    d.maintenance ||= [];
+    d.warranties ||= [];
+    const mrows = d.maintenance.map((m) => ({ m, next: m.last ? addM(m.last, m.everyMonths || 6) : null })).sort((a, b) => (a.next ? daysTo(a.next) : -1e6) - (b.next ? daysTo(b.next) : -1e6));
+    const wrows = d.warranties.map((w) => ({ w, end: w.bought && w.months ? addM(w.bought, w.months) : null })).sort((a, b) => (a.end ? daysTo(a.end) : 1e6) - (b.end ? daysTo(b.end) : 1e6));
+    return [
+      h('div', { class: 'hg-head' }, h('h2', { class: 'section-h', text: 'Mantenimiento' }), h('button', { class: 'btn ghost small', text: 'Nueva tarea', onclick: () => maintForm(null) }), h('span', { class: 'hint', text: 'Te aviso una semana antes y el día que toca.' })),
+      h('div', { class: 'hg-grid' }, mrows.map(({ m, next }) => {
+        const n = next ? daysTo(next) : null;
+        const tone = n == null ? 'none' : n < 0 ? 'late' : n <= 14 ? 'soon' : 'ok';
+        const pct = m.last ? Math.max(0, Math.min(100, ((Date.now() - new Date(m.last + 'T12:00:00')) / (new Date(next + 'T12:00:00') - new Date(m.last + 'T12:00:00'))) * 100)) : 0;
+        return h('section', { class: 'hg-card ' + tone },
+          h('div', { class: 'hg-top' }, h('b', { text: m.name }), h('span', { class: 'hg-every', text: 'cada ' + plural(m.everyMonths, 'mes', 'meses') })),
+          h('p', { class: 'hg-when', text: n == null ? '¿Cuándo se hizo la última vez?' : n < 0 ? 'Atrasado ' + plural(-n, 'día', 'días') : n === 0 ? 'Toca hoy' : 'Toca ' + daysText(n).toLowerCase() }),
+          m.last && h('div', { class: 'dy-bar' }, h('i', { class: tone === 'late' ? 'hot' : '', style: { width: pct + '%' } })),
+          h('p', { class: 'hint', text: [m.last ? 'Última vez: ' + dShort(new Date(m.last + 'T12:00:00')) : null, m.note].filter(Boolean).join(' · ') }),
+          h('div', { class: 'hg-act' }, h('button', { class: 'btn primary small', text: 'Hecho hoy', onclick: () => { m.last = isoToday(); commit(); toast(m.name + ': la próxima es el ' + dLong(new Date(addM(m.last, m.everyMonths) + 'T12:00:00')) + '.'); } }), h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => maintForm(m) }))
+        );
+      })),
+      h('div', { class: 'hg-head' }, h('h2', { class: 'section-h', text: 'Garantías' }), h('button', { class: 'btn ghost small', text: 'Nueva garantía', onclick: () => warrantyForm(null) }), h('span', { class: 'hint', text: 'Te aviso un mes y una semana antes de que se acaben.' })),
+      wrows.length ? h('div', { class: 'hg-wgrid' }, wrows.map(({ w, end }) => {
+        const n = end ? daysTo(end) : null;
+        const tone = n == null ? 'none' : n < 0 ? 'over' : n <= 30 ? 'soon' : 'ok';
+        return h('section', { class: 'hg-war ' + tone },
+          h('button', { class: 'hg-photo', title: w.photo ? 'Cambiar la foto de la factura' : 'Añadir foto de la factura', onclick: () => pickPhoto(w) }, w.photo ? h('img', { src: w.photo, alt: 'Factura de ' + w.name }) : h('span', { text: '+ Foto de la factura' })),
+          h('div', { class: 'hg-war-main' },
+            h('b', { text: w.name }),
+            h('span', { class: 'hint', text: [w.store, w.bought ? 'comprado el ' + dShort(new Date(w.bought + 'T12:00:00')) : null].filter(Boolean).join(' · ') }),
+            h('span', { class: 'hg-left ' + tone, text: n == null ? 'Sin fecha' : n < 0 ? 'Garantía vencida' : 'Cubierto hasta el ' + dLong(new Date(end + 'T12:00:00')) + ' (' + (n > 60 ? Math.round(n / 30) + ' meses' : plural(n, 'día', 'días')) + ')' }),
+            h('div', { class: 'hg-act' }, w.link && h('button', { class: 'btn ghost small', text: 'Manual o factura', onclick: () => api.openLink(w.link) }), h('button', { class: 'btn subtle small', text: 'Editar', onclick: () => warrantyForm(w) }))
+          )
+        );
+      })) : h('p', { class: 'empty', text: 'Anota lo que compras con garantía y te aviso antes de que se acabe.' }),
+    ];
+  }
+
+  // =========================================================== GASTOS COMPARTIDOS
+  const CS = { paidBy: null, between: null };
+  function balances(sh) {
+    const bal = {};
+    for (const p of sh.people) bal[p] = 0;
+    for (const it of sh.items) {
+      const bw = (it.between?.length ? it.between : sh.people).filter(Boolean);
+      if (!bw.length) continue;
+      bal[it.paidBy] = (bal[it.paidBy] || 0) + it.amount;
+      for (const p of bw) bal[p] = (bal[p] || 0) - it.amount / bw.length;
+    }
+    const debt = Object.entries(bal).filter(([, v]) => v < -0.5).map(([p, v]) => [p, -v]).sort((a, b) => b[1] - a[1]);
+    const cred = Object.entries(bal).filter(([, v]) => v > 0.5).map(([p, v]) => [p, v]).sort((a, b) => b[1] - a[1]);
+    const moves = [];
+    let i = 0;
+    let j = 0;
+    while (i < debt.length && j < cred.length) {
+      const amt = Math.min(debt[i][1], cred[j][1]);
+      moves.push({ from: debt[i][0], to: cred[j][0], amount: Math.round(amt) });
+      debt[i][1] -= amt;
+      cred[j][1] -= amt;
+      if (debt[i][1] < 0.5) i++;
+      if (cred[j][1] < 0.5) j++;
+    }
+    return { bal, moves };
+  }
+  function compartidos() {
+    const d = K.d;
+    d.shared ||= { people: ['Yo'], items: [] };
+    const sh = d.shared;
+    CS.paidBy ||= sh.people[0];
+    CS.between ||= new Set(sh.people);
+    const { bal, moves } = balances(sh);
+    const desc = h('input', { class: 'rx-input', placeholder: 'Qué se pagó (luz de la abuela, súper…)' });
+    const amount = h('input', { class: 'rx-input cs-amt', type: 'number', placeholder: 'Monto' });
+    const add = () => {
+      const a = Number(amount.value);
+      if (!a) return amount.focus();
+      sh.items.push({ id: uid(), date: isoToday(), desc: desc.value.trim() || 'Gasto', amount: a, paidBy: CS.paidBy, between: [...CS.between].filter((p) => sh.people.includes(p)) });
+      commit();
+    };
+    amount.addEventListener('keydown', (e) => e.key === 'Enter' && add());
+    return [
+      h('section', { class: 'cs-people' },
+        sh.people.map((p) => {
+          const v = Math.round(bal[p] || 0);
+          return h('div', { class: 'cs-person ' + (v > 0 ? 'plus' : v < 0 ? 'minus' : '') },
+            h('span', { class: 'cs-av', text: p.slice(0, 1).toUpperCase() }),
+            h('b', { text: p }),
+            h('span', { class: 'cs-bal', text: v > 0 ? 'le deben ' + money(v, 'CRC') : v < 0 ? 'debe ' + money(-v, 'CRC') : 'al día' }),
+            p !== 'Yo' && !sh.items.some((it) => it.paidBy === p || it.between?.includes(p)) && h('button', { class: 'cs-x', 'aria-label': 'Quitar a ' + p, text: '×', onclick: () => { sh.people = sh.people.filter((x) => x !== p); commit(); } })
+          );
+        }),
+        h('button', { class: 'cs-person cs-add', onclick: () => form('Nueva persona', [{ key: 'name', label: 'Nombre', required: true }], (v) => { if (!sh.people.includes(v.name)) { sh.people.push(v.name); CS.between.add(v.name); commit(); } }) }, h('span', { class: 'cs-av', text: '+' }), h('b', { text: 'Añadir persona' }))
+      ),
+      moves.length ? h('section', { class: 'rx-card cs-moves' }, h('h3', { text: 'Para quedar a mano' }), h('ul', {}, moves.map((m) => h('li', {}, h('span', {}, h('b', { text: m.from }), ' le paga a ', h('b', { text: m.to })), h('strong', { text: money(m.amount, 'CRC') }), h('button', { class: 'btn ghost small', text: 'Ya pagó', onclick: () => { sh.items.push({ id: uid(), date: isoToday(), desc: m.from + ' le pagó a ' + m.to, amount: m.amount, paidBy: m.from, between: [m.to], settle: true }); commit(); toast('Anotado.'); } }))))) : h('p', { class: 'hint', text: 'Todos están a mano.' }),
+      h('section', { class: 'rx-card' },
+        h('h3', { text: 'Anotar un gasto compartido' }),
+        h('div', { class: 'rx-row cs-add-row' }, desc, amount, h('select', { class: 'sn-select', 'aria-label': 'Quién pagó', onchange: (e) => { CS.paidBy = e.target.value; } }, sh.people.map((p) => h('option', { value: p, selected: p === CS.paidBy, text: 'Pagó ' + p }))), h('button', { class: 'btn primary', text: 'Anotar', onclick: add })),
+        h('div', { class: 'cs-between' }, h('span', { class: 'hint', text: 'Entre:' }), sh.people.map((p) => h('label', { class: 'rx-check' }, h('input', { type: 'checkbox', checked: CS.between.has(p), onchange: (e) => { e.target.checked ? CS.between.add(p) : CS.between.delete(p); } }), h('span', { text: p }))))
+      ),
+      sh.items.length ? h('section', { class: 'rx-card' }, h('h3', { text: 'Movimientos' }), h('ul', { class: 'dy-list cs-hist' }, sh.items.slice().reverse().slice(0, 60).map((it) => h('li', { class: it.settle ? 'past' : '' }, h('span', { text: dShort(new Date(it.date + 'T12:00:00')) + ' · ' + it.desc + ' · pagó ' + it.paidBy + (it.between?.length && it.between.length < sh.people.length ? ' (entre ' + it.between.join(', ') + ')' : '') }), h('b', { text: money(it.amount, 'CRC') }), h('button', { class: 'cs-x', 'aria-label': 'Borrar movimiento', text: '×', onclick: () => { sh.items = sh.items.filter((x) => x !== it); commit(); } }))))) : null,
+    ];
+  }
+
   // =========================================================== PAGOS
   function paymentForm(p, group) {
     const d = K.d;
@@ -376,45 +581,98 @@
   function pagos() {
     const d = K.d;
     const groups = [...new Set([...d.payGroups, ...d.payments.map((p) => p.group)])];
-    const card = (p) => {
-      const n = nextDue(p);
-      const thisKey = ym(new Date());
+    const thisKey = ym(new Date());
+    const today = new Date().getDate();
+    const monthName = MONTHS[new Date().getMonth()];
+    // estado de cada pago en este mes
+    const st = (p) => {
+      const n = p.day ? nextDue(p) : null;
       const paidNow = !!p.paid?.[thisKey];
-      const tone = !p.day ? 'muted' : n.days < 0 ? 'bad' : n.days <= (p.notifyDays ?? 3) ? 'warn' : 'ok';
-      return h('li', { class: `ks-pay ${tone}` },
-        h('div', { class: 'ks-pay-count' }, p.day ? [h('b', { text: n.days < 0 ? `−${-n.days}` : String(n.days) }), h('span', { text: n.days < 0 ? 'días de atraso' : n.days === 1 ? 'día' : 'días' })] : h('span', { text: 'Fecha por confirmar' })),
-        h('div', { class: 'ks-pay-main' },
-          h('b', { text: p.name }),
-          h('p', { class: 'hint', text: [p.day ? `Día ${p.day} de cada mes` : 'Sin fecha todavía', p.amount ? money(p.amount, p.currency) : null, p.day && n ? `${n.days < 0 ? 'Vencía' : 'Vence'} el ${dLong(n.date)}` : null].filter(Boolean).join(' · ') }),
-          paidNow && h('p', { class: 'ks-paid', text: `Pagado este mes${p.day ? ` · el próximo es el ${dShort(nextDue(p)?.date)}` : ''}` }),
-          p.note && h('p', { class: 'hint', text: p.note })
+      if (!p.day) return { n, paidNow, tone: 'none', chip: 'Sin día fijo' };
+      if (paidNow) return { n, paidNow, tone: 'paid', chip: 'Pagado' };
+      if (n.days < 0) return { n, paidNow, tone: 'late', chip: `Atrasado ${plural(-n.days, 'día', 'días')}` };
+      if (n.days === 0) return { n, paidNow, tone: 'today', chip: 'Se paga hoy' };
+      if (n.days <= (p.notifyDays ?? 3)) return { n, paidNow, tone: 'soon', chip: n.days === 1 ? 'Mañana' : `En ${n.days} días` };
+      return { n, paidNow, tone: 'ok', chip: `En ${n.days} días` };
+    };
+    const row = (p) => {
+      const x = st(p);
+      return h('li', { class: `py-row ${x.tone}` },
+        h('div', { class: 'py-day', 'aria-label': p.day ? `Día ${p.day} de cada mes` : 'Sin día fijo' },
+          h('small', { text: p.day ? 'día' : '' }),
+          h('b', { text: p.day ? String(p.day) : '—' }),
+          h('small', { text: p.day ? 'de cada mes' : 'sin fecha' })
         ),
-        h('div', { class: 'ks-pay-act' },
-          p.day && n && h('button', { class: 'btn primary small', text: `Marcar ${MONTHS[new Date(n.date).getMonth()]} pagado`, onclick: () => { p.paid = { ...p.paid, [n.key]: Date.now() }; commit(); toast(`${p.name}: marcado como pagado.`); } }),
-          paidNow && h('button', { class: 'btn subtle small', text: 'Deshacer', onclick: () => { const x = { ...p.paid }; delete x[thisKey]; p.paid = x; commit(); } }),
+        h('div', { class: 'py-main' },
+          h('b', { text: p.name }),
+          h('span', { class: 'py-sub', text: [p.amount ? money(p.amount, p.currency) : 'Sin monto', p.note].filter(Boolean).join(' · ') })
+        ),
+        h('span', { class: `py-chip ${x.tone}`, text: x.chip }),
+        h('div', { class: 'py-act' },
+          x.paidNow
+            ? h('button', { class: 'btn subtle small', text: 'Deshacer', title: `Quitar el pago de ${monthName}`, onclick: () => { const y = { ...p.paid }; delete y[thisKey]; p.paid = y; commit(); } })
+            : p.day && x.n && h('button', { class: 'btn primary small', text: x.n.key === thisKey || x.tone === 'late' ? 'Marcar pagado' : `Pagar ${MONTHS[new Date(x.n.date).getMonth()]}`, onclick: () => { p.paid = { ...p.paid, [x.n.key]: Date.now() }; commit(); toast(`${p.name}: pagado.`); } }),
           h('button', { class: 'btn ghost small', text: 'Editar', onclick: () => paymentForm(p) })
         )
       );
     };
-    const all = d.payments.filter((p) => p.day).map((p) => ({ p, n: nextDue(p) })).filter((x) => x.n).sort((a, b) => a.n.days - b.n.days);
-    const soon = all[0];
+    // resumen del mes
+    const dated = d.payments.filter((p) => p.day);
+    const paid = dated.filter((p) => p.paid?.[thisKey]);
+    const totalOf = (list) => list.filter((p) => p.amount && (p.currency || 'CRC') === 'CRC').reduce((t, p) => t + p.amount, 0);
+    const total = totalOf(dated);
+    const left = totalOf(dated.filter((p) => !p.paid?.[thisKey]));
+    const pct = dated.length ? paid.length / dated.length : 0;
+    const next = dated.filter((p) => !p.paid?.[thisKey]).map((p) => ({ p, n: nextDue(p) })).filter((x) => x.n).sort((x, y) => x.n.days - y.n.days)[0];
+    // el mes en una tira: qué se paga cada día
+    const days = lastDay(new Date().getFullYear(), new Date().getMonth());
+    const strip = h('div', { class: 'py-month', role: 'img', 'aria-label': `Días de pago de ${monthName}` },
+      Array.from({ length: days }, (_, i) => {
+        const day = i + 1;
+        const here = dated.filter((p) => Math.min(p.day, days) === day);
+        const allPaid = here.length && here.every((p) => p.paid?.[thisKey]);
+        return h('div', { class: `py-cell ${day === today ? 'now' : ''} ${here.length ? (allPaid ? 'paid' : day < today ? 'late' : 'due') : ''}`, title: here.length ? `Día ${day}: ${here.map((p) => p.name + (p.group !== 'Personal' ? ` (${p.group})` : '')).join(', ')}` : `Día ${day}` },
+          h('span', { text: String(day) }),
+          here.length ? h('i', { text: here.length > 1 ? String(here.length) : '' }) : null
+        );
+      })
+    );
+    const ring = (v) => {
+      const r = 34;
+      const c = 2 * Math.PI * r;
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 80 80');
+      svg.setAttribute('class', 'py-ring');
+      svg.innerHTML = `<circle cx="40" cy="40" r="${r}" class="bg"/><circle cx="40" cy="40" r="${r}" class="fg" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - v)}"/>`;
+      return svg;
+    };
     return [
-      soon && h('section', { class: `ks-next ${soon.n.days < 0 ? 'bad' : ''}` },
-        h('p', { class: 'ks-kicker', text: soon.n.days < 0 ? 'Atrasado' : 'Próximo pago' }),
-        h('h2', {}, `${soon.p.name}`, soon.p.group !== 'Personal' && h('span', { text: ` · ${soon.p.group}` })),
-        h('p', { class: 'ks-big' }, h('b', { text: soon.n.days < 0 ? String(-soon.n.days) : String(soon.n.days) }), h('span', { text: soon.n.days < 0 ? ' días de atraso' : soon.n.days === 1 ? ' día' : ' días' })),
-        h('p', { class: 'hint', text: `${dLong(soon.n.date)}${soon.p.amount ? ` · ${money(soon.p.amount, soon.p.currency)}` : ''}` })
+      h('section', { class: 'py-hero' },
+        h('div', { class: 'py-hero-ring' }, ring(pct), h('div', {}, h('b', { text: `${paid.length}/${dated.length}` }), h('small', { text: 'pagados' }))),
+        h('div', { class: 'py-hero-main' },
+          h('p', { class: 'ks-kicker', text: `Pagos de ${monthName}` }),
+          h('h2', { text: left ? `Te falta pagar ${money(left, 'CRC')}` : dated.length ? 'Todo pagado este mes' : 'Pon el día de tus pagos' }),
+          h('p', { class: 'hint', text: [total ? `Total del mes: ${money(total, 'CRC')}` : null, next ? `Lo próximo: ${next.p.name}, ${next.n.days === 0 ? 'hoy' : next.n.days < 0 ? `atrasado desde el día ${next.p.day}` : `el día ${next.p.day} (${next.n.days === 1 ? 'mañana' : `en ${next.n.days} días`})`}` : null].filter(Boolean).join(' · ') })
+        )
       ),
+      strip,
+      h('p', { class: 'py-legend' }, h('span', { class: 'due', text: 'Por pagar' }), h('span', { class: 'paid', text: 'Pagado' }), h('span', { class: 'late', text: 'Atrasado' }), h('span', { class: 'hint', text: 'Pasa el ratón por un día para ver qué se paga.' })),
       h('div', { class: 'toolbar flat' },
         h('button', { class: 'btn primary small', text: 'Nuevo pago', onclick: () => paymentForm(null) }),
         h('button', { class: 'btn ghost small', text: 'Nuevo grupo', onclick: () => form('Nuevo grupo de pagos', [{ key: 'name', label: 'Nombre', required: true, placeholder: 'Mamá, Casa de playa…' }], (v) => { if (!d.payGroups.includes(v.name)) { d.payGroups.push(v.name); commit(); } }) }),
         h('span', { class: 'hint', text: 'Te aviso unos días antes de cada pago, el mismo día y si se atrasa.' })
       ),
       groups.map((g) => {
-        const list = d.payments.filter((p) => p.group === g).sort((a, b) => (nextDue(a)?.days ?? 999) - (nextDue(b)?.days ?? 999));
-        return h('section', { class: 'ks-group' },
-          h('h3', { class: 'rx-squad-h' }, g, h('span', { class: 'count', text: String(list.length) }), h('button', { class: 'btn subtle small', text: '+ Añadir', onclick: () => paymentForm(null, g) }), !list.length && g !== 'Personal' && h('button', { class: 'btn subtle small', text: 'Quitar grupo', onclick: () => { d.payGroups = d.payGroups.filter((x) => x !== g); commit(); } })),
-          list.length ? h('ul', { class: 'ks-pays' }, list.map(card)) : h('p', { class: 'hint', text: 'Sin pagos en este grupo.' })
+        const list = d.payments.filter((p) => p.group === g).sort((x, y) => (x.day || 99) - (y.day || 99));
+        const gl = list.filter((p) => p.day && !p.paid?.[thisKey]).length;
+        return h('section', { class: 'py-group' },
+          h('div', { class: 'py-group-h' },
+            h('h3', { text: g }),
+            h('span', { class: 'hint', text: list.length ? (gl ? `${gl} por pagar` : 'al día') : '' }),
+            h('button', { class: 'btn subtle small', text: '+ Añadir', onclick: () => paymentForm(null, g) }),
+            !list.length && g !== 'Personal' && h('button', { class: 'btn subtle small', text: 'Quitar grupo', onclick: () => { d.payGroups = d.payGroups.filter((x) => x !== g); commit(); } })
+          ),
+          list.length ? h('ul', { class: 'py-list' }, list.map(row)) : h('p', { class: 'hint', text: 'Sin pagos en este grupo.' })
         );
       }),
     ];
@@ -857,7 +1115,7 @@
     ];
   }
 
-  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['tramites', 'Trámites'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
+  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['menu', 'Menú semanal'], ['hogar', 'Hogar'], ['compartidos', 'Gastos compartidos'], ['tramites', 'Trámites'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres']];
   const SUB = {
     compras: 'Lo que falta en la casa, por categoría. Marca lo que vas comprando.',
     pagos: 'Alquiler, servicios y demás pagos de cada mes, con cuánto falta para el próximo.',
@@ -867,6 +1125,9 @@
     presupuesto: 'Cuánto llevas gastado este mes frente a tu límite: pagos, compras y gastos sueltos.',
     gatitos: 'Vacunas, desparasitación y visitas al veterinario de cada gatito, con recordatorio.',
     tramites: 'Marchamo, revisión técnica, licencia y cédula: cuándo vence cada uno, con aviso antes.',
+    menu: 'Lo que vas a comer cada día de la semana. Los ingredientes pasan solos a la lista de compras.',
+    hogar: 'El mantenimiento de la casa y las garantías de lo que compras, con aviso antes.',
+    compartidos: 'Gastos que pagas por otros o a medias: quién le debe a quién y cuánto.',
     feriados: 'Feriados nacionales de Estados Unidos, Argentina y Costa Rica.',
     alquileres: 'Casas y apartamentos en alquiler de Facebook Marketplace, con tu precio y tu lugar.',
   };
@@ -876,7 +1137,7 @@
     $('#casaTitle').textContent = TABS.find((t) => t[0] === K.tab)[1];
     $('#casaSub').textContent = SUB[K.tab];
     if (!K.d) return fill(body, skeleton());
-    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos, tramites, feriados, alquileres };
+    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos, menu, hogar, compartidos, tramites, feriados, alquileres };
     fill(body, views[K.tab]());
   }
   const skeleton = () => h('div', { class: 'rx-skel' }, [1, 2, 3].map(() => h('div', { class: 'skel rx-skel-row' }, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }))));

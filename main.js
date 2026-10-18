@@ -233,6 +233,12 @@ function snapshot(dir) {
         ajustes: [`openSettings?.(); setTimeout(() => { showSettingsTab?.('apariencia'); }, 500)`, 2500],
         logros: [`document.querySelector('dialog[open]')?.close(); showView('ach')`, 3000],
         asistente: [`showView('assist')`, 2000],
+        'c-menu': [`showView('casa-menu')`, 2500],
+        'c-hogar': [`showView('casa-hogar')`, 2500],
+        'c-comp': [`showView('casa-compartidos')`, 2500],
+        'sagas': [`showView('sagas')`, 4000],
+        'dia2': [`showView('day'); setTimeout(() => document.querySelector('.md-sec:nth-of-type(2)')?.scrollIntoView(), 3000)`, 4500],
+        'widget': [`window.api.widget.toggle(true)`, 5000],
         'g-farmeo': [`showView('genshin'); setGenshinTab('farmeo')`, 7000],
         'g-farmeo2': [`document.querySelector('.gf-inv')?.scrollIntoView()`, 1500],
         'g-deseos': [`setGenshinTab('deseos'); setTimeout(() => document.querySelector('.luck')?.scrollIntoView(), 2500)`, 4000],
@@ -246,6 +252,7 @@ function snapshot(dir) {
         await wait(ms);
         await shot(`${name}.png`);
       }
+      if (widgetWin && !widgetWin.isDestroyed()) { fs.writeFileSync(path.join(dir, 'widget-ventana.png'), (await widgetWin.webContents.capturePage()).toPNG()); openWidget(false); }
       // la app del iPhone, a tamaño de teléfono
       try {
         const info = await lanServer().start();
@@ -256,7 +263,7 @@ function snapshot(dir) {
         for (const tab of ['hoy', 'casa', 'juegos', 'genshin', 'mas']) {
           await phone.loadURL(local);
           await wait(800);
-          await phone.webContents.executeJavaScript(`localStorage.setItem('vt-tab', '${tab}'); location.reload()`).catch(() => {});
+          await phone.webContents.executeJavaScript(`localStorage.setItem('vt-tab', '${tab}'); localStorage.setItem('vt-sub', JSON.stringify({ mas: 'pc', casa: 'pagos' })); location.reload()`).catch(() => {});
           await wait(3500);
           fs.writeFileSync(path.join(dir, `movil-${tab}.png`), (await phone.webContents.capturePage()).toPNG());
         }
@@ -772,6 +779,9 @@ app.whenReady().then(() => {
     setInterval(animeTick, 30 * 60000);
     setTimeout(gatherTick, 70000);
     setTimeout(paimonTick, 80000);
+    setTimeout(weatherTick, 60000);
+    setInterval(weatherTick, 30 * 60000);
+    if (store.read('settings.json', {}).widgetOn) setTimeout(() => { try { openWidget(true); } catch {} }, 6000);
     setInterval(paimonTick, 60 * 60000);
     setInterval(gatherTick, 10 * 60000);
     setTimeout(sundayTick, 90000);
@@ -2158,7 +2168,7 @@ function calendarReminders() {
 
 // ---------- 1.9: sensores, panel del case, backlog, Genshin, salud de webs ----------
 const settingsOn = (k) => store.read('settings.json', {})[k] !== false;
-const ctxRW = { read: store.read, write: store.write };
+const ctxRW = { read: store.read, write: store.write, readStrict: store.readStrict };
 
 // Sensores: se leen cada 3 s cuando alguien los mira, hay partida o avisos activos
 let sensorViewers = 0;
@@ -2500,7 +2510,8 @@ ipcMain.handle('casa:get', () => casa.load(ctxRW));
 ipcMain.handle('casa:save', (_e, d) => casa.save(ctxRW, d || {}));
 ipcMain.handle('casa:openLink', (_e, url) => {
   const u = String(url || '');
-  const known = (store.read('casa.json', {}).gifts || []).some((g) => g.link === u);
+  const c = store.read('casa.json', {});
+  const known = [...(c.gifts || []), ...(c.warranties || [])].some((g) => g.link === u);
   if (!known || !/^https:\/\//.test(u)) return false;
   shell.openExternal(u);
   return true;
@@ -2755,11 +2766,17 @@ async function daySummary() {
   });
   const gw = store.read('giveaways.json', null);
   const rate = await fx.get(ctxRW).catch(() => null);
+  const wx = await weather.get(ctxRW).catch(() => null);
   const budget = casa.budgetStatus(c, now, rate?.sell);
+  const inDay = (iso) => Math.round((new Date(iso + 'T00:00:00').getTime() - d0) / DAYMS);
+  const hogar = [
+    ...(c.maintenance || []).map((m) => ({ m, n: casa.maintNext(m) })).filter((x) => x.n && inDay(x.n) <= 7).map(({ m, n }) => ({ kind: 'mant', name: m.name, days: inDay(n) })),
+    ...(c.warranties || []).map((w) => ({ w, e: casa.warrantyEnd(w) })).filter((x) => x.e && inDay(x.e) >= 0 && inDay(x.e) <= 30).map(({ w, e }) => ({ kind: 'gar', name: `Garantía de ${w.name}`, days: inDay(e) })),
+  ].sort((a, b) => a.days - b.days);
   const tramites = (c.tramites || []).filter((t) => t.due).map((t) => ({ name: t.name, due: t.due, days: Math.round((new Date(t.due + 'T00:00:00').getTime() - d0) / DAYMS) })).filter((t) => t.days <= 45).sort((a, b) => a.days - b.days);
   const gather = gatherState().filter((g) => g.readyAt <= now + 6 * 3600000).sort((a, b) => a.readyAt - b.readyAt).slice(0, 6);
   const pulls = (store.read('webs.json', null)?.repos || []).filter((r) => r.behind > 0).length;
-  return { now, meetings, pays, bdays, rems, cats, tickets, mail: mailUnread, resin, anime: animeToday, giveaways: (gw?.items || []).slice(0, 6), budget: { limit: budget.limit, spent: budget.spent, currency: budget.currency }, shopping: (c.shopping || []).filter((x) => !x.done).length, pulls, resets: genshinEndgame.resets(now).slice(0, 2), fx: rate, tramites, gather, missed: store.read('dnd-missed.json', []).slice(0, 12), week: [0, 1].includes(new Date(now).getDay()) ? weekAhead(now) : null };
+  return { now, meetings, pays, bdays, rems, cats, tickets, mail: mailUnread, resin, anime: animeToday, giveaways: (gw?.items || []).slice(0, 6), budget: { limit: budget.limit, spent: budget.spent, currency: budget.currency }, shopping: (c.shopping || []).filter((x) => !x.done).length, pulls, resets: genshinEndgame.resets(now).slice(0, 2), fx: rate, weather: wx ? { now: wx.now, today: wx.days?.[0], hours: (wx.hours || []).slice(0, 8), stale: !!wx.stale } : null, hogar, tramites, gather, missed: store.read('dnd-missed.json', []).slice(0, 12), week: [0, 1].includes(new Date(now).getDay()) ? weekAhead(now) : null };
 }
 ipcMain.handle('day:summary', () => daySummary());
 
@@ -3081,7 +3098,7 @@ const mobileApi = {
     }
     if (section === 'pc') {
       const s = await sensors.read().catch(() => null);
-      return { sensors: s ? { cpu: s.cpu, gpu: s.gpu, fans: (s.fans || []).slice(0, 6) } : null, focus: focus.status(), current: tracker.current ? { title: tracker.current.title, start: tracker.current.start } : null };
+      return { shutdownAt, sensors: s ? { cpu: s.cpu, gpu: s.gpu, fans: (s.fans || []).slice(0, 6) } : null, focus: focus.status(), current: tracker.current ? { title: tracker.current.title, start: tracker.current.start } : null };
     }
     return null;
   },
@@ -3117,6 +3134,12 @@ const mobileApi = {
       d.budget.expenses.push({ id: require('crypto').randomBytes(6).toString('hex'), date: new Date().toLocaleDateString('sv'), amount, cat: String(q.get('cat') || 'Otros').slice(0, 40), note: String(q.get('note') || '').slice(0, 200) });
       casa.save(ctxRW, d);
       mobileCasaChanged();
+      return true;
+    }
+    if (a === 'pc') {
+      const fn = pcActions[String(q.get('do') || '')];
+      if (!fn) return false;
+      await fn();
       return true;
     }
     if (a === 'gather') {
@@ -3159,6 +3182,117 @@ const mobileApi = {
     });
   },
 };
+
+
+// ---------- 1.20: clima, acciones del iPhone y widget de escritorio ----------
+const weather = require('./src/weather');
+ipcMain.handle('weather:get', (_e, force) => weather.get(ctxRW, !!force));
+async function weatherTick() {
+  if (!settingsOn('weatherAlerts')) return;
+  const w = await weather.get(ctxRW).catch(() => null);
+  const n = weather.notice(ctxRW, w);
+  if (n) notify(n.title, n.body);
+}
+
+// Acciones rápidas del PC (desde el iPhone): teclas multimedia, bloquear, suspender y apagar
+function pressKey(code, times = 1) {
+  const keys = Array.from({ length: Math.max(1, Math.min(20, times)) }, () => '$s.SendKeys([char]' + code + ')').join(';');
+  require('child_process').spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$s = New-Object -ComObject WScript.Shell; ' + keys], { windowsHide: true, stdio: 'ignore' }).unref();
+}
+let shutdownAt = null;
+const pcActions = {
+  'vol-up': () => pressKey(175, 5),
+  'vol-down': () => pressKey(174, 5),
+  mute: () => pressKey(173),
+  'play-pause': () => pressKey(179),
+  next: () => pressKey(176),
+  prev: () => pressKey(177),
+  lock: () => require('child_process').spawn('rundll32.exe', ['user32.dll,LockWorkStation'], { windowsHide: true, stdio: 'ignore' }).unref(),
+  sleep: () => setTimeout(() => require('child_process').spawn('rundll32.exe', ['powrprof.dll,SetSuspendState', '0,1,0'], { windowsHide: true, stdio: 'ignore' }).unref(), 1500),
+  shutdown: () => {
+    require('child_process').spawn('shutdown.exe', ['/s', '/t', '60', '/c', 'ViperTeca: apagado pedido desde el celular. Para cancelarlo: shutdown /a'], { windowsHide: true, stdio: 'ignore' }).unref();
+    shutdownAt = Date.now() + 60000;
+    notify('El PC se apaga en 1 minuto', 'Lo pediste desde el celular. Puedes cancelarlo desde allí.', null, { urgent: true });
+  },
+  'cancel-shutdown': () => {
+    require('child_process').spawn('shutdown.exe', ['/a'], { windowsHide: true, stdio: 'ignore' }).unref();
+    shutdownAt = null;
+  },
+  focus: async () => {
+    if (focus.mode === 'off') await focus.start();
+    else focus.stop('user');
+  },
+};
+
+// Widget de escritorio: una ventanita con lo importante del día
+let widgetWin = null;
+function openWidget(on) {
+  if (on === false || (on == null && widgetWin && !widgetWin.isDestroyed())) {
+    if (widgetWin && !widgetWin.isDestroyed()) widgetWin.close();
+    widgetWin = null;
+    const s = store.read('settings.json', {});
+    s.widgetOn = false;
+    store.write('settings.json', s);
+    return false;
+  }
+  if (widgetWin && !widgetWin.isDestroyed()) {
+    widgetWin.show();
+    return true;
+  }
+  const pos = store.read('widget.json', {});
+  const { screen } = require('electron');
+  const wa = screen.getPrimaryDisplay().workArea;
+  widgetWin = new BrowserWindow({
+    width: 300,
+    height: 380,
+    x: Number.isFinite(pos.x) ? pos.x : wa.x + wa.width - 320,
+    y: Number.isFinite(pos.y) ? pos.y : wa.y + 20,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: pos.top !== false,
+    title: 'ViperTeca · widget',
+    show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false },
+  });
+  widgetWin.loadFile(path.join(__dirname, 'renderer', 'widget.html'));
+  widgetWin.once('ready-to-show', () => widgetWin.showInactive());
+  const save = () => {
+    if (!widgetWin || widgetWin.isDestroyed()) return;
+    const [x, y] = widgetWin.getPosition();
+    store.write('widget.json', { ...store.read('widget.json', {}), x, y });
+  };
+  widgetWin.on('moved', save);
+  widgetWin.on('closed', () => (widgetWin = null));
+  const s = store.read('settings.json', {});
+  s.widgetOn = true;
+  store.write('settings.json', s);
+  return true;
+}
+ipcMain.handle('widget:toggle', (_e, on) => openWidget(on));
+ipcMain.handle('widget:status', () => !!(widgetWin && !widgetWin.isDestroyed()));
+ipcMain.handle('widget:size', (_e, height) => {
+  if (!widgetWin || widgetWin.isDestroyed()) return false;
+  widgetWin.setSize(300, Math.max(160, Math.min(600, Math.round(Number(height) || 380))));
+  return true;
+});
+ipcMain.handle('widget:pin', () => {
+  if (!widgetWin || widgetWin.isDestroyed()) return false;
+  const top = !widgetWin.isAlwaysOnTop();
+  widgetWin.setAlwaysOnTop(top);
+  store.write('widget.json', { ...store.read('widget.json', {}), top });
+  return top;
+});
+ipcMain.handle('widget:open-app', () => {
+  if (!win || win.isDestroyed()) createWindow();
+  else {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  }
+  return true;
+});
 
 // Workana en Brave (donde ya tienes la sesión iniciada)
 ipcMain.handle('wk:brave', (_e, url, text) => {

@@ -206,6 +206,8 @@ contextBridge.exposeInMainWorld('api', {
   assist: { send: (o) => ipcRenderer.invoke('assist:send', o), stop: () => ipcRenderer.invoke('assist:stop'), history: () => ipcRenderer.invoke('assist:history'), save: (h) => ipcRenderer.invoke('assist:save', h) },
   wkBrave: (url, text) => ipcRenderer.invoke('wk:brave', url, text),
   gmap: (fresh) => ipcRenderer.invoke('gmap:open', fresh),
+  weather: (force) => ipcRenderer.invoke('weather:get', force),
+  widget: { toggle: (on) => ipcRenderer.invoke('widget:toggle', on), status: () => ipcRenderer.invoke('widget:status'), pin: () => ipcRenderer.invoke('widget:pin'), size: (h) => ipcRenderer.invoke('widget:size', h), openApp: () => ipcRenderer.invoke('widget:open-app') },
   searchIndex: () => ipcRenderer.invoke('search:index'),
   family: {
     status: () => ipcRenderer.invoke('family:status'),

@@ -258,6 +258,19 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.20
+
+- **Mi día rediseñado**: un encabezado con el saludo, un resumen de una línea y el clima, y debajo bloques por tema (Ahora, Casa, Trabajo y Ocio) en tarjetas tipo widget, con anillos de progreso para el presupuesto y la resina y la agenda en línea de tiempo.
+- **Pagos rediseñados**: cada pago muestra en grande el día del mes en que se paga, el estado (pagado, hoy, en X días, atrasado) y un resumen del mes con un anillo de pagados y una tira con los 31 días del mes.
+- **Casa → Menú semanal**: almuerzo y cena de cada día y tus recetas con ingredientes; un botón pasa los que faltan a la lista de compras.
+- **Casa → Hogar**: mantenimiento de la casa (filtro del agua, aire acondicionado, gas, fumigación, canoas…) con aviso, y garantías con foto de la factura y aviso un mes y una semana antes de que venzan.
+- **Casa → Gastos compartidos**: quién pagó qué y entre quiénes, saldos de cada persona y los pagos sugeridos para quedar a mano.
+- **Clima de Guápiles** en Mi día (ahora, próximas horas y el día), con aviso de lluvia fuerte o tormenta (Open-Meteo).
+- **Widget de escritorio**: una ventanita con la hora, el clima, la próxima reunión, pagos, resina, el dólar y los tickets (botón en Mi día).
+- **iPhone**: acciones rápidas en Más → PC (volumen, música, modo enfoque, bloquear, suspender y apagar con 1 minuto para cancelar) y los datos de la última vez cuando el PC no responde.
+- **Datos más seguros**: si un archivo está ocupado o dañado, la app ya no empieza de cero: usa la copia anterior (cada guardado de tus datos importantes deja un .bak).
+- Las sagas ya no muestran imágenes rotas (si el arte de un juego no existe, usan el del siguiente).
+
 ## Novedades de la 1.19
 
 - **Genshin → Farmeo, tu plan de hoy**: en qué gastar la resina (el dominio de libros del día y para quién), jefes semanales con descuento que te quedan, encargos, expediciones listas, la tetera, el transformador, las especialidades listas para recoger y la recompensa diaria de HoYoLAB.

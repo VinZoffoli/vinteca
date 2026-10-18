@@ -469,9 +469,12 @@ function renderSagas() {
     ...groups.map((s) => {
       // Arte apaisado oficial del juego más reciente de la saga (el "hero" de la tienda)
       const byNew = [...s.list].sort((x, y) => (y.released || 0) - (x.released || 0) || (y.lastPlayed || 0) - (x.lastPlayed || 0));
-      const art = byNew.find((g) => g.hero) || byNew.find((g) => g.cover);
+      // si una imagen no carga (algunas tiendas borran el arte), se prueba con la del siguiente juego
+      const cands = [...byNew.filter((g) => g.hero).map((g) => ({ src: g.hero, blur: false })), ...byNew.filter((g) => g.cover).map((g) => ({ src: g.cover, blur: true }))];
       const inst = s.list.filter((g) => g.installed).length;
-      const img = art && h('img', { src: art.hero || art.cover, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer', class: art.hero ? '' : 'blur' });
+      let ci = 0;
+      const img = cands.length ? h('img', { src: cands[0].src, alt: '', loading: 'lazy', decoding: 'async', referrerPolicy: 'no-referrer', class: cands[0].blur ? 'blur' : '' }) : null;
+      if (img) img.addEventListener('error', () => { ci++; if (ci < cands.length) { img.className = cands[ci].blur ? 'blur' : ''; img.src = cands[ci].src; } else img.remove(); });
       return h(
         'button',
         { class: 'saga', onclick: () => openSaga(s.name), 'aria-label': `${s.name}, ${s.list.length} juegos` },
@@ -2036,7 +2039,7 @@ const VIEWS = [
   ['news', 'Novedades'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
   ['day', 'Mi día'], ['assist', 'Pregúntale a ViperTeca'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
   ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
-  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
+  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
 ];
 let palIndex = 0;
 let palItems = [];
@@ -4060,7 +4063,7 @@ async function openSettings() {
   $('#legendaryPath').value = s.legendaryPath || '';
   $('#focusPower').checked = s.focus?.powerPlan !== false;
   $('#trackSessions').checked = s.trackSessions !== false;
-  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary']) $(`#set-${k}`).checked = s[k] !== false;
+  for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary', 'weatherAlerts']) $(`#set-${k}`).checked = s[k] !== false;
   $('#set-dailyLimitMin').value = String(s.dailyLimitMin || 0);
   $('#set-remindEveryMin').value = String(s.remindEveryMin || 0);
   $('#keepTracking').checked = s.keepTracking !== false;
@@ -4096,7 +4099,7 @@ async function saveSettings(ev) {
       steamKey: steamKey || undefined,
       legendaryPath: $('#legendaryPath').value,
       trackSessions: $('#trackSessions').checked,
-      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary'].map((k) => [k, $(`#set-${k}`).checked])),
+      ...Object.fromEntries(['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary', 'weatherAlerts'].map((k) => [k, $(`#set-${k}`).checked])),
       dailyLimitMin: Number($('#set-dailyLimitMin').value),
       remindEveryMin: Number($('#set-remindEveryMin').value),
       keepTracking: $('#keepTracking').checked,
