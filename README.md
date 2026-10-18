@@ -258,6 +258,10 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.21.1
+
+- **Mi día en la pantalla del case**: el panel de la pantalla vertical muestra tu día de arriba abajo (hora y clima, el juego y sus FPS si juegas, temperaturas, Spotify, la próxima reunión y el resto de la agenda, pagos, cosas de la casa, tickets, correo, Genshin, anime, juegos gratis y el clima por horas) y se abre solo al iniciar la app. Si algo no cabe, se quita lo de abajo.
+
 ## Novedades de la 1.21
 
 - **Genshin → Lo que viene**: tu Claude Code busca en la web (anuncios oficiales, Game8, la wiki y filtraciones) y prepara el resumen de la historia de la versión actual (con y sin spoilers) y las tres próximas versiones con sus personajes, fechas y si cada dato es oficial, filtración o rumor, con las fuentes.

@@ -270,6 +270,16 @@ function snapshot(dir) {
         await shot(`${name}.png`);
       }
       if (widgetWin && !widgetWin.isDestroyed()) { fs.writeFileSync(path.join(dir, 'widget-ventana.png'), (await widgetWin.webContents.capturePage()).toPNG()); openWidget(false); }
+      if (process.env.BJ_PANEL) {
+        try {
+          openPanel();
+          await wait(9000);
+          if (panelWin) fs.writeFileSync(path.join(dir, 'panel-case.png'), (await panelWin.webContents.capturePage()).toPNG());
+          panelWin?.destroy();
+        } catch (e) {
+          log('[error] panel: ' + e.message);
+        }
+      }
       // la app del iPhone, a tamaño de teléfono
       try {
         const info = await lanServer().start();
