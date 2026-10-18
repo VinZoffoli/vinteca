@@ -244,17 +244,18 @@ function epNumber(t) {
 /** Cuántos capítulos faltan: anime en AniList, series en TVmaze (caché de 3 días). */
 async function enrich({ read, write }, entry, platform) {
   const cache = read('streaming-meta.json', {});
-  const ck = 'v2:' + platform + ':' + entry.key;
+  const ck = 'v3:' + platform + ':' + entry.key;
   let meta = cache[ck];
   // lo encontrado dura 3 días; si no se encontró, se vuelve a intentar a las 6 horas
-  if (!meta || Date.now() - meta.at > (meta.source ? 3 * 86400000 : 6 * 3600000)) {
+  // en emisión se revisa cada 12 h (para avisar de capítulos nuevos); lo demás cada 3 días
+  if (!meta || Date.now() - meta.at > (!meta.source ? 6 * 3600000 : meta.airing || meta.status === 'Running' ? 12 * 3600000 : 3 * 86400000)) {
     meta = { at: Date.now() };
     try {
       if (platform === 'crunchyroll') {
-        const q = 'query($s:String){Media(search:$s,type:ANIME){id title{romaji english} episodes status nextAiringEpisode{episode airingAt} coverImage{large} siteUrl}}';
+        const q = 'query($s:String){Media(search:$s,type:ANIME){id title{romaji english} episodes duration status nextAiringEpisode{episode airingAt} coverImage{large} siteUrl}}';
         const j = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { s: entry.name } }), signal: AbortSignal.timeout(12000) }).then((r) => r.json());
         const m = j.data?.Media;
-        if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
+        if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), runtime: m.duration || null, airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
       } else if (!entry.movie) {
         const names = [...new Set([entry.last.enTitle, entry.name].filter(Boolean))];
         let s = null;
@@ -262,13 +263,13 @@ async function enrich({ read, write }, entry, platform) {
           s = await fetch('https://api.tvmaze.com/singlesearch/shows?q=' + encodeURIComponent(n) + '&embed=episodes', { headers: { 'User-Agent': 'ViperTeca/1.23' }, signal: AbortSignal.timeout(12000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
           if (s) break;
         }
-        if (s) Object.assign(meta, { source: 'TVmaze', status: s.status, cover: s.image?.medium || null, url: s.url, episodes: (s._embedded?.episodes || []).map((e) => ({ s: e.season, n: e.number, name: e.name, at: e.airstamp ? Date.parse(e.airstamp) : null })) });
+        if (s) Object.assign(meta, { source: 'TVmaze', runtime: s.averageRuntime || s.runtime || null, status: s.status, cover: s.image?.medium || null, url: s.url, episodes: (s._embedded?.episodes || []).map((e) => ({ s: e.season, n: e.number, name: e.name, at: e.airstamp ? Date.parse(e.airstamp) : null })) });
         else {
           // anime en Netflix: AniList con el título en inglés
-          const q = 'query($s:String){Media(search:$s,type:ANIME){episodes status nextAiringEpisode{episode airingAt} coverImage{large} siteUrl}}';
+          const q = 'query($s:String){Media(search:$s,type:ANIME){episodes duration status nextAiringEpisode{episode airingAt} coverImage{large} siteUrl}}';
           const j = await fetch('https://graphql.anilist.co', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q, variables: { s: names[0] } }), signal: AbortSignal.timeout(12000) }).then((r) => r.json()).catch(() => null);
           const m = j?.data?.Media;
-          if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
+          if (m) Object.assign(meta, { source: 'AniList', total: m.episodes || (m.nextAiringEpisode ? m.nextAiringEpisode.episode - 1 : null), runtime: m.duration || null, airing: m.status === 'RELEASING', next: m.nextAiringEpisode ? { ep: m.nextAiringEpisode.episode, at: m.nextAiringEpisode.airingAt * 1000 } : null, cover: m.coverImage?.large || null, url: m.siteUrl });
         }
       }
     } catch {}
@@ -307,7 +308,7 @@ async function enrich({ read, write }, entry, platform) {
     if (ep) left = Math.max(0, meta.total - ep);
     if (meta.next) next = { at: meta.next.at, label: 'Episodio ' + meta.next.ep };
   }
-  return { ...entry, platform, cover: last.image || last.nfCover || meta.cover || null, url: meta.url || null, total, left, next, status: meta.status || (meta.airing ? 'Running' : null) };
+  return { ...entry, platform, runtime: meta.runtime || null, cover: last.image || last.nfCover || meta.cover || null, url: meta.url || null, total, left, next, status: meta.status || (meta.airing ? 'Running' : null) };
 }
 
 module.exports = { open, readNetflix, readCrunchyroll, summarize, enrich, nfDecorate, dmy, epNumber };

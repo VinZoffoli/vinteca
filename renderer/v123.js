@@ -117,6 +117,7 @@
       old.length ? h('div', { class: 'vw-note' }, h('b', { text: 'Vuelve a leer Netflix' }), h('span', { text: 'Ahora trae carátulas, el título original y cuántos capítulos te faltan. Abre Netflix, elige el perfil de ' + old.map((a) => WHO[a.who]).join(' y ') + ' y pulsa «Volver a leer».' })) : null,
       V.data?.shows?.length ? h('div', { class: 'toolbar flat' }, h('div', { class: 'seg' }, [['all', 'Los dos'], ['vincenzo', 'Vincenzo'], ['emily', 'Emily']].map(([k, l]) => h('button', { class: V.who === k ? 'on' : '', text: l, onclick: () => { V.who = k; render(); } }))), h('button', { class: 'btn subtle small', disabled: V.busy, text: V.busy ? 'Actualizando…' : 'Actualizar', onclick: load })) : null,
       V.data?.shows?.length ? aiBlock() : null,
+      window.v126?.night(V.data, render),
       going.length ? [h('h2', { class: 'section-h', text: 'Siguen viendo' }), h('div', { class: 'vw-grid' }, going.slice(0, 18).map(showCard))] : null,
       upToDate.length ? [h('h2', { class: 'section-h', text: 'Al día, esperando capítulo' }), h('div', { class: 'vw-grid' }, upToDate.slice(0, 12).map(showCard))] : null,
       finished.length ? [h('h2', { class: 'section-h', text: 'Terminadas' }), h('div', { class: 'vw-grid' }, finished.slice(0, 12).map(showCard))] : null,

@@ -69,6 +69,8 @@
       d?.aiError ? h('p', { class: 'hint', text: 'Sin resumen escrito (' + d.aiError + '). Se muestran los datos.' }) : null,
       d?.ai?.team ? h('p', { class: 'tw-team', text: d.ai.team }) : null,
       d ? h('div', { class: 'tw-grid' }, d.people.map((p) => person(p, byKey[p.squad]))) : null,
+      d?.stale?.length ? h('section', { class: 'tw-extra' }, h('h3', { text: 'Ramas olvidadas (' + d.stale.length + ')' }), h('p', { class: 'hint', text: 'Commits que llevan más de una semana sin pasar a main.' }), h('ul', { class: 'tw-rows' }, d.stale.map((b) => h('li', {}, h('span', { class: 'tw-badge sm', style: { '--sq': COLORS[b.squad] || 'var(--muted)' }, text: (b.squad || '·').toUpperCase() }), h('button', { class: 'link-btn', text: b.repo.replace(/^website-[a-d]-/, '') + ' / ' + b.branch, title: b.msg, onclick: () => window.api.open(b.pr || b.url) }), h('small', { class: 'hint', text: b.login + ' · ' + b.ahead + ' commits · ' + relTime(b.at / 1000) + (b.pr ? ' · PR abierto' : '') }))))) : null,
+      d?.noTicket?.length ? h('section', { class: 'tw-extra' }, h('h3', { text: 'Trabajo sin ticket en Notion' }), h('ul', { class: 'tw-rows' }, d.noTicket.map((x) => h('li', {}, h('span', { class: 'tw-badge sm', style: { '--sq': COLORS[x.squad] || 'var(--muted)' }, text: (x.squad || '·').toUpperCase() }), h('b', { text: x.repo.replace(/^website-[a-d]-/, '') }), h('small', { class: 'hint', text: x.commits + ' commits esta semana de ' + x.who.join(', ') + ' · no aparece en ningún ticket' }))))) : null,
       d?.others?.length ? h('p', { class: 'hint', text: 'También hicieron commits: ' + d.others.map((o) => o.login + ' (' + o.commits + ')').join(', ') }) : null
     );
   }

@@ -223,6 +223,35 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_T126) {
+        // prueba 1.26: recibo de ejemplo, compras de Emi y precios de regalos
+        try {
+          const rw = new BrowserWindow({ show: false, width: 620, height: 820, webPreferences: { sandbox: true } });
+          await rw.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<body style="font:16px Arial;padding:30px;background:#fff"><h2>ICE - Instituto Costarricense de Electricidad</h2><p>Servicio eléctrico residencial</p><p>Cliente: VINCENZO ZOFFOLI · Guápiles, Pococí</p><p>NISE 4521-8890</p><hr><p>Período facturado: 15/09/2026 al 14/10/2026</p><p>Consumo: 212 kWh</p><p>Saldo anterior: ¢0,00</p><p>Cargo por energía ¢21.430,00</p><p>Alumbrado público ¢1.270,00</p><p>Impuesto bomberos ¢200,00</p><p>IVA ¢2.000,00</p><h1>TOTAL A PAGAR ¢24.900,00</h1><p><b>Fecha de vencimiento: 27/10/2026</b></p></body>'));
+          await wait(800);
+          const img = (await rw.webContents.capturePage()).toDataURL();
+          rw.destroy();
+          const r = await readReceipt(img);
+          log('RECIBO ' + JSON.stringify({ ...r, options: undefined }));
+        } catch (e) {
+          log('[error] recibo: ' + e.stack);
+        }
+        try {
+          const info = await lanServer().start();
+          const base = `http://127.0.0.1:${info.port}`;
+          const g = encodeURIComponent(giftToken());
+          const add = await fetch(`${base}/api/regalos/compras/add?g=${g}&name=Leche%20de%20almendra&qty=2`, { method: 'POST' }).then((x) => x.json());
+          const list = await fetch(`${base}/api/regalos/compras?g=${g}`).then((x) => x.json());
+          const bad = await fetch(`${base}/api/regalos/compras?g=malo`).then((x) => x.status);
+          log('COMPRAS ' + JSON.stringify({ add, n: list.items.length, ultimo: list.items.find((x) => x.by === 'Emi'), sinCodigo: bad }));
+          const w = await weekReview();
+          log('SEMANA ' + JSON.stringify({ juegos: w.games.total, series: w.series.length, gasto: w.spending, pagos: w.pays.length, cumples: w.bdays.length, fechas: w.dates }));
+          const pr = await giftwatch.checkPrices(giftDeps(), { limit: 3, force: true });
+          log('PRECIOS ' + JSON.stringify(pr) + ' ' + JSON.stringify(store.read('gift-prices.json', {})).slice(0, 400));
+        } catch (e) {
+          log('[error] t126: ' + e.stack);
+        }
+      }
       if (process.env.BJ_GIFTTEST) {
         // prueba: el celular de Emi añade un regalo por enlace
         try {
@@ -299,6 +328,8 @@ function snapshot(dir) {
         'ofertas': [`showView('deals')`, 5000],
         'w-alertas': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Alertas')?.click(), 1500)`, 5000],
         'w-squads': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`, 6000],
+        'p-servicios': [`showView('casa-pagos'); setTimeout(() => document.querySelector('.bl')?.scrollIntoView({ block: 'center' }), 1500)`, 3500],
+        'w-lanz': [`showView('webs'); setTimeout(() => { [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Lanzamientos')?.click(); window.api.launch.check('https://quesitosexpress.com/', 'Quesito’s Express').catch((e) => console.error('LANZ: ' + e.message)); }, 1500)`, 110000],
         'w-week': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(); window.api.teamWeek.run().then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()).catch((e) => console.error('SEMANA: ' + e.message))`, 240000],
         'viendo': [`showView('viendo')`, 9000],
         'viendo-ai': [`window.api.stream.ai().then(() => document.querySelector('#viendoBody .toolbar .btn.subtle')?.click()).catch((e) => console.error('IA: ' + e.message))`, 200000],
@@ -872,6 +903,14 @@ app.whenReady().then(() => {
     setInterval(paimonTick, 60 * 60000);
     setInterval(gatherTick, 10 * 60000);
     setTimeout(sundayTick, 90000);
+    if (!process.env.BJ_SNAPSHOT) {
+      setTimeout(() => giftTick().catch(() => {}), 4 * 60000);
+      setInterval(() => giftTick().catch(() => {}), 3 * 3600000);
+      setTimeout(() => launchTick().catch(() => {}), 6 * 60000);
+      setInterval(() => launchTick().catch(() => {}), 30 * 60000);
+      setTimeout(() => premiereTick().catch(() => {}), 8 * 60000);
+      setInterval(() => premiereTick().catch(() => {}), 30 * 60000);
+    }
     setInterval(sundayTick, 30 * 60000);
     if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
     setInterval(() => calendarTick(true), 5 * 60000);
@@ -3202,6 +3241,7 @@ const mobileApi = {
     const d0 = new Date().setHours(0, 0, 0, 0);
     const inDays = (iso) => Math.round((new Date(iso + 'T00:00:00').getTime() - d0) / DAYMS);
     if (section === 'hoy') return daySummary();
+    if (section === 'semana') return weekReview();
     if (section === 'casa') {
       const c = casa.load(ctxRW);
       const rate = await fx.get(ctxRW).catch(() => null);
@@ -3285,6 +3325,9 @@ const mobileApi = {
       casa.save(ctxRW, d);
       mobileCasaChanged();
       return true;
+    }
+    if (a === 'receipt') {
+      return applyReceipt({ paymentId: String(q.get('id') || ''), month: String(q.get('month') || ''), amount: Number(q.get('amount')), currency: String(q.get('currency') || 'CRC'), due: q.get('due') || null }).ok;
     }
     if (a === 'rem') {
       const d = c();
@@ -3855,6 +3898,236 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.26: regalos que bajan de precio y fechas importantes ----------
+const giftwatch = require('./src/giftwatch');
+const giftDeps = () => ({ read: store.read, write: store.write, loadCasa: () => casa.load(ctxRW), saveCasa: (c) => (casa.save(ctxRW, c), casaChanged()), readMeta: (u) => linkmeta.read(u, { keepRemote: true }), notify });
+let giftBusy = null;
+async function giftTick(force) {
+  if (giftBusy) return giftBusy;
+  giftBusy = (async () => {
+    const st = store.read('gift-watch.json', {});
+    const today = new Date().toLocaleDateString('sv');
+    const rate = (await fx.get(ctxRW).catch(() => null))?.sell || null;
+    giftwatch.checkDates(giftDeps(), rate);
+    if (!force && st.day === today) return st;
+    const r = await giftwatch.checkPrices(giftDeps(), { force: !!force });
+    const out = { day: today, at: Date.now(), ...r };
+    store.write('gift-watch.json', out);
+    return out;
+  })().finally(() => (giftBusy = null));
+  return giftBusy;
+}
+ipcMain.handle('gifts:history', (_e, id) => giftwatch.historyOf(store.read, String(id || '')));
+ipcMain.handle('gifts:checkPrices', () => giftTick(true));
+ipcMain.handle('gifts:dates', async () => {
+  const c = casa.load(ctxRW);
+  const rate = (await fx.get(ctxRW).catch(() => null))?.sell || null;
+  return giftwatch.dates(c).filter((d) => d.days <= 120).slice(0, 6).map((d) => {
+    const w = giftwatch.wishes(c, d.for, rate);
+    return { ...d, count: w.list.length, theirs: w.theirs.length, total: w.text, crc: w.crc };
+  });
+});
+
+// ---------- 1.26: lanzamientos (web que pasa a Live en Notion) ----------
+const launchcheck = require('./src/launchcheck');
+let launchBusy = Promise.resolve();
+function runLaunch(url, name) {
+  const job = launchBusy.then(async () => {
+    const r = await launchcheck.check(url);
+    const all = store.read('launch-checks.json', {});
+    all[r.url] = { ...r, name: name || all[r.url]?.name || sitecheck.hostOf(r.url) };
+    const keys = Object.keys(all).sort((a, b) => all[b].at - all[a].at);
+    for (const k of keys.slice(40)) delete all[k];
+    store.write('launch-checks.json', all);
+    if (win && !win.isDestroyed()) win.webContents.send('launch:changed');
+    return all[r.url];
+  });
+  launchBusy = job.catch(() => {});
+  return job;
+}
+ipcMain.handle('launch:list', () => Object.values(store.read('launch-checks.json', {})).sort((a, b) => b.at - a.at));
+ipcMain.handle('launch:check', (_e, url, name) => runLaunch(String(url || ''), name ? String(name) : null));
+/** Mira el pipeline de Notion: si una web pasa a Live, se revisa sola y te avisa. */
+async function launchTick() {
+  const rows = store.read('notion-cache.json', null)?.data?.pipeline?.rows || [];
+  if (!rows.length) return;
+  const seen = store.read('launch-seen.json', null);
+  const live = (r) => /live|publicad|lanzad/i.test(r.status || '') || r.group === 'done';
+  const now = {};
+  for (const r of rows) now[r.name] = live(r) ? 'live' : String(r.status || '');
+  store.write('launch-seen.json', now);
+  if (!seen) return; // la primera vez solo se anota cómo está todo
+  for (const r of rows) {
+    if (now[r.name] !== 'live' || seen[r.name] === 'live' || !r.production) continue;
+    const res = await runLaunch(r.production, String(r.name || '').replace(/<[^>]+>|\*\*/g, '')).catch(() => null);
+    if (!res) continue;
+    const bad = res.items.filter((i) => !i.ok);
+    notify(bad.length ? 'Lanzamiento de ' + res.name + ': ' + bad.length + ' pendientes' : 'Lanzamiento de ' + res.name + ': todo en orden', bad.length ? bad.slice(0, 4).map((i) => i.label).join(' · ') : 'Carga, tags, formulario, SEO y celular bien. Ya puedes avisar al cliente.', null);
+  }
+}
+
+// ---------- 1.26: recibos por foto (luz, agua, internet…) ----------
+async function readReceipt(dataUrl) {
+  const m = String(dataUrl || '').match(/^data:image\/(png|jpe?g|webp|heic|heif);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!m) throw new Error('Esa imagen no se puede leer. Usa una foto JPG o PNG.');
+  const fs = require('fs');
+  const { nativeImage } = require('electron');
+  let img = nativeImage.createFromBuffer(Buffer.from(m[2], 'base64'));
+  if (img.isEmpty()) throw new Error('No pude abrir la foto (prueba con JPG o PNG).');
+  if (img.getSize().width > 1800) img = img.resize({ width: 1800, quality: 'better' });
+  const dir = path.join(assistDir(), 'recibos');
+  fs.mkdirSync(dir, { recursive: true });
+  const name = 'recibo-' + Date.now() + '.jpg';
+  const file = path.join(dir, name);
+  fs.writeFileSync(file, img.toJPEG(88));
+  const c = casa.load(ctxRW);
+  const pays = (c.payments || []).map((p) => ({ id: p.id, name: p.name, group: p.group, currency: p.currency }));
+  try {
+    const prompt = 'Lee la foto del recibo que está en recibos/' + name + ' (usa la herramienta Read para verla).\n' +
+      'Estos son mis pagos mensuales: ' + JSON.stringify(pays) + '\n' +
+      'Dime de qué servicio es (luz, agua, internet, teléfono, alquiler…), la empresa, el monto total a pagar, la moneda (CRC o USD), la fecha de vencimiento, el mes que cobra y a cuál de mis pagos corresponde (su id; si hay dos con el mismo nombre, elige por la persona o el lugar que aparezca en el recibo y que coincida con el grupo).\n' +
+      'Responde SOLO con este JSON: {"servicio":"","empresa":"","monto":0,"moneda":"CRC","vence":"AAAA-MM-DD","mes":"AAAA-MM","pagoId":"","titular":"","nota":""}';
+    const r = await aiJson(prompt, { system: 'Lees recibos de servicios de Costa Rica (ICE, CNFL, AyA, ESPH, JASEC, Coopelesca, Kölbi, Liberty, Tigo, Claro…) con cuidado: el monto es el total a pagar del período, no el saldo anterior ni los cargos por separado. Respondes SOLO con un bloque de código json válido.' });
+    const p = (c.payments || []).find((x) => x.id === r.pagoId) || (c.payments || []).find((x) => plainText(x.name) === plainText(r.servicio));
+    const month = /^\d{4}-\d{2}$/.test(r.mes || '') ? r.mes : /^\d{4}-\d{2}/.test(r.vence || '') ? r.vence.slice(0, 7) : new Date().toLocaleDateString('sv').slice(0, 7);
+    return { paymentId: p?.id || null, payment: p ? p.name + (p.group && p.group !== 'Personal' ? ' (' + p.group + ')' : '') : null, service: r.servicio || '', company: r.empresa || '', amount: Number(r.monto) || null, currency: /^(CRC|USD)$/.test(r.moneda) ? r.moneda : 'CRC', due: /^\d{4}-\d{2}-\d{2}$/.test(r.vence || '') ? r.vence : null, month, holder: r.titular || '', note: r.nota || '', options: pays };
+  } finally {
+    fs.rmSync(file, { force: true }); // el recibo tiene datos de la cuenta: no se guarda
+  }
+}
+const plainText = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+/** Guarda el monto del mes, lo marca pagado y compara con los meses anteriores. */
+function applyReceipt({ paymentId, month, amount, currency, due, paid = true, from = 'recibo' }) {
+  const c = casa.load(ctxRW);
+  const p = (c.payments || []).find((x) => x.id === paymentId);
+  if (!p) throw new Error('Elige a qué pago corresponde.');
+  if (!/^\d{4}-\d{2}$/.test(month || '') || !(Number(amount) > 0)) throw new Error('Falta el monto o el mes.');
+  p.bills ||= {};
+  p.bills[month] = { amount: Number(amount), currency: currency || p.currency || 'CRC', due: due || null, at: Date.now(), from };
+  if (paid) p.paid = { ...(p.paid || {}), [month]: Date.now() };
+  casa.save(ctxRW, c);
+  casaChanged();
+  const cmp = billCompare(p, month);
+  if (cmp?.high) notify(p.name + ' vino ' + cmp.pct + '% más alto', 'Este mes ' + cmp.amount.toLocaleString('es') + ' ' + cmp.currency + ' frente a ' + cmp.avg.toLocaleString('es') + ' de promedio en los meses anteriores.', null);
+  return { ok: true, compare: cmp };
+}
+/** Comparación con el promedio de los 3 meses anteriores (alto si pasa del 25%). */
+function billCompare(p, month) {
+  const cur = p.bills?.[month];
+  if (!cur) return null;
+  const prev = Object.entries(p.bills || {}).filter(([k, v]) => k < month && v.currency === cur.currency).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 3).map(([, v]) => v.amount);
+  if (!prev.length) return { amount: cur.amount, currency: cur.currency, avg: null, pct: null, high: false };
+  const avg = Math.round(prev.reduce((a, b) => a + b, 0) / prev.length);
+  const pct = Math.round((cur.amount / avg - 1) * 100);
+  return { amount: cur.amount, currency: cur.currency, avg, pct, high: pct >= 25, low: pct <= -25 };
+}
+ipcMain.handle('casa:receipt', (_e, dataUrl) => readReceipt(dataUrl));
+ipcMain.handle('casa:receiptApply', (_e, r) => applyReceipt(r || {}));
+
+// ---------- 1.26: avisos de capítulos nuevos (Netflix y Crunchyroll) ----------
+async function premiereTick() {
+  const all = store.read('streaming.json', {});
+  if (!Object.keys(all).length) return;
+  const sent = store.read('streaming-notified.json', {});
+  const now = Date.now();
+  const seen = new Set();
+  for (const a of Object.values(all)) {
+    for (const e of streaming.summarize(a).slice(0, 30)) {
+      if (e.movie || seen.has(a.platform + ':' + e.key)) continue;
+      seen.add(a.platform + ':' + e.key);
+      const s = await streaming.enrich(ctxRW, e, a.platform).catch(() => null);
+      if (!s) continue;
+      const meta = store.read('streaming-meta.json', {})['v3:' + a.platform + ':' + e.key] || {};
+      // capítulos que salieron en las últimas 12 horas
+      const fresh = [];
+      for (const ep of meta.episodes || []) if (ep.at && ep.at <= now && ep.at > now - 12 * 3600000) fresh.push({ k: 'T' + ep.s + 'E' + ep.n, label: 'T' + ep.s + ' E' + ep.n + (ep.name ? ' «' + ep.name + '»' : '') });
+      if (meta.next && meta.next.at <= now && meta.next.at > now - 12 * 3600000) fresh.push({ k: 'E' + meta.next.ep, label: 'Episodio ' + meta.next.ep });
+      for (const f of fresh) {
+        const key = a.platform + ':' + e.key + ':' + f.k;
+        if (sent[key]) continue;
+        sent[key] = now;
+        const who = Object.values(all).filter((x) => streaming.summarize(x).some((y) => y.key === e.key)).map((x) => (x.who === 'emily' ? 'Emily' : 'Vincenzo'));
+        notify('Nuevo capítulo de ' + e.name, f.label + ' ya está en ' + (a.platform === 'netflix' ? 'Netflix' : 'Crunchyroll') + (who.length ? ' · lo siguen ' + [...new Set(who)].join(' y ') : '') + '.', null);
+      }
+    }
+  }
+  const keys = Object.keys(sent);
+  for (const k of keys) if (now - sent[k] > 60 * 86400000) delete sent[k];
+  store.write('streaming-notified.json', sent);
+}
+
+// ---------- 1.26: tu semana (tarjeta del domingo en el iPhone) ----------
+async function weekReview(nowT = Date.now()) {
+  const d0 = new Date(nowT);
+  d0.setHours(0, 0, 0, 0);
+  const from = d0.getTime() - 6 * DAYMS;
+  // juegos
+  const byGame = new Map();
+  for (const s of store.read('sessions.json', [])) if (s.start >= from) byGame.set(s.title, (byGame.get(s.title) || 0) + (s.end - s.start) / 60000);
+  const games = [...byGame].sort((a, b) => b[1] - a[1]).map(([title, min]) => ({ title, min: Math.round(min) }));
+  // series
+  const series = [];
+  for (const a of Object.values(store.read('streaming.json', {}))) {
+    const recent = (a.items || []).filter((x) => x.date && x.date >= from);
+    const by = new Map();
+    for (const x of recent) by.set(x.series || x.title, (by.get(x.series || x.title) || 0) + 1);
+    for (const [name, n] of by) series.push({ name, n, who: a.who === 'emily' ? 'Emily' : 'Vincenzo', platform: a.platform });
+  }
+  series.sort((a, b) => b.n - a.n);
+  // gastos
+  const c = casa.load(ctxRW);
+  const rate = (await fx.get(ctxRW).catch(() => null))?.sell || null;
+  const b = casa.budgetStatus(c, nowT, rate);
+  const fromDay = new Date(from).toLocaleDateString('sv');
+  const weekSpent = (c.budget?.expenses || []).filter((e) => e.date >= fromDay).reduce((s, e) => s + e.amount, 0) + (c.shopping || []).filter((s) => s.price && s.done && s.boughtAt >= from).reduce((s, x) => s + x.price, 0);
+  const w = weekAhead(nowT);
+  const bdays = (c.birthdays || []).map((x) => ({ x, n: casa.nextBirthday(x, nowT) })).filter((y) => y.x.day && y.n && y.n.days <= 14).sort((a, z) => a.n.days - z.n.days).map(({ x, n }) => ({ name: x.name, kind: x.kind, days: n.days, age: n.age }));
+  const dates = giftwatch.dates(c, nowT).filter((x) => x.days <= 30 && !x.key.startsWith('bd:')).map((x) => ({ name: x.name, days: x.days, wishes: giftwatch.wishes(c, x.for, rate).list.length }));
+  return {
+    from,
+    to: nowT,
+    games: { total: games.reduce((s, g) => s + g.min, 0), list: games.slice(0, 5) },
+    series: series.slice(0, 6),
+    spending: { week: weekSpent, month: b.spent, limit: b.limit, currency: b.currency },
+    pays: w.pays,
+    meetings: w.meetings.length,
+    bdays,
+    dates,
+    tramites: w.tramites,
+  };
+}
+ipcMain.handle('week:review', () => weekReview());
+
+// ---------- 1.26: compras compartidas con Emi (en su página) ----------
+const emiShopping = {
+  get: () => {
+    const c = casa.load(ctxRW);
+    return { cats: c.shopCats, items: (c.shopping || []).filter((x) => !x.done || (x.boughtAt && Date.now() - x.boughtAt < 2 * DAYMS)).map((x) => ({ id: x.id, name: x.name, qty: x.qty, cat: x.cat, done: x.done, by: x.by || '' })) };
+  },
+  add: (name, qty, cat) => {
+    const c = casa.load(ctxRW);
+    const n = String(name || '').trim().slice(0, 120);
+    if (!n) throw new Error('Escribe qué falta.');
+    if ((c.shopping || []).some((x) => !x.done && plainText(x.name) === plainText(n))) throw new Error('Eso ya está en la lista.');
+    c.shopping.push({ id: require('crypto').randomBytes(6).toString('hex'), name: n, qty: String(qty || '').slice(0, 30), cat: (c.shopCats || []).includes(cat) ? cat : c.shopCats?.[0] || 'Súper', done: false, at: Date.now(), by: 'Emi' });
+    casa.save(ctxRW, c);
+    casaChanged();
+    return true;
+  },
+  toggle: (id) => {
+    const c = casa.load(ctxRW);
+    const it = (c.shopping || []).find((x) => x.id === id);
+    if (!it) return false;
+    it.done = !it.done;
+    it.boughtAt = it.done ? Date.now() : null;
+    casa.save(ctxRW, c);
+    casaChanged();
+    return true;
+  },
+};
+giftsApi.shopping = emiShopping;
+mobileApi.receipt = readReceipt;
 
 // ---------- 1.24: la semana del equipo (GitHub + Vercel + Notion) ----------
 const teamweek = require('./src/teamweek');

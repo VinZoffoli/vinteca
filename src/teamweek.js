@@ -79,6 +79,49 @@ async function vercelDeploys(vercelApi, read, since) {
   return out;
 }
 
+/**
+ * Ramas olvidadas: ramas con commits que no están en la rama principal y cuyo
+ * último commit tiene más de `days` días (repos con actividad en los últimos 90 días).
+ */
+async function staleBranches(org, { days = 7, maxDays = 45 } = {}) {
+  const repos = (await gh('orgs/' + org + '/repos?per_page=100&sort=pushed')).filter((r) => r.pushed_at && Date.now() - Date.parse(r.pushed_at) < 90 * 86400000 && !r.archived);
+  const out = [];
+  await pool(repos.slice(0, 70), 5, async (r) => {
+    const branches = await gh('repos/' + org + '/' + r.name + '/branches?per_page=100').catch(() => []);
+    // ramas del agente de SEO y de bots: no son trabajo de nadie
+    for (const b of branches.filter((x) => x.name !== r.default_branch && !/^(dependabot|renovate)\/|^seo\/(agent|publish|apply|migration)/.test(x.name)).slice(0, 15)) {
+      const cmp = await gh('repos/' + org + '/' + r.name + '/compare/' + encodeURIComponent(r.default_branch) + '...' + encodeURIComponent(b.name) + '?per_page=1').catch(() => null);
+      if (!cmp || !cmp.ahead_by) continue;
+      const last = cmp.commits?.[cmp.commits.length - 1];
+      const at = Date.parse(last?.commit?.author?.date || last?.commit?.committer?.date || 0);
+      // más de una semana sin pasar a main, pero no abandonadas hace meses
+      if (!at || Date.now() - at < days * 86400000 || Date.now() - at > maxDays * 86400000) continue;
+      // si su pull request ya se fusionó (squash), el trabajo sí está en main
+      const prs = await gh('repos/' + org + '/' + r.name + '/pulls?state=all&per_page=5&head=' + encodeURIComponent(org + ':' + b.name)).catch(() => []);
+      if (prs.some((p) => p.merged_at)) continue;
+      out.push({ repo: r.name, branch: b.name, ahead: cmp.ahead_by, behind: cmp.behind_by, at, pr: prs.find((p) => p.state === 'open')?.html_url || null, login: last?.author?.login || last?.commit?.author?.name || '?', msg: String(last?.commit?.message || '').split('\n')[0].slice(0, 100), url: 'https://github.com/' + org + '/' + r.name + '/compare/' + r.default_branch + '...' + encodeURIComponent(b.name) });
+    }
+  });
+  return out.sort((a, b) => a.at - b.at);
+}
+
+// "website-b-gezzos" → "gezzos"; "Gezzo’s" → "gezzos"
+const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/^website-[a-d]-/, '').replace(/[^a-z0-9]/g, '');
+/** Repos con bastante trabajo esta semana que no aparecen en ningún ticket ni en el pipeline. */
+function withoutTicket(commits, notionPeople, pipeline, min = 5) {
+  const known = [...(pipeline || []).map((r) => r.name), ...(notionPeople || []).flatMap((p) => [...(p.tickets || []), ...(p.week?.touched || []), ...(p.week?.closed || []), ...(p.week?.next || [])].map((t) => t.title))].map(slug).filter((x) => x.length >= 3);
+  const byRepo = {};
+  for (const c of commits) if (/^website-/.test(c.repo)) (byRepo[c.repo] ||= []).push(c);
+  return Object.entries(byRepo)
+    .filter(([, list]) => list.length >= min)
+    .filter(([repo]) => {
+      const s = slug(repo);
+      // coincide si el nombre del cliente aparece en un ticket o al revés (p. ej. "corazonbybaires" ↔ "corazon")
+      return !known.some((k) => k.includes(s) || s.includes(k) || (s.length > 5 && k.includes(s.slice(0, 6))));
+    })
+    .map(([repo, list]) => ({ repo, commits: list.length, who: [...new Set(list.map((c) => c.login))] }));
+}
+
 const count = (arr, key) => {
   const m = {};
   for (const x of arr) m[key(x)] = (m[key(x)] || 0) + 1;
@@ -121,7 +164,12 @@ async function collect({ read, vercelApi, notionTeam, leaders, pipeline }) {
   });
   const known = new Set(Object.values(ids).flatMap((x) => x.gh.map(lc)));
   const others = count((g?.commits || []).filter((c) => !known.has(lc(c.login))), (c) => c.login).map(([login, k]) => ({ login, commits: k, repos: [...new Set(g.commits.filter((c) => c.login === login).map((c) => c.repo))].slice(0, 5) }));
-  return { at: Date.now(), since: since.getTime(), org, errors, sources: { github: !!g, vercel: !!v, notion: !!n }, totals: { repos: g?.repos || 0, commits: g?.commits.length || 0, deploys: v?.length || 0 }, people, others };
+  const stale = g ? await staleBranches(org).catch((e) => (errors.push('Ramas: ' + e.message), [])) : [];
+  const login2squad = Object.fromEntries(Object.entries(ids).flatMap(([sq, x]) => x.gh.map((l) => [lc(l), sq])));
+  for (const b of stale) b.squad = login2squad[lc(b.login)] || (b.repo.match(/^website-([a-d])-/)?.[1] ?? null);
+  const noTicket = g && n ? withoutTicket(g.commits, n.people, pipeline) : [];
+  for (const x of noTicket) x.squad = x.repo.match(/^website-([a-d])-/)?.[1] || null;
+  return { at: Date.now(), since: since.getTime(), org, errors, sources: { github: !!g, vercel: !!v, notion: !!n }, totals: { repos: g?.repos || 0, commits: g?.commits.length || 0, deploys: v?.length || 0 }, people, others, stale, noTicket };
 }
 
 /** Texto para Claude Code con los datos de cada persona. */
@@ -146,6 +194,8 @@ function prompt(data) {
   const missing = [!data.sources.github && 'GitHub', !data.sources.vercel && 'los deploys de Vercel', !data.sources.notion && 'los tickets de Notion'].filter(Boolean);
   return 'Semana desde el ' + day(data.since) + ' hasta hoy, ' + day(Date.now()) + '. Equipo web de Resto Experience (una agencia de marketing para restaurantes). Cada web vive en un repo «website-<squad>-<cliente>».\n\n' +
     lines.join('\n\n') +
+    (data.stale?.length ? '\n\nRamas olvidadas (commits sin pasar a main desde hace más de 7 días): ' + data.stale.slice(0, 15).map((b) => b.repo + '/' + b.branch + ' de ' + b.login + ' (' + b.ahead + ' commits, último ' + new Date(b.at).toLocaleDateString('es') + ')').join('; ') : '') +
+    (data.noTicket?.length ? '\n\nWebs con trabajo esta semana sin ticket en Notion: ' + data.noTicket.map((x) => x.repo + ' (' + x.commits + ' commits de ' + x.who.join(', ') + ')').join('; ') : '') +
     (data.others.length ? '\n\nOtros que hicieron commits: ' + data.others.map((o) => o.login + ' (' + o.commits + ': ' + o.repos.join(', ') + ')').join('; ') : '') +
     (missing.length ? '\n\nNo se pudieron leer ' + missing.join(' ni ') + ': no digas nada sobre eso (ni que hubo cero), simplemente no lo menciones.' : '') +
     '\n\nPara cada persona escribe, en español neutro, breve y concreto (nombres de clientes y webs, no de repos):\n' +
@@ -156,4 +206,4 @@ function prompt(data) {
     'Responde SOLO con este JSON: {"team":"","people":[{"squad":"a","week":[""],"next":[""],"watch":[""]}]}';
 }
 
-module.exports = { collect, prompt, weekStart, DEFAULT_IDS };
+module.exports = { collect, prompt, weekStart, DEFAULT_IDS, staleBranches, withoutTicket };

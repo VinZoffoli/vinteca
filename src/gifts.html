@@ -42,10 +42,17 @@ li{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.reading .mt::after{animation:none}.add{transition:none}}
 .empty{color:var(--muted);text-align:center;padding:18px;border:1px dashed var(--line);border-radius:16px}
+.tabs{display:flex;gap:6px;margin:0 0 16px;background:#f3e4dd;padding:4px;border-radius:14px}.tabs button{flex:1;min-height:40px;border-radius:10px;background:none;color:var(--muted);font-weight:700}.tabs button.on{background:#fff;color:var(--text);box-shadow:0 2px 8px -4px rgba(120,40,60,.4)}
+.row2{display:flex;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px}.row2 input{flex:1;min-width:0}
+.cat{margin:18px 4px 6px;color:var(--muted);font-weight:700;font-size:14px}
+.it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:0 0 8px;font-size:16px;color:var(--text)}
+.it i{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid var(--rose)}.it.on i{background:var(--rose);box-shadow:inset 0 0 0 3px #fff}.it.on span{text-decoration:line-through;color:var(--muted)}.it small{margin-left:auto;color:var(--muted)}.it em{font-style:normal;font-size:12px;color:var(--rose)}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translate(-50%,20px);opacity:0;background:var(--text);color:#fff;padding:12px 16px;border-radius:14px;font-size:15px;transition:opacity .2s,transform .2s;max-width:90vw;pointer-events:none}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 </style></head>
 <body><main>
+<div class="tabs" role="tablist"><button class="on" data-t="deseos" role="tab">Mis deseos</button><button data-t="compras" role="tab">Compras de la casa</button></div>
+<section id="pDeseos">
 <h1>Mis deseos</h1>
 <p class="sub">Pega el enlace de lo que te gusta. La foto, el nombre y el precio se completan solos y Vincenzo lo ve al instante.</p>
 <form id="f" autocomplete="off">
@@ -62,6 +69,13 @@ li{display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center;
 </form>
 <h2>Lo que has añadido</h2>
 <ul id="list"><li class="empty" style="display:block">Todavía nada.</li></ul>
+</section>
+<section id="pCompras" hidden>
+<h1>Compras</h1>
+<p class="sub">La lista de la casa, compartida con Vincenzo en vivo. Toca algo para marcarlo como comprado.</p>
+<form id="fs" autocomplete="off" class="row2"><input id="sName" placeholder="Qué falta" enterkeyhint="done" maxlength="120"><input id="sQty" placeholder="Cant." maxlength="30" style="flex:0 0 80px"><button class="add" id="sAdd" style="min-height:48px;padding:0 16px">Añadir</button></form>
+<div id="shop"></div>
+</section>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
@@ -96,7 +110,19 @@ $('#f').addEventListener('submit',async(e)=>{e.preventDefault();
   b.disabled=false;b.textContent='Añadir a mi lista'});
 // enlace compartido desde otra app (Android) o abierto con ?url=
 const q=new URLSearchParams(location.search);const shared=q.get('url')||((q.get('text')||'').match(/https?:\/\/\S+/)||[''])[0];if(shared)$('#link').value=shared;
-load();
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+// ---- compras de la casa (en vivo: se actualiza cada 4 s mientras está abierta)
+let tab=localStorage.getItem('emi-tab')||'deseos',shopT=null;
+function setTab(t){tab=t;localStorage.setItem('emi-tab',t);document.querySelectorAll('.tabs button').forEach((b)=>b.classList.toggle('on',b.dataset.t===t));$('#pDeseos').hidden=t!=='deseos';$('#pCompras').hidden=t!=='compras';if(t==='compras')shop();else load()}
+document.querySelectorAll('.tabs button').forEach((b)=>b.onclick=()=>setTab(b.dataset.t));
+async function shop(){clearTimeout(shopT);let d;try{d=await api('/api/regalos/compras')}catch(e){return toast(e.message)}
+  const pend=d.items.filter((x)=>!x.done),done=d.items.filter((x)=>x.done);const cats=[...new Set([...d.cats,...pend.map((x)=>x.cat)])];
+  const row=(x)=>'<button class="it'+(x.done?' on':'')+'" data-id="'+esc(x.id)+'"><i></i><span>'+esc(x.name)+'</span>'+(x.by==='Emi'?' <em>tuyo</em>':'')+(x.qty?'<small>'+esc(x.qty)+'</small>':'')+'</button>';
+  let html='';for(const c of cats){const l=pend.filter((x)=>x.cat===c);if(l.length)html+='<p class="cat">'+esc(c)+'</p>'+l.map(row).join('')}
+  if(!pend.length)html+='<p class="empty">No falta nada.</p>';if(done.length)html+='<p class="cat">Comprado hace poco</p>'+done.map(row).join('');
+  $('#shop').innerHTML=html;if(tab==='compras'&&!document.hidden)shopT=setTimeout(shop,4000)}
+$('#shop').addEventListener('click',async(e)=>{const b=e.target.closest('.it');if(!b)return;b.classList.toggle('on');try{await api('/api/regalos/compras/toggle?id='+encodeURIComponent(b.dataset.id),{method:'POST'})}catch(x){toast(x.message)}shop()});
+$('#fs').addEventListener('submit',async(e)=>{e.preventDefault();const n=$('#sName').value.trim();if(!n)return;try{await api('/api/regalos/compras/add?name='+encodeURIComponent(n)+'&qty='+encodeURIComponent($('#sQty').value.trim()),{method:'POST'});$('#sName').value='';$('#sQty').value='';toast('Añadido a la lista');shop()}catch(x){toast(x.message)}});
+setTab(shared?'deseos':tab);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)(tab==='compras'?shop():load())});
 </script>
 </body></html>

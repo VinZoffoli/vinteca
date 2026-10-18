@@ -111,6 +111,7 @@ h4.sec{margin:16px 2px 6px;font:600 13px var(--display);color:var(--muted);lette
 .pcbtn.danger{color:#ffb3b5;border-color:rgba(239,58,63,.45)}
 .pcbtn.on{background:rgba(239,58,63,.18);border-color:var(--accent)}
 .err{margin:0 0 12px;padding:12px 14px;border-radius:14px;background:rgba(239,58,63,.12);border:1px solid rgba(239,58,63,.4);color:#ffd0d2}
+.card.week .strip{margin:8px 0 4px;grid-template-columns:repeat(3,minmax(0,1fr))}.card.week .stat b{font-size:19px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wk-h{margin:12px 0 4px;color:var(--muted);font-size:13px;font-weight:700}.stack{display:grid;gap:8px}
 nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(5,1fr);padding:6px 6px calc(var(--safe-b) + 6px);background:rgba(26,18,20,.82);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);border-top:1px solid rgba(255,255,255,.07)}
 nav.tabs button{display:grid;justify-items:center;gap:3px;padding:6px 0 2px;color:var(--faint);font-size:11px;font-weight:600;transition:color .2s,transform .16s var(--ease)}
 nav.tabs button:active{transform:scale(.92)}
@@ -199,12 +200,77 @@ async function act(a, params, ok) {
   catch (e) { toast(e.message); }
 }
 
+
+// ------------------------------------------------ TU SEMANA (1.26)
+function weekCard() {
+  const w = S.data.semana;
+  if (!w) { if (!S.weekAsked) { S.weekAsked = true; api('/api/m?s=semana').then((d) => { S.data.semana = d; render(); }).catch(() => {}); } return null; }
+  const fmtMin = (m) => m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min';
+  const sp = w.spending;
+  return h('section', { class: 'card week' },
+    h('h3', {}, 'Tu semana', h('small', { text: new Date(w.from).toLocaleDateString('es', { day: 'numeric', month: 'short' }) + ' – hoy' })),
+    h('div', { class: 'strip' },
+      h('div', { class: 'stat' }, h('small', { text: 'Jugado' }), h('b', { text: w.games.total ? fmtMin(w.games.total) : '—' })),
+      h('div', { class: 'stat' }, h('small', { text: 'Gastado' }), h('b', { text: sp.week ? money(Math.round(sp.week), sp.currency) : '—' })),
+      h('div', { class: 'stat' }, h('small', { text: 'Este mes' }), h('b', { class: sp.limit && sp.month > sp.limit ? 'hot' : '', text: money(Math.round(sp.month), sp.currency) }))
+    ),
+    w.games.list.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Juegos' }), list(w.games.list.map((g) => li(g.title, fmtMin(g.min))))) : null,
+    w.series.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Series' }), list(w.series.map((s) => li(s.name, plural(s.n, 'cap.', 'caps.'), '', s.who + ' · ' + (s.platform === 'netflix' ? 'Netflix' : 'Crunchyroll'))))) : null,
+    w.pays.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Pagos de la semana que viene' }), list(w.pays.map((p) => li(p.name, when(p.days), p.days <= 1 ? 'hot' : '', p.amount ? money(p.amount, p.currency) : null)))) : null,
+    w.bdays.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Cumpleaños cerca' }), list(w.bdays.map((b) => li(b.name + (b.kind === 'gato' ? ' 🐾' : ''), when(b.days), b.days <= 2 ? 'hot' : '', b.age ? 'cumple ' + b.age : null)))) : null,
+    w.dates.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Fechas para regalar' }), list(w.dates.map((x) => li(x.name, when(x.days), x.days <= 7 ? 'hot' : '', x.wishes ? plural(x.wishes, 'deseo sin comprar', 'deseos sin comprar') : 'sin ideas')))) : null,
+    w.tramites.length ? h('div', {}, h('p', { class: 'wk-h', text: 'Trámites' }), list(w.tramites.map((t) => li(t.name, when(t.days), 'hot')))) : null
+  );
+}
+
+// ------------------------------------------------ RECIBO POR FOTO (1.26)
+function shrinkPhoto(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => { const k = Math.min(1, 1600 / img.width); const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(img.src); res(c.toDataURL('image/jpeg', 0.85)); };
+    img.onerror = () => rej(new Error('No pude abrir la foto.'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+function receiptCard(d) {
+  const R = S.receipt || {};
+  const pick = h('input', { type: 'file', accept: 'image/*', capture: 'environment', style: 'display:none' });
+  pick.addEventListener('change', async () => {
+    const f = pick.files[0]; if (!f) return;
+    S.receipt = { busy: true }; render();
+    try {
+      const image = await shrinkPhoto(f);
+      const r = await fetch('/api/m/receipt?t=' + encodeURIComponent(T), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image }) }).then((x) => x.json());
+      S.receipt = r.error ? { error: r.error } : { r };
+    } catch (e) { S.receipt = { error: e.message }; }
+    render();
+  });
+  if (R.busy) return h('section', { class: 'card' }, h('p', { class: 'big', text: 'Leyendo el recibo…' }), h('small', { style: 'color:var(--muted)', text: 'Tarda unos segundos.' }));
+  if (R.r) {
+    const r = R.r;
+    const pay = h('select', { class: 'field' }, h('option', { value: '', text: 'Elige el pago…' }), d.payments.map((p) => h('option', { value: p.id, selected: p.id === r.paymentId, text: p.name + (p.group && p.group !== 'Personal' ? ' (' + p.group + ')' : '') })));
+    const amount = h('input', { class: 'field', type: 'number', inputmode: 'decimal', value: r.amount ?? '' });
+    const month = h('input', { class: 'field', type: 'month', value: r.month });
+    return h('section', { class: 'card' },
+      h('h3', {}, 'Recibo', h('small', { text: [r.service, r.company].filter(Boolean).join(' · ') })),
+      h('div', { class: 'stack' }, pay, h('div', { class: 'row' }, amount, h('span', { style: 'align-self:center;color:var(--muted)', text: r.currency })), month, r.due ? h('small', { style: 'color:var(--muted)', text: 'Vence ' + r.due.split('-').reverse().join('/') }) : null),
+      h('div', { class: 'row', style: 'margin-top:10px' },
+        h('button', { class: 'btn', text: 'Cancelar', onclick: () => { S.receipt = null; render(); } }),
+        h('button', { class: 'btn primary', text: 'Marcar pagado', onclick: async () => { if (!pay.value) return toast('Elige el pago'); await act('receipt', { id: pay.value, month: month.value, amount: amount.value, currency: r.currency, due: r.due || '' }, 'Recibo guardado y pagado'); S.receipt = null; S.at.casa = 0; load('casa', true); } })
+      )
+    );
+  }
+  return h('section', { class: 'card' }, h('div', { class: 'row' }, h('div', { style: 'flex:1' }, h('b', { text: 'Foto de un recibo' }), h('small', { style: 'display:block;color:var(--muted)', text: R.error || 'Luz, agua, internet… se anota el monto y se marca pagado.' })), h('button', { class: 'btn primary', text: 'Tomar foto', onclick: () => pick.click() })), pick);
+}
+
 // ------------------------------------------------ HOY
 function hoy(d) {
   const now = new Date();
   const meets = d.meetings.filter((m) => !m.allDay);
   const nx = meets.find((m) => m.end > Date.now());
+  const wkTop = [0, 1].includes(now.getDay());
   return [
+    wkTop ? weekCard() : null,
     h('div', { class: 'strip' },
       h('div', { class: 'stat' }, h('small', { text: 'Reuniones hoy' }), h('b', { text: String(meets.length) })),
       h('div', { class: 'stat' }, h('small', { text: 'Pagos 7 días' }), h('b', { class: d.pays.some((p) => p.days <= 0) ? 'hot' : '', text: String(d.pays.length) })),
@@ -224,6 +290,7 @@ function hoy(d) {
     card('Correo', d.mail?.count ? plural(d.mail.count, 'sin leer', 'sin leer') : null, list((d.mail?.last || []).map((m) => li(m.subject, null, '', m.from)))),
     card('Anime', null, list(d.anime.map((a) => li(a.title, hm(a.at), '', a.what)))),
     d.resin && card('Genshin', null, h('p', { class: 'big ' + (d.resin.value >= d.resin.max ? 'hot' : ''), text: 'Resina ' + d.resin.value + '/' + d.resin.max }), list(d.resets.map((r) => li(r.name, until(r.at))))),
+    wkTop ? null : weekCard(),
     d.budget?.limit ? card('Presupuesto del mes', null, h('p', { class: 'big', text: money(d.budget.spent, d.budget.currency) }), h('div', { class: 'bar' }, h('i', { class: d.budget.spent > d.budget.limit ? 'hot' : '', style: 'width:' + Math.min(100, d.budget.spent / d.budget.limit * 100) + '%' })), h('small', { style: 'color:var(--muted)', text: 'de ' + money(d.budget.limit, d.budget.currency) })) : null,
   ];
 }
@@ -248,6 +315,7 @@ function casa(d) {
     if (done.length) out.push(card('Comprado', String(done.length), done.slice(0, 30).map(row)));
   }
   if (tab === 'pagos') {
+    out.push(receiptCard(d));
     for (const g of d.groups) {
       const l = d.payments.filter((p) => p.group === g);
       if (!l.length) continue;

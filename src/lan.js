@@ -220,6 +220,9 @@ class LanServer {
         return json(200, await G.add(b));
       }
       if (req.method === 'POST' && u.pathname === '/api/regalos/remove') return json(200, { ok: G.remove(String(u.searchParams.get('id') || '')) });
+      if (G.shopping && req.method === 'GET' && u.pathname === '/api/regalos/compras') return json(200, G.shopping.get());
+      if (G.shopping && req.method === 'POST' && u.pathname === '/api/regalos/compras/add') return json(200, { ok: G.shopping.add(u.searchParams.get('name'), u.searchParams.get('qty'), u.searchParams.get('cat')) });
+      if (G.shopping && req.method === 'POST' && u.pathname === '/api/regalos/compras/toggle') return json(200, { ok: G.shopping.toggle(String(u.searchParams.get('id') || '')) });
     } catch (e) {
       return json(400, { error: e.message });
     }
@@ -310,6 +313,19 @@ class LanServer {
           return this.send(res, 200, 'application/json', JSON.stringify({ ok: !!(await this.mobile.act(String(u.searchParams.get('a') || ''), u.searchParams)) }));
         } catch (e) {
           return this.send(res, 500, 'application/json', JSON.stringify({ ok: false, error: e.message }));
+        }
+      }
+      if (req.method === 'POST' && u.pathname === '/api/m/receipt' && this.mobile.receipt) {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 12_000_000) return this.send(res, 413, 'application/json', '{"error":"La foto es muy grande"}');
+        }
+        try {
+          const j = JSON.parse(body || '{}');
+          return this.send(res, 200, 'application/json; charset=utf-8', JSON.stringify(await this.mobile.receipt(String(j.image || ''))));
+        } catch (e) {
+          return this.send(res, 400, 'application/json', JSON.stringify({ error: e.message }));
         }
       }
       if (req.method === 'POST' && u.pathname === '/api/m/ask') {

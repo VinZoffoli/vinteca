@@ -651,7 +651,8 @@
         h('div', { class: 'py-hero-ring' }, ring(pct), h('div', {}, h('b', { text: `${paid.length}/${dated.length}` }), h('small', { text: 'pagados' }))),
         h('div', { class: 'py-hero-main' },
           h('p', { class: 'ks-kicker', text: `Pagos de ${monthName}` }),
-          h('h2', { text: left ? `Te falta pagar ${money(left, 'CRC')}` : dated.length ? 'Todo pagado este mes' : 'Pon el día de tus pagos' }),
+          // sin montos anotados, "todo pagado" solo si de verdad no queda ninguno
+          h('h2', { text: left ? `Te falta pagar ${money(left, 'CRC')}` : dated.length > paid.length ? `Te faltan ${dated.length - paid.length} ${dated.length - paid.length === 1 ? 'pago' : 'pagos'}` : dated.length ? 'Todo pagado este mes' : 'Pon el día de tus pagos' }),
           h('p', { class: 'hint', text: [total ? `Total del mes: ${money(total, 'CRC')}` : null, next ? `Lo próximo: ${next.p.name}, ${next.n.days === 0 ? 'hoy' : next.n.days < 0 ? `atrasado desde el día ${next.p.day}` : `el día ${next.p.day} (${next.n.days === 1 ? 'mañana' : `en ${next.n.days} días`})`}` : null].filter(Boolean).join(' · ') })
         )
       ),
@@ -659,6 +660,7 @@
       h('p', { class: 'py-legend' }, h('span', { class: 'due', text: 'Por pagar' }), h('span', { class: 'paid', text: 'Pagado' }), h('span', { class: 'late', text: 'Atrasado' }), h('span', { class: 'hint', text: 'Pasa el ratón por un día para ver qué se paga.' })),
       h('div', { class: 'toolbar flat' },
         h('button', { class: 'btn primary small', text: 'Nuevo pago', onclick: () => paymentForm(null) }),
+        h('button', { class: 'btn ghost small', text: 'Foto de un recibo', onclick: () => window.v126?.receipt(d) }),
         h('button', { class: 'btn ghost small', text: 'Nuevo grupo', onclick: () => form('Nuevo grupo de pagos', [{ key: 'name', label: 'Nombre', required: true, placeholder: 'Mamá, Casa de playa…' }], (v) => { if (!d.payGroups.includes(v.name)) { d.payGroups.push(v.name); commit(); } }) }),
         h('span', { class: 'hint', text: 'Te aviso unos días antes de cada pago, el mismo día y si se atrasa.' })
       ),
@@ -675,6 +677,7 @@
           list.length ? h('ul', { class: 'py-list' }, list.map(row)) : h('p', { class: 'hint', text: 'Sin pagos en este grupo.' })
         );
       }),
+      window.v126?.bills(d),
     ];
   }
 
@@ -1136,7 +1139,7 @@
       h('button', { class: 'gt-img', onclick: () => giftForm(g), 'aria-label': `Editar ${g.name}` }, g.image ? h('img', { src: g.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : h('span', { text: '+ Añadir foto' })),
       h('div', { class: 'gt-body' },
         h('b', { text: g.reading ? 'Leyendo el enlace…' : g.name }),
-        (g.by === 'Emi' || g.reading) && h('div', { class: 'gt-tags' }, g.by === 'Emi' && h('span', { class: 'gt-tag emi', text: 'Lo añadió Emi' }), g.reading && h('span', { class: 'gt-tag reading', text: 'Buscando foto y precio' })),
+        (g.by === 'Emi' || g.reading || g.drop) && h('div', { class: 'gt-tags' }, window.v126?.dropChip(g), g.by === 'Emi' && h('span', { class: 'gt-tag emi', text: 'Lo añadió Emi' }), g.reading && h('span', { class: 'gt-tag reading', text: 'Buscando foto y precio' })),
         g.note && h('p', { class: 'hint', text: g.note }),
         h('p', { class: 'hint', text: [g.occasion, g.price ? money(g.price, g.currency || 'CRC') : null, g.store].filter(Boolean).join(' · ') }),
         h('div', { class: 'rx-row' },
@@ -1151,8 +1154,10 @@
         h('button', { class: 'btn primary small', text: 'Nuevo regalo', onclick: () => giftForm(null) }),
         h('button', { class: 'btn ghost small', text: 'Añadir persona', onclick: () => form('Nueva persona para regalos', [{ key: 'name', label: 'Nombre', required: true }], (v) => { if (!d.giftPeople.includes(v.name)) { d.giftPeople.push(v.name); commit(); } }) }),
         h('button', { class: 'btn ghost small', text: 'Enlace para Emi', onclick: () => emiLink() }),
-        h('span', { class: 'hint', text: 'Pega el enlace de un producto y la foto, el nombre y el precio se completan solos.' })
+        h('button', { class: 'btn subtle small', text: 'Revisar precios', title: 'Lo hago solo una vez al día', onclick: (e) => window.v126?.checkPrices(e.currentTarget) }),
+        h('span', { class: 'hint', text: 'Pega el enlace de un producto y la foto, el nombre y el precio se completan solos. Te aviso si baja de precio.' })
       ),
+      window.v126?.giftDates(d),
       people.map((p) => {
         const list = d.gifts.filter((g) => g.for === p).sort((a, b) => ['idea', 'bought', 'given'].indexOf(a.status) - ['idea', 'bought', 'given'].indexOf(b.status));
         const pending = list.filter((g) => g.status === 'idea').length;
@@ -1228,4 +1233,7 @@
     render();
   });
   window.casaUI = { show };
+  // para los añadidos de la 1.26 (regalos, recibos)
+  window.casaForm = form;
+  window.casaCommit = commit;
 })();

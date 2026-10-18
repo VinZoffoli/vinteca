@@ -190,6 +190,13 @@ contextBridge.exposeInMainWorld('api', {
   onCasaChanged: (cb) => ipcRenderer.on('casa:changed', () => cb()),
   giftLinkMeta: (url) => ipcRenderer.invoke('casa:linkMeta', url),
   giftLink: (renew) => ipcRenderer.invoke('gifts:link', !!renew),
+  giftHistory: (id) => ipcRenderer.invoke('gifts:history', id),
+  giftCheckPrices: () => ipcRenderer.invoke('gifts:checkPrices'),
+  giftDates: () => ipcRenderer.invoke('gifts:dates'),
+  receipt: (img) => ipcRenderer.invoke('casa:receipt', img),
+  receiptApply: (r) => ipcRenderer.invoke('casa:receiptApply', r),
+  weekReview: () => ipcRenderer.invoke('week:review'),
+  launch: { list: () => ipcRenderer.invoke('launch:list'), check: (url, name) => ipcRenderer.invoke('launch:check', url, name), onChanged: (cb) => ipcRenderer.on('launch:changed', () => cb()) },
   onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
   backup: {
     status: () => ipcRenderer.invoke('backup:status'),
