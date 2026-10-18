@@ -3723,7 +3723,7 @@ ipcMain.handle('squads:get', async (_e, force) => {
       key: k,
       leader,
       person: person || null,
-      webs: { total: webs.length, live: webs.filter((r) => r.group === 'done' || /live/i.test(r.status)).length, doing: webs.filter((r) => r.group === 'doing').length, stopped: webs.filter((r) => r.group === 'stopped').length, todo: webs.filter((r) => r.group === 'todo').length, list: webs.map((r) => ({ name: r.name, status: r.status, group: r.group, production: r.production, url: r.url, end: r.end })) },
+      webs: { total: webs.length, live: webs.filter((r) => r.group === 'done' || /live/i.test(r.status)).length, doing: webs.filter((r) => r.group === 'doing').length, stopped: webs.filter((r) => r.group === 'stopped').length, todo: webs.filter((r) => r.group === 'todo').length, list: webs.map((r) => ({ name: String(r.name || '').replace(/<[^>]+>|\*\*/g, '').trim(), status: r.status, group: r.group, production: r.production, url: r.url, end: r.end })) },
       deploys: { week: projects.filter((p) => p.production?.at > weekAgo).length, failed: projects.filter((p) => p.latest?.state === 'ERROR').length, stale: projects.filter((p) => p.production?.at && p.production.at < Date.now() - 30 * 86400000).length, projects: projects.length },
       issues: { critical: issues.filter((i) => i.sev === 'critical').length, high: issues.filter((i) => i.sev === 'high').length, medium: issues.filter((i) => i.sev === 'medium').length, top: issues.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev]).slice(0, 4) },
     };

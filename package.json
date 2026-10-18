@@ -2,7 +2,7 @@
   "name": "biblioteca-juegos",
   "repository": "github:VinZoffoli/vinteca",
   "productName": "ViperTeca",
-  "version": "1.23.1",
+  "version": "1.23.2",
   "description": "ViperTeca: tus juegos de Steam, Epic y otras tiendas en una sola biblioteca",
   "author": "Vincenzo",
   "main": "main.js",

@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.23.2
+
+- **Tickets vencidos hace más de un mes**: ViperTeca los da por hechos (solo en la app; en Notion siguen igual). No cuentan como abiertos ni vencidos en Squads, Notion ni Mi día, y la tarjeta de cada squad dice cuántos se dieron por hechos.
+- **Squads**: los nombres de las webs del pipeline salen limpios (sin restos de formato de Notion) y las canceladas ya no aparecen.
+
 ## Novedades de la 1.23.1
 
 - **Viendo**: Netflix ahora trae la carátula y el título original de cada serie y película, lee todo el historial (no solo lo último) y las fechas bien. Los capítulos que faltan se calculan con el título original en TVmaze (o AniList para el anime), por el número del capítulo o, si no lo tiene, por los capítulos distintos que viste de esa temporada. Arriba sale **Para ver ahora** (las recomendaciones se preparan solas después de leer un perfil), y abajo *Siguen viendo*, *Al día, esperando capítulo*, *Terminadas* y *Películas vistas*. Si leíste Netflix con la 1.23, vuelve a leer el perfil una vez.

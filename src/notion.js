@@ -206,7 +206,18 @@ const TICKET_GROUP = {
 };
 const groupOf = (status, map) => Object.keys(map).find((g) => map[g].includes(status)) || 'doing';
 
+// Un ticket abierto cuya fecha límite pasó hace más de un mes se da por hecho
+// (solo en ViperTeca; en Notion sigue igual).
+const STALE_DAYS = 30;
+const isStale = (deadline) => !!deadline && new Date(deadline + 'T23:59:59').getTime() < Date.now() - STALE_DAYS * 86400000;
+const cleanText = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\*\*|\\\|/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
 function ticket(r) {
+  const t = ticketRaw(r);
+  if (t.group !== 'done' && isStale(t.deadline)) Object.assign(t, { group: 'done', stale: true, status: 'Done (más de un mes vencido)' });
+  return t;
+}
+function ticketRaw(r) {
   const people = (() => {
     try {
       return JSON.parse(r.Responsible || '[]');
@@ -218,7 +229,7 @@ function ticket(r) {
     id: r.url.split('/').pop(),
     num: r['userDefined:ID'] || null,
     url: r.url,
-    title: r['What to Do'] || 'Sin título',
+    title: cleanText(r['What to Do']) || 'Sin título',
     status: r.Status || '',
     group: groupOf(r.Status, TICKET_GROUP),
     priority: r.Priority || '',
@@ -327,7 +338,7 @@ function pipeRow(r) {
   return {
     id: r.url?.split('/').pop(),
     url: r.url,
-    name: r['Project Name'] || 'Sin nombre',
+    name: cleanText(r['Project Name']) || 'Sin nombre',
     status: r.Status || 'Sin estado',
     group: groupOf(r.Status, PIPE_GROUP),
     priority: r.Priority || '',
@@ -456,9 +467,13 @@ async function team(ctx, force, leaders = {}) {
       errors.push(leader + ': ' + e.message);
       continue;
     }
-    const p = { id, squad, leader, name: names[id] || leader, open: 0, late: 0, soon: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] };
+    const p = { id, squad, leader, name: names[id] || leader, open: 0, late: 0, soon: 0, stale: 0, closed: [0, 0, 0, 0], onTime: 0, withDeadline: 0, days: [], tickets: [] };
     for (const r of open) {
       const t = ticket(r);
+      if (t.stale) {
+        p.stale++;
+        continue;
+      }
       p.open++;
       const late = !!(t.deadline && t.deadline < today);
       if (late) p.late++;
@@ -485,6 +500,7 @@ async function team(ctx, force, leaders = {}) {
       open: p.open,
       late: p.late,
       soon: p.soon,
+      stale: p.stale,
       closed: p.closed,
       onTimePct: p.withDeadline ? Math.round((p.onTime / p.withDeadline) * 100) : null,
       avgDays: p.days.length ? Math.round((p.days.reduce((x, y) => x + y, 0) / p.days.length) * 10) / 10 : null,
