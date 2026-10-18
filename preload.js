@@ -188,6 +188,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   budget: () => ipcRenderer.invoke('casa:budget'),
   onCasaChanged: (cb) => ipcRenderer.on('casa:changed', () => cb()),
+  giftLinkMeta: (url) => ipcRenderer.invoke('casa:linkMeta', url),
+  giftLink: (renew) => ipcRenderer.invoke('gifts:link', !!renew),
   onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
   backup: {
     status: () => ipcRenderer.invoke('backup:status'),

@@ -789,3 +789,13 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .tw-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; line-height: 1.45; }
 .tw-list.next li::marker { color: var(--cyan); }
 .tw-list.watch li::marker { color: var(--pink); }
+
+/* 1.25 regalos desde el celular de Emi */
+.gt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.gt-tag { font: 600 11.5px var(--display); padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--pink) 18%, transparent); color: var(--pink); }
+.gt-tag.reading { background: color-mix(in srgb, var(--cyan) 16%, transparent); color: var(--cyan); }
+.gt-read { grid-column: 1 / -1; min-height: 1.2em; }
+.gl-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 14px 0; }
+.gl-opt { display: grid; grid-template-columns: 132px 1fr; gap: 14px; align-items: center; padding: 12px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.1)); }
+.gl-opt img { width: 132px; height: 132px; border-radius: 10px; background: #fff; }
+.gl-opt p { margin: 4px 0 8px; }

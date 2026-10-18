@@ -1043,15 +1043,34 @@
       note: h('input', { class: 'rx-input', value: g?.note || '', placeholder: 'Tono, talla, color, dónde lo vende…' }),
       occasion: h('input', { class: 'rx-input', value: g?.occasion || '', placeholder: 'Cumpleaños, Navidad, aniversario…' }),
       price: h('input', { class: 'rx-input', type: 'number', value: g?.price ?? '', placeholder: 'Precio aproximado (opcional)' }),
-      link: h('input', { class: 'rx-input', value: g?.link || '', placeholder: 'https://… dónde comprarlo (opcional)' }),
+      link: h('input', { class: 'rx-input', value: g?.link || '', placeholder: 'https://… enlace del producto: se completa solo' }),
     };
+    const status = h('small', { class: 'hint gt-read' });
+    let meta = {};
+    f.link.addEventListener('change', async () => {
+      const u = f.link.value.trim();
+      if (!/^https?:\/\//.test(u)) return;
+      status.textContent = 'Leyendo el enlace…';
+      try {
+        meta = await window.api.giftLinkMeta(u);
+        if (meta.name && !f.name.value.trim()) f.name.value = meta.name;
+        if (meta.price != null && !f.price.value) f.price.value = meta.price;
+        if (meta.image && !image) {
+          image = meta.image;
+          showPreview();
+        }
+        status.textContent = meta.name || meta.image ? 'Listo: ' + [meta.store, meta.price != null ? money(meta.price, meta.currency || '') : null].filter(Boolean).join(' · ') : 'No pude leer ese enlace; completa a mano.';
+      } catch (e) {
+        status.textContent = errMsg(e);
+      }
+    });
     const field = (l, el) => h('label', { class: 'ks-field' }, h('span', { text: l }), el);
     const dlg = h('dialog', { class: 'rx-dlg ks-dlg wide' });
     const form = h('form', { method: 'dialog' },
       h('h2', { text: isNew ? 'Nuevo regalo' : 'Editar regalo' }),
       h('div', { class: 'gt-form' },
         h('div', {}, preview, h('div', { class: 'rx-row' }, h('button', { type: 'button', class: 'btn ghost small', text: 'Elegir foto', onclick: () => file.click() }), image && h('button', { type: 'button', class: 'btn subtle small', text: 'Quitar foto', onclick: () => { image = ''; showPreview(); } })), file, urlIn),
-        h('div', { class: 'gt-fields' }, field('Regalo', f.name), field('Para', f.for), field('Detalles', f.note), field('Ocasión', f.occasion), field('Precio', f.price), field('Dónde comprarlo', f.link))
+        h('div', { class: 'gt-fields' }, field('Regalo', f.name), field('Para', f.for), field('Detalles', f.note), field('Ocasión', f.occasion), field('Precio', f.price), field('Enlace del producto', f.link), status)
       ),
       h('div', { class: 'actions' },
         !isNew && h('button', { type: 'button', class: 'btn subtle', text: 'Eliminar', onclick: (e) => { const b = e.currentTarget; if (b.dataset.sure) { d.gifts = d.gifts.filter((x) => x !== g); commit(); dlg.close(); } else { b.dataset.sure = '1'; b.textContent = 'Pulsa otra vez para eliminar'; } } }),
@@ -1063,7 +1082,7 @@
       const name = f.name.value.trim();
       if (!name) return e.preventDefault();
       const link = f.link.value.trim();
-      const row = { name, for: f.for.value, note: f.note.value.trim(), occasion: f.occasion.value.trim(), price: f.price.value ? Number(f.price.value) : null, link: /^https:\/\//.test(link) ? link : '', image };
+      const row = { name, for: f.for.value, note: f.note.value.trim(), occasion: f.occasion.value.trim(), price: f.price.value ? Number(f.price.value) : null, link: /^https:\/\//.test(link) ? link : '', image, currency: meta.currency || g?.currency || null, store: meta.store || g?.store || '' };
       if (isNew) d.gifts.push({ id: uid(), status: 'idea', at: Date.now(), ...row });
       else Object.assign(g, row);
       commit();
@@ -1082,15 +1101,44 @@
     dlg.showModal();
     f.name.focus();
   }
+  // QR y enlaces de la página de Emi
+  async function emiLink(renew) {
+    let info = null;
+    try {
+      info = await window.api.giftLink(!!renew);
+    } catch (e) {
+      return toast(errMsg(e), true);
+    }
+    if (!info?.url && !info?.tsUrl) return toast('Enciende «El celular» en Ajustes para crear el enlace.', true);
+    const dlg = h('dialog', { class: 'rx-dlg ks-dlg wide' });
+    const copy = (u) => navigator.clipboard.writeText(u).then(() => toast('Enlace copiado.'));
+    const opt = (title, hint, url, qr) => url && h('div', { class: 'gl-opt' }, h('img', { src: qr, alt: 'QR de ' + title }), h('div', {}, h('b', { text: title }), h('p', { class: 'hint', text: hint }), h('button', { class: 'btn subtle small', text: 'Copiar enlace', onclick: () => copy(url) })));
+    dlg.append(
+      h('h2', { text: 'Página de regalos para Emi' }),
+      h('p', { class: 'hint', text: 'Emi pega el enlace de lo que le gusta y aparece aquí al instante. Su página solo deja añadir y ver lo que ella añadió: no ve tus ideas ni si ya compraste algo. En el iPhone: Compartir → Añadir a pantalla de inicio.' }),
+      h('div', { class: 'gl-opts' },
+        opt('En la wifi de casa', 'Escanéalo con su cámara estando en la misma wifi.', info.url, info.qr),
+        opt('Desde cualquier lugar (Tailscale)', 'Su celular tiene que estar en tu Tailscale: compártele el PC desde Tailscale.', info.httpsUrl || info.tsUrl, info.httpsQr || info.tsQr)
+      ),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn subtle', text: 'Cambiar el enlace', title: 'El enlace anterior deja de funcionar', onclick: () => { dlg.close(); emiLink(true); } }),
+        h('button', { class: 'btn primary', text: 'Listo', onclick: () => dlg.close() })
+      )
+    );
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+  }
   function regalos() {
     const d = K.d;
     const people = [...new Set([...(d.giftPeople || ['Emi']), ...d.gifts.map((g) => g.for)])];
     const card = (g) => h('article', { class: `gt-card st-${g.status}` },
       h('button', { class: 'gt-img', onclick: () => giftForm(g), 'aria-label': `Editar ${g.name}` }, g.image ? h('img', { src: g.image, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' }) : h('span', { text: '+ Añadir foto' })),
       h('div', { class: 'gt-body' },
-        h('b', { text: g.name }),
+        h('b', { text: g.reading ? 'Leyendo el enlace…' : g.name }),
+        (g.by === 'Emi' || g.reading) && h('div', { class: 'gt-tags' }, g.by === 'Emi' && h('span', { class: 'gt-tag emi', text: 'Lo añadió Emi' }), g.reading && h('span', { class: 'gt-tag reading', text: 'Buscando foto y precio' })),
         g.note && h('p', { class: 'hint', text: g.note }),
-        h('p', { class: 'hint', text: [g.occasion, g.price ? money(g.price, 'CRC') : null].filter(Boolean).join(' · ') }),
+        h('p', { class: 'hint', text: [g.occasion, g.price ? money(g.price, g.currency || 'CRC') : null, g.store].filter(Boolean).join(' · ') }),
         h('div', { class: 'rx-row' },
           h('select', { class: 'sn-select gt-st', 'aria-label': 'Estado', onchange: (e) => { g.status = e.target.value; commit(); } }, GIFT_ST.map(([v, l]) => h('option', { value: v, text: l, selected: g.status === v }))),
           g.link && h('button', { class: 'btn subtle small', text: 'Dónde comprarlo', onclick: () => api.openLink(g.link) }),
@@ -1102,7 +1150,8 @@
       h('div', { class: 'toolbar flat' },
         h('button', { class: 'btn primary small', text: 'Nuevo regalo', onclick: () => giftForm(null) }),
         h('button', { class: 'btn ghost small', text: 'Añadir persona', onclick: () => form('Nueva persona para regalos', [{ key: 'name', label: 'Nombre', required: true }], (v) => { if (!d.giftPeople.includes(v.name)) { d.giftPeople.push(v.name); commit(); } }) }),
-        h('span', { class: 'hint', text: 'Toca la foto de un regalo para cambiarla: puedes elegir un archivo o pegarla con Ctrl+V.' })
+        h('button', { class: 'btn ghost small', text: 'Enlace para Emi', onclick: () => emiLink() }),
+        h('span', { class: 'hint', text: 'Pega el enlace de un producto y la foto, el nombre y el precio se completan solos.' })
       ),
       people.map((p) => {
         const list = d.gifts.filter((g) => g.for === p).sort((a, b) => ['idea', 'bought', 'given'].indexOf(a.status) - ['idea', 'bought', 'given'].indexOf(b.status));

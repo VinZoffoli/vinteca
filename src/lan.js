@@ -62,7 +62,9 @@ const same = (a, b) => {
 
 class LanServer {
   /** @param games () => juegos  @param launch (id) => abre el juego en el PC */
-  constructor({ games, launch, token, shopping, day, mobile, iconPath, tls }) {
+  constructor({ games, launch, token, shopping, day, mobile, iconPath, tls, gifts }) {
+    // regalos: página aparte para Emi, con su propio código (solo añade y ve lo suyo)
+    this.gifts = gifts || null;
     this.tls = tls || null; // { cert, key } de Tailscale para HTTPS (avisos en el iPhone)
     this.secure = null;
     this.securePort = null;
@@ -119,7 +121,12 @@ class LanServer {
     const tsUrl = ts && this.mobile ? `http://${tsHost}:${this.port}/m?t=${this.token}` : null;
     // con HTTPS (certificado de Tailscale) el iPhone puede recibir avisos y abrir sin conexión
     const httpsUrl = this.secure && tsName ? `https://${tsName}:${this.securePort}/m?t=${this.token}` : null;
-    return { running: true, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr, mUrl, mQr: mUrl && qrSvg(mUrl), tailscale: ts ? { ip: ts, name: tsName } : null, tsUrl, tsQr: tsUrl && qrSvg(tsUrl), httpsUrl, httpsQr: httpsUrl && qrSvg(httpsUrl) };
+    const g = this.gifts ? encodeURIComponent(this.gifts.token()) : null;
+    const giftUrl = g && ip ? `http://${ip}:${this.port}/regalos?g=${g}` : null;
+    const giftTsUrl = g && ts ? `http://${tsHost}:${this.port}/regalos?g=${g}` : null;
+    const giftHttpsUrl = g && this.secure && tsName ? `https://${tsName}:${this.securePort}/regalos?g=${g}` : null;
+    const gift = { url: giftUrl, qr: giftUrl && qrSvg(giftUrl), tsUrl: giftTsUrl, tsQr: giftTsUrl && qrSvg(giftTsUrl), httpsUrl: giftHttpsUrl, httpsQr: giftHttpsUrl && qrSvg(giftHttpsUrl) };
+    return { running: true, gift, url, qr, ip, port: this.port, shopUrl, shopQr, dayUrl, dayQr, mUrl, mQr: mUrl && qrSvg(mUrl), tailscale: ts ? { ip: ts, name: tsName } : null, tsUrl, tsQr: tsUrl && qrSvg(tsUrl), httpsUrl, httpsQr: httpsUrl && qrSvg(httpsUrl) };
   }
 
   async start() {
@@ -175,6 +182,50 @@ class LanServer {
     });
   }
 
+  async handleGifts(req, res, u) {
+    const G = this.gifts;
+    const json = (code, o) => this.send(res, code, 'application/json; charset=utf-8', JSON.stringify(o));
+    if (!same(u.searchParams.get('g'), G.token())) return this.send(res, 403, 'text/plain; charset=utf-8', 'Este enlace ya no vale: pídele a Vincenzo el nuevo.');
+    const g = encodeURIComponent(G.token());
+    try {
+      if (req.method === 'GET' && (u.pathname === '/regalos' || u.pathname === '/regalos/')) {
+        const page = require('fs').readFileSync(require('path').join(__dirname, 'gifts.html'), 'utf8').replaceAll('__G__', G.token());
+        return this.send(res, 200, 'text/html; charset=utf-8', page);
+      }
+      if (req.method === 'GET' && u.pathname === '/regalos/manifest.webmanifest') {
+        return this.send(res, 200, 'application/manifest+json; charset=utf-8', JSON.stringify({ name: 'Mis deseos', short_name: 'Deseos', start_url: `/regalos?g=${g}`, scope: '/regalos', display: 'standalone', background_color: '#fbf3ee', theme_color: '#fbf3ee', icons: [{ src: `/regalos/icon.png?g=${g}`, sizes: '256x256', type: 'image/png' }], share_target: { action: '/regalos', method: 'GET', params: { url: 'url', text: 'text', title: 'title' } } }));
+      }
+      if (req.method === 'GET' && u.pathname === '/regalos/icon.png' && this.iconPath) return this.send(res, 200, 'image/png', require('fs').readFileSync(this.iconPath));
+      if (req.method === 'GET' && u.pathname === '/api/regalos') {
+        const d = G.list();
+        d.items = d.items.map((x) => ({ ...x, image: x.image === 'local' ? `/api/regalos/img?id=${encodeURIComponent(x.id)}&g=${g}` : x.image }));
+        return json(200, d);
+      }
+      if (req.method === 'GET' && u.pathname === '/api/regalos/img') {
+        const img = G.image(String(u.searchParams.get('id') || ''));
+        if (!img) return this.send(res, 404, 'text/plain', 'No existe.');
+        res.writeHead(200, { 'Content-Type': img.type, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+        return res.end(img.buf);
+      }
+      if (req.method === 'POST' && u.pathname === '/api/regalos/add') {
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 6000) return json(413, { error: 'Demasiado largo' });
+        }
+        let b = {};
+        try {
+          b = JSON.parse(body || '{}');
+        } catch {}
+        return json(200, await G.add(b));
+      }
+      if (req.method === 'POST' && u.pathname === '/api/regalos/remove') return json(200, { ok: G.remove(String(u.searchParams.get('id') || '')) });
+    } catch (e) {
+      return json(400, { error: e.message });
+    }
+    return this.send(res, 404, 'text/plain; charset=utf-8', 'No existe.');
+  }
+
   send(res, code, type, body) {
     res.writeHead(code, {
       'Content-Type': type,
@@ -188,6 +239,7 @@ class LanServer {
 
   async handle(req, res) {
     const u = new URL(req.url, 'http://x');
+    if (this.gifts && (u.pathname === '/regalos' || u.pathname.startsWith('/regalos/') || u.pathname.startsWith('/api/regalos'))) return this.handleGifts(req, res, u);
     if (!same(u.searchParams.get('t'), this.token)) return this.send(res, 403, 'text/plain; charset=utf-8', 'Falta el código: escanea el QR de la app otra vez.');
     if (req.method === 'GET' && u.pathname === '/') return this.send(res, 200, 'text/html; charset=utf-8', PAGE);
     if (req.method === 'GET' && u.pathname === '/api/games') {

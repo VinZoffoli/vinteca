@@ -223,6 +223,30 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_GIFTTEST) {
+        // prueba: el celular de Emi añade un regalo por enlace
+        try {
+          const info = await lanServer().start();
+          const local = info.gift.url.replace(/^http:\/\/[^/]+/, `http://127.0.0.1:${info.port}`);
+          const phone = new BrowserWindow({ width: 390, height: 844, show: true, webPreferences: { partition: 'snap-emi', sandbox: true } });
+          phone.webContents.on('console-message', (e) => log(`[emi] ${e.message}`));
+          await phone.loadURL(local);
+          await wait(1500);
+          await js(`showView('casa-regalos')`);
+          await phone.webContents.executeJavaScript(`document.querySelector('#link').value = ${JSON.stringify(process.env.BJ_GIFTTEST)}; document.querySelector('#f').requestSubmit();`);
+          await wait(2500);
+          fs.writeFileSync(path.join(dir, 'emi-leyendo.png'), (await phone.webContents.capturePage()).toPNG());
+          await shot('regalos-leyendo.png');
+          await wait(40000);
+          fs.writeFileSync(path.join(dir, 'emi-listo.png'), (await phone.webContents.capturePage()).toPNG());
+          await shot('regalos-listo.png');
+          const g = (casa.load(ctxRW).gifts || []).filter((x) => x.by === 'Emi').map((x) => ({ name: x.name, price: x.price, currency: x.currency, store: x.store, reading: x.reading, img: (x.image || '').slice(0, 30) }));
+          log('GIFT ' + JSON.stringify(g));
+          phone.destroy();
+        } catch (e) {
+          log('[error] gift: ' + e.stack);
+        }
+      }
       if (process.env.BJ_NFTEST) {
         try {
           const w = streaming.open('netflix');
@@ -1723,6 +1747,7 @@ function lanServer() {
       day: () => daySummary(),
       mobile: mobileApi,
       tls: loadTls(),
+      gifts: giftsApi,
       iconPath: path.join(__dirname, 'build', 'icon.png'),
       // lista de compras de Casa, para verla y marcarla desde el celular
       shopping: {
@@ -3732,6 +3757,104 @@ ipcMain.handle('squads:get', async (_e, force) => {
   return { squads, team: team ? { at: team.at, openTotal: team.openTotal, closedTotal: team.closedTotal, people: team.people, errors: team.errors || [] } : null, teamError, notion: notion.linked(store.read), vercel: !!webhealth.getSecret(store.read, 'vercelEnc') };
 });
 
+
+// ---------- 1.25: regalos desde el celular de Emi ----------
+// Emi pega el enlace de un producto en su página (/regalos, con su propio código);
+// el regalo aparece al instante en Casa → Regalos y la foto, el nombre y el
+// precio se completan solos en segundo plano.
+const linkmeta = require('./src/linkmeta');
+function giftToken() {
+  const s = store.read('settings.json', {});
+  if (!s.giftToken) {
+    s.giftToken = require('crypto').randomBytes(16).toString('hex');
+    store.write('settings.json', s);
+  }
+  return s.giftToken;
+}
+const casaChanged = () => win && !win.isDestroyed() && win.webContents.send('casa:changed');
+/** Completa un regalo con lo que se lee del enlace (sin pisar lo que se escribió a mano). */
+async function fillGift(id, link, { fromEmi } = {}) {
+  let meta = null;
+  try {
+    meta = await linkmeta.read(link);
+  } catch {}
+  const c = casa.load(ctxRW);
+  const g = (c.gifts || []).find((x) => x.id === id);
+  if (!g) return null;
+  if (meta) {
+    // el nombre provisional ("Regalo de tienda.com") se cambia; uno escrito a mano se respeta
+    if (meta.name && (!g.name || /^Regalo de \S+$/.test(g.name))) g.name = meta.name;
+    g.image = g.image || meta.image || '';
+    if (g.price == null && meta.price != null) g.price = meta.price;
+    g.currency = g.currency || meta.currency || null;
+    g.store = g.store || meta.store || '';
+  }
+  g.reading = false;
+  casa.save(ctxRW, c);
+  casaChanged();
+  if (fromEmi) notify('Emi añadió un regalo', [g.name, g.price != null ? (g.currency === 'USD' ? '$' : g.currency === 'CRC' ? '₡' : '') + Number(g.price).toLocaleString('es') : null, g.store].filter(Boolean).join(' · '), null);
+  return g;
+}
+const giftsApi = {
+  token: giftToken,
+  list() {
+    const c = casa.load(ctxRW);
+    const items = (c.gifts || [])
+      .filter((g) => g.by === 'Emi' && !g.hide)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 80)
+      // sin estado (comprado / regalado): que no se arruine la sorpresa
+      .map((g) => ({ id: g.id, name: g.name, for: g.for, note: g.note, price: g.price, currency: g.currency, store: g.store, link: g.link, reading: g.reading, image: /^data:/.test(g.image || '') ? 'local' : g.image || '' }));
+    return { people: c.giftPeople || ['Emi'], items };
+  },
+  image(id) {
+    const g = (casa.load(ctxRW).gifts || []).find((x) => x.id === id && x.by === 'Emi');
+    const m = String(g?.image || '').match(/^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/);
+    return m ? { type: m[1], buf: Buffer.from(m[2], 'base64') } : null;
+  },
+  async add(b) {
+    const rawLink = String(b.link || '').trim().match(/https?:\/\/\S+/)?.[0] || '';
+    const name = String(b.name || '').trim().slice(0, 160);
+    if (!rawLink && !name) throw new Error('Pega un enlace o escribe qué es.');
+    let link = '';
+    if (rawLink) link = (await linkmeta.safeUrl(rawLink)).href;
+    const c = casa.load(ctxRW);
+    if (link && (c.gifts || []).some((g) => g.link === link && g.by === 'Emi' && !g.hide)) throw new Error('Eso ya está en tu lista.');
+    const people = c.giftPeople || ['Emi'];
+    const id = require('crypto').randomBytes(6).toString('hex');
+    const host = link ? new URL(link).hostname.replace(/^www\./, '') : '';
+    c.gifts = c.gifts || [];
+    c.gifts.push({ id, name: name || 'Regalo de ' + host, for: people.includes(b.for) ? b.for : 'Emi', note: String(b.note || '').trim().slice(0, 300), link, price: null, image: '', status: 'idea', occasion: '', at: Date.now(), by: 'Emi', store: host, reading: !!link });
+    casa.save(ctxRW, c);
+    casaChanged();
+    if (link) fillGift(id, link, { fromEmi: true }).catch(() => null);
+    else notify('Emi añadió un regalo', name, null);
+    return { ok: true, id };
+  },
+  remove(id) {
+    const c = casa.load(ctxRW);
+    const g = (c.gifts || []).find((x) => x.id === id && x.by === 'Emi');
+    if (!g) return false;
+    // si ya lo compraste, solo desaparece de su lista (la sorpresa sigue)
+    if (g.status === 'idea') c.gifts = c.gifts.filter((x) => x !== g);
+    else g.hide = true;
+    casa.save(ctxRW, c);
+    casaChanged();
+    return true;
+  },
+};
+// desde el PC: leer un enlace al crear un regalo a mano
+ipcMain.handle('casa:linkMeta', (_e, url) => linkmeta.read(String(url || '')));
+ipcMain.handle('gifts:link', async (_e, renew) => {
+  if (renew) {
+    const s = store.read('settings.json', {});
+    s.giftToken = require('crypto').randomBytes(16).toString('hex');
+    store.write('settings.json', s);
+  }
+  const l = lanServer();
+  const info = l.running ? l.info() : await l.start();
+  return info.gift || null;
+});
 
 // ---------- 1.24: la semana del equipo (GitHub + Vercel + Notion) ----------
 const teamweek = require('./src/teamweek');
