@@ -370,6 +370,7 @@ function snapshot(dir) {
         'x-veh': [`showView('casa-vehiculo')`, 3000],
         'x-gatos': [`showView('casa-gatitos'); setTimeout(() => document.querySelector('.sup')?.scrollIntoView({ block: 'center' }), 1500)`, 3000],
         'x-conn': [`showView('conn')`, 9000],
+        'x-tv': [`showView('casa-televisores')`, 14000],
         'x-copies': [`window.api.copies.now().then(() => showView('copies'))`, 5000],
         'x-gcal': [`showView('cal'); setTimeout(() => document.getElementById('gameCal')?.scrollIntoView(), 6000)`, 9000],
         'x-journal': [`window.api.journal.get('x')`, 500],
@@ -990,6 +991,7 @@ app.whenReady().then(() => {
       setInterval(() => { if (home129.account(store.read).hasPassword) billScan().catch(() => {}); }, 6 * 3600000);
       setTimeout(() => connTick().catch(() => {}), 3 * 60000);
       setTimeout(forgottenTick, 20 * 60000);
+      setTimeout(() => { try { tvStartAll(); } catch {} }, 8000);
       setInterval(forgottenTick, 24 * 3600000);
       setTimeout(() => endgameTick().catch(() => {}), 25 * 60000);
       setInterval(() => endgameTick().catch(() => {}), 6 * 3600000);
@@ -3393,6 +3395,7 @@ const mobileApi = {
     const inDays = (iso) => Math.round((new Date(iso + 'T00:00:00').getTime() - d0) / DAYMS);
     if (section === 'hoy') return daySummary();
     if (section === 'semana') return weekReview();
+    if (section === 'tv') return (await tvGet()).map((t) => ({ id: t.id, label: t.label, paired: t.paired, on: t.state.on, connected: !!t.state.connected, app: t.state.appName, volume: t.state.volume, media: t.state.cast?.media ? { title: t.state.cast.media.title, subtitle: t.state.cast.media.subtitle, state: t.state.cast.media.state } : null, castApp: t.state.cast?.apps?.find((a) => !a.idle)?.name || null }));
     if (section === 'casa') {
       const c = casa.load(ctxRW);
       const rate = await fx.get(ctxRW).catch(() => null);
@@ -3477,6 +3480,7 @@ const mobileApi = {
       mobileCasaChanged();
       return true;
     }
+    if (a === 'tv') return tvCmd(String(q.get('id') || ''), String(q.get('do') || ''), q.get('arg'));
     if (a === 'receipt') {
       return applyReceipt({ paymentId: String(q.get('id') || ''), month: String(q.get('month') || ''), amount: Number(q.get('amount')), currency: String(q.get('currency') || 'CRC'), due: q.get('due') || null }).ok;
     }
@@ -4050,6 +4054,149 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.31: televisores (Google TV / Android TV) ----------
+const tv = require('./src/tv');
+const tvRemotes = new Map(); // host → Remote
+const tvState = new Map(); // host → { connected, on, app, volume, media… }
+/** Llave y certificado de ViperTeca para los televisores (la llave, cifrada). */
+function tvCreds() {
+  const s = store.read('settings.json', {});
+  const { safeStorage } = require('electron');
+  if (s.tvCert && s.tvKeyEnc) {
+    try {
+      return { cert: s.tvCert, key: safeStorage.decryptString(Buffer.from(s.tvKeyEnc, 'base64')) };
+    } catch {}
+  }
+  const c = tv.makeCert('ViperTeca');
+  s.tvCert = c.cert;
+  s.tvKeyEnc = safeStorage.encryptString(c.key).toString('base64');
+  store.write('settings.json', s);
+  return c;
+}
+const tvList = () => store.read('settings.json', {}).tvs || [];
+function tvSave(list) {
+  const s = store.read('settings.json', {});
+  s.tvs = list.slice(0, 8);
+  store.write('settings.json', s);
+}
+const tvPush = () => win && !win.isDestroyed() && win.webContents.send('tv:changed');
+function tvConnect(t) {
+  if (!t.paired || tvRemotes.has(t.host)) return;
+  const r = new tv.Remote(t.host, tvCreds());
+  r.on('state', (st) => {
+    tvState.set(t.host, { ...(tvState.get(t.host) || {}), ...st });
+    if (st.unpaired) {
+      const list = tvList().map((x) => (x.host === t.host ? { ...x, paired: false } : x));
+      tvSave(list);
+      r.close();
+      tvRemotes.delete(t.host);
+    }
+    tvPush();
+  });
+  r.on('error', () => {});
+  tvRemotes.set(t.host, r);
+  r.connect();
+}
+function tvStartAll() {
+  for (const t of tvList()) tvConnect(t);
+}
+/** MAC de la tabla ARP de Windows (para encender por la red). */
+function macOf(ip) {
+  try {
+    const out = require('child_process').execFileSync('arp', ['-a', ip], { encoding: 'utf8', windowsHide: true, timeout: 4000 });
+    const m = out.match(/([0-9a-f]{2}[-:]){5}[0-9a-f]{2}/i);
+    return m ? m[0].replace(/-/g, ':').toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+ipcMain.handle('tv:scan', async () => {
+  const { localIp } = require('./src/lan');
+  const found = await tv.discover(localIp());
+  const list = tvList();
+  for (const f of found.filter((x) => x.atv)) {
+    const ex = list.find((x) => x.host === f.host || (f.mac && x.mac === f.mac) || (x.name && x.name === f.name && !x.paired));
+    const mac = f.mac || macOf(f.host);
+    if (ex) Object.assign(ex, { host: f.host, model: f.model || ex.model, mac: mac || ex.mac });
+    else list.push({ id: require('crypto').randomBytes(4).toString('hex'), host: f.host, name: f.name || 'Televisor', label: f.name || 'Televisor', model: f.model, mac, paired: false });
+  }
+  tvSave(list);
+  tvStartAll();
+  return tvGet();
+});
+async function tvGet() {
+  const list = tvList();
+  return Promise.all(list.map(async (t) => {
+    const st = tvState.get(t.host) || {};
+    const media = await tv.castStatus(t.host).catch(() => null);
+    const up = st.connected || (await tv.reachable(t.host, 8008));
+    return { ...t, state: { ...st, reachable: up, appName: tv.appName(st.app), cast: media } };
+  }));
+}
+ipcMain.handle('tv:list', () => tvGet());
+// vincular: la tele muestra un código y lo escribes en la app
+let tvPairing = null;
+ipcMain.handle('tv:pairStart', async (_e, host) => {
+  tvPairing?.cancel?.();
+  tvPairing = await tv.pair(String(host), tvCreds());
+  return true;
+});
+ipcMain.handle('tv:pairFinish', async (_e, host, code) => {
+  if (!tvPairing) throw new Error('Pulsa «Vincular» otra vez.');
+  await tvPairing.finish(code);
+  tvPairing = null;
+  const list = tvList().map((x) => (x.host === host ? { ...x, paired: true } : x));
+  tvSave(list);
+  tvConnect(list.find((x) => x.host === host));
+  return true;
+});
+ipcMain.handle('tv:rename', (_e, id, label) => {
+  tvSave(tvList().map((x) => (x.id === id ? { ...x, label: String(label || '').slice(0, 40) || x.label } : x)));
+  return true;
+});
+ipcMain.handle('tv:forget', (_e, id) => {
+  const t = tvList().find((x) => x.id === id);
+  if (t) {
+    tvRemotes.get(t.host)?.close();
+    tvRemotes.delete(t.host);
+  }
+  tvSave(tvList().filter((x) => x.id !== id));
+  return true;
+});
+/** Una orden: encender, apagar, volumen, silencio, pausa, inicio, abrir app. */
+async function tvCmd(id, what, arg) {
+  const t = tvList().find((x) => x.id === id || x.host === id);
+  if (!t) throw new Error('Ese televisor no está en la lista.');
+  const r = tvRemotes.get(t.host);
+  const st = tvState.get(t.host) || {};
+  if (what === 'on') {
+    if (r && st.connected) r.key('wakeup');
+    else if (t.mac) tv.wake(t.mac);
+    else throw new Error('El televisor está en reposo profundo y no sé su MAC para encenderlo.');
+    if (!st.connected && t.mac) tv.wake(t.mac);
+    return true;
+  }
+  if (!r || !st.connected) throw new Error(t.paired ? 'El televisor no responde (¿está apagado del todo?).' : 'Primero vincula este televisor.');
+  if (what === 'off') return r.key('sleep'), true;
+  if (what === 'power') return r.key('power'), true;
+  if (what === 'open') return r.open(String(arg || '')), true;
+  if (what === 'vol') {
+    // volumen exacto: se sube o baja de a uno hasta llegar
+    const target = Math.max(0, Math.min(100, Number(arg) || 0));
+    const cur = st.volume?.level ?? null;
+    if (cur == null) return false;
+    const steps = Math.min(60, Math.abs(target - cur));
+    for (let i = 0; i < steps; i++) {
+      r.key(target > cur ? 'volup' : 'voldown');
+      await new Promise((res) => setTimeout(res, 70));
+    }
+    return true;
+  }
+  r.key(what);
+  return true;
+}
+ipcMain.handle('tv:cmd', (_e, id, what, arg) => tvCmd(String(id), String(what), arg));
 
 // ---------- 1.30: copias y restauración, calendario de juego, diario de partidas ----------
 const DATA_DIR_NOW = () => path.join(app.getPath('appData'), 'biblioteca-juegos');

@@ -1169,7 +1169,7 @@
     ];
   }
 
-  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['menu', 'Menú semanal'], ['hogar', 'Hogar'], ['compartidos', 'Gastos compartidos'], ['tramites', 'Trámites'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres'], ['suscripciones', 'Suscripciones'], ['vehiculo', 'Vehículo']];
+  const TABS = [['compras', 'Lista de compras'], ['pagos', 'Pagos'], ['recordatorios', 'Recordatorios'], ['cumples', 'Cumpleaños'], ['regalos', 'Regalos'], ['presupuesto', 'Presupuesto'], ['gatitos', 'Gatitos'], ['menu', 'Menú semanal'], ['hogar', 'Hogar'], ['compartidos', 'Gastos compartidos'], ['tramites', 'Trámites'], ['feriados', 'Feriados'], ['alquileres', 'Alquileres'], ['suscripciones', 'Suscripciones'], ['vehiculo', 'Vehículo'], ['televisores', 'Televisores']];
   const SUB = {
     compras: 'Lo que falta en la casa, por categoría. Marca lo que vas comprando.',
     pagos: 'Alquiler, servicios y demás pagos de cada mes, con cuánto falta para el próximo.',
@@ -1186,6 +1186,7 @@
     alquileres: 'Casas y apartamentos en alquiler de Facebook Marketplace, con tu precio y tu lugar.',
     suscripciones: 'Netflix, Spotify, Game Pass y demás: cuánto suman al mes y cuándo se renueva cada una.',
     vehiculo: 'Gasolina, consumo y mantenimientos del carro, con avisos por kilometraje o por fecha.',
+    televisores: 'Enciende, apaga, sube o baja el volumen y mira qué se está viendo en cada televisor.',
   };
   function render() {
     const body = $('#casaBody');
@@ -1193,7 +1194,7 @@
     $('#casaTitle').textContent = TABS.find((t) => t[0] === K.tab)[1];
     $('#casaSub').textContent = SUB[K.tab];
     if (!K.d) return fill(body, skeleton());
-    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos: () => [gatitos(), window.v129?.supplies(K.d)], menu, hogar, compartidos, tramites, feriados, alquileres, suscripciones: () => window.v129?.subs(K.d), vehiculo: () => window.v129?.vehicle(K.d) };
+    const views = { compras, pagos, recordatorios, cumples: cumpleanos, regalos, presupuesto, gatitos: () => [gatitos(), window.v129?.supplies(K.d)], menu, hogar, compartidos, tramites, feriados, alquileres, suscripciones: () => window.v129?.subs(K.d), vehiculo: () => window.v129?.vehicle(K.d), televisores: () => window.v131?.televisores() };
     fill(body, views[K.tab]());
   }
   const skeleton = () => h('div', { class: 'rx-skel' }, [1, 2, 3].map(() => h('div', { class: 'skel rx-skel-row' }, h('i', { class: 'skel-line w70' }), h('i', { class: 'skel-line w40' }))));

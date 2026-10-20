@@ -263,6 +263,25 @@ function receiptCard(d) {
   return h('section', { class: 'card' }, h('div', { class: 'row' }, h('div', { style: 'flex:1' }, h('b', { text: 'Foto de un recibo' }), h('small', { style: 'display:block;color:var(--muted)', text: R.error || 'Luz, agua, internet… se anota el monto y se marca pagado.' })), h('button', { class: 'btn primary', text: 'Tomar foto', onclick: () => pick.click() })), pick);
 }
 
+// ------------------------------------------------ TELEVISORES (1.31)
+function tvCards() {
+  const list = S.data.tv;
+  if (!list) { if (!S.tvAsked) { S.tvAsked = true; api('/api/m?s=tv').then((d) => { S.data.tv = d; render(); }).catch(() => {}); } return [h('p', { class: 'empty', text: 'Buscando los televisores…' })]; }
+  if (!list.length) return [h('p', { class: 'empty', text: 'No hay televisores. Búscalos en ViperTeca → Casa → Televisores.' })];
+  const go = async (t, what, arg) => { await act('tv', { id: t.id, do: what, arg: arg ?? '' }); setTimeout(() => { S.tvAsked = false; S.data.tv = null; render(); }, what === 'on' || what === 'off' ? 3500 : 700); };
+  return list.map((t) => {
+    const on = t.connected && t.on !== false;
+    const now = t.media?.title ? t.media.title + (t.media.subtitle ? ' · ' + t.media.subtitle : '') : t.app ? 'Abierto: ' + t.app : on ? 'Pantalla de inicio' : 'Apagado';
+    const b = (label, what, cls) => h('button', { class: 'btn ' + (cls || ''), text: label, onclick: () => go(t, what) });
+    return h('section', { class: 'card' },
+      h('h3', {}, t.label, h('small', { text: !t.paired ? 'sin vincular' : on ? 'encendido' : 'apagado' })),
+      h('p', { class: 'big', style: 'font-size:17px', text: now }),
+      t.volume ? h('small', { style: 'color:var(--muted)', text: 'Volumen ' + t.volume.level + (t.volume.muted ? ' · silencio' : '') }) : null,
+      t.paired ? h('div', { class: 'row', style: 'margin-top:10px;flex-wrap:wrap;gap:8px' }, b(on ? 'Apagar' : 'Encender', on ? 'off' : 'on', on ? '' : 'primary'), b('Vol −', 'voldown'), b('Vol +', 'volup'), b(t.volume?.muted ? 'Con sonido' : 'Silencio', 'mute'), b('⏯', 'playpause')) : h('small', { style: 'color:var(--muted)', text: 'Vincúlalo una vez desde la app del PC.' })
+    );
+  });
+}
+
 // ------------------------------------------------ HOY
 function hoy(d) {
   const now = new Date();
@@ -298,7 +317,8 @@ function hoy(d) {
 // ------------------------------------------------ CASA
 function casa(d) {
   const tab = sub('casa', 'compras');
-  const out = [seg('casa', [['compras', 'Compras'], ['pagos', 'Pagos'], ['presupuesto', 'Presupuesto'], ['fechas', 'Fechas'], ['regalos', 'Regalos']])];
+  const out = [seg('casa', [['compras', 'Compras'], ['pagos', 'Pagos'], ['tv', 'TV'], ['presupuesto', 'Presupuesto'], ['fechas', 'Fechas'], ['regalos', 'Regalos']])];
+  if (tab === 'tv') out.push(...tvCards());
   if (tab === 'compras') {
     const name = h('input', { class: 'field', placeholder: 'Qué falta', enterkeyhint: 'done', autocomplete: 'off' });
     const qty = h('input', { class: 'field', placeholder: 'Cant.', style: 'flex:0 0 76px' });

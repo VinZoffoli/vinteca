@@ -258,6 +258,12 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.31
+
+- **Casa → Televisores**: los televisores con Google TV o Android TV de la casa (como los TCL) aparecen solos al pulsar «Buscar televisores». Se vinculan una vez: el televisor muestra un código de 6 caracteres y lo escribes en la app. Después: encender, apagar, subir y bajar volumen (o ponerlo exacto con la barra), silencio, reproducir o pausar, inicio y abrir Netflix, YouTube, Crunchyroll, Spotify, Disney+ o Max. Muestra qué app está abierta y, si algo se transmite (Chromecast, Spotify, YouTube desde el celular), el título con su portada y si está en pausa.
+- **En el iPhone**: Casa → TV, con encender/apagar, volumen, silencio, pausa y lo que se está viendo en cada televisor.
+- Para encenderlos desde la app cuando están apagados, activa en cada televisor Ajustes → Sistema → Energía → la opción de encender por la red o con Chromecast. Todo pasa dentro de la wifi de casa; la llave de ViperTeca para los televisores se guarda cifrada en este PC.
+
 ## Novedades de la 1.30
 
 - **Copias de seguridad** (en Tu PC): las copias diarias de OneDrive, día por día. «Ver qué tiene» compara la copia con lo de ahora (por ejemplo «7 pagos · 12 regalos») y «Restaurar» devuelve solo ese archivo al día que elijas; lo de ahora se guarda antes en «antes-de-restaurar», por si acaso. Ahora se copian también las notas de los 1:1, el diario de partidas, el gasto en juegos, los historiales de precios, el uptime y la velocidad de las webs, Viendo y más, y se guardan 30 días (antes 10).

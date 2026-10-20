@@ -201,6 +201,7 @@ contextBridge.exposeInMainWorld('api', {
   conn: () => ipcRenderer.invoke('conn:status'),
   copies: { list: () => ipcRenderer.invoke('copies:list'), preview: (d, n) => ipcRenderer.invoke('copies:preview', d, n), restore: (d, n) => ipcRenderer.invoke('copies:restore', d, n), now: () => ipcRenderer.invoke('copies:now'), open: () => ipcRenderer.invoke('copies:open') },
   gameCal: () => ipcRenderer.invoke('gamecal:get'),
+  tv: { list: () => ipcRenderer.invoke('tv:list'), scan: () => ipcRenderer.invoke('tv:scan'), pairStart: (h) => ipcRenderer.invoke('tv:pairStart', h), pairFinish: (h, c) => ipcRenderer.invoke('tv:pairFinish', h, c), cmd: (id, w, a) => ipcRenderer.invoke('tv:cmd', id, w, a), rename: (id, l) => ipcRenderer.invoke('tv:rename', id, l), forget: (id) => ipcRenderer.invoke('tv:forget', id), onChanged: (cb) => ipcRenderer.on('tv:changed', () => cb()) },
   journal: { save: (id, t, m) => ipcRenderer.invoke('journal:save', id, t, m), get: (id) => ipcRenderer.invoke('journal:get', id), close: () => ipcRenderer.invoke('journal:close') },
   launch: { list: () => ipcRenderer.invoke('launch:list'), check: (url, name) => ipcRenderer.invoke('launch:check', url, name), onChanged: (cb) => ipcRenderer.on('launch:changed', () => cb()) },
   onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
