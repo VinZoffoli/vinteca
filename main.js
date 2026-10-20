@@ -391,6 +391,20 @@ function snapshot(dir) {
         'w-alertas': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Alertas')?.click(), 1500)`, 5000],
         'w-squads': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`, 6000],
         'p-servicios': [`showView('casa-pagos'); setTimeout(() => document.querySelector('.bl')?.scrollIntoView({ block: 'center' }), 1500)`, 3500],
+        'w-dev': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Equipo dev')?.click(), 1500)`, 6000],
+        'w-dev-run': [`Promise.all(['prs','broken','cycle','bus'].map((k) => window.api.r132.run(k).catch((e) => console.error('R132 ' + k + ': ' + e.message)))).then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Equipo dev')?.click())`, 150000],
+        'w-dev2': [`document.querySelector('.r2-bus')?.scrollIntoView()`, 1500],
+        'w-infra': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click()`, 4000],
+        'w-infra-run': [`Promise.all(['usage','versions','env','previews'].map((k) => window.api.r132.run(k).catch((e) => console.error('R132 ' + k + ': ' + e.message)))).then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click())`, 240000],
+        'w-infra2': [`document.querySelector('.r2-ver')?.scrollIntoView()`, 1500],
+        'w-infra3': [`document.querySelector('.r2-env')?.scrollIntoView()`, 1500],
+        'w-use': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 2500)`, 4500],
+        'w-use-run': [`window.api.r132.run('usage').catch((e) => console.error('USO: ' + e.message)).then(() => { [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 1500); })`, 400000],
+        'w-card': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Clientes')?.click(); setTimeout(() => document.querySelector('[data-r2sub="webs"]')?.click(), 800); setTimeout(() => { document.querySelector('.cl-card header')?.click(); setTimeout(() => [...document.querySelectorAll('.cl-grid h4')].find((x) => x.textContent === 'Contacto del cliente')?.scrollIntoView({ block: 'center' }), 1200); }, 2000)`, 5000],
+        'w-cli': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Clientes')?.click(); setTimeout(() => document.querySelector('.cl-card header')?.click(), 2500)`, 5000],
+        'w-rev': [`window.api.r132.run('reviews').catch((e) => console.error('RESEÑAS: ' + e.message)).then(() => document.querySelector('[data-r2sub="resenas"]')?.click())`, 120000],
+        'w-venc': [`document.querySelector('[data-r2sub="vencimientos"]')?.click()`, 4000],
+        'w-inc': [`document.querySelector('[data-r2sub="incidentes"]')?.click()`, 4000],
         'w-lanz': [`showView('webs'); setTimeout(() => { [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Lanzamientos')?.click(); window.api.launch.check('https://quesitosexpress.com/', 'Quesito’s Express').catch((e) => console.error('LANZ: ' + e.message)); }, 1500)`, 110000],
         'w-week': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(); window.api.teamWeek.run().then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()).catch((e) => console.error('SEMANA: ' + e.message))`, 240000],
         'viendo': [`showView('viendo')`, 9000],
@@ -992,6 +1006,9 @@ app.whenReady().then(() => {
       setTimeout(() => connTick().catch(() => {}), 3 * 60000);
       setTimeout(forgottenTick, 20 * 60000);
       setTimeout(() => { try { tvStartAll(); } catch {} }, 8000);
+      // 1.32: equipo, Vercel, reseñas y vencimientos (cada uno se revisa cuando le toca)
+      setTimeout(() => r132Tick().catch(() => {}), 18 * 60000);
+      setInterval(() => r132Tick().catch(() => {}), 3 * 3600000);
       setInterval(forgottenTick, 24 * 3600000);
       setTimeout(() => endgameTick().catch(() => {}), 25 * 60000);
       setInterval(() => endgameTick().catch(() => {}), 6 * 3600000);
@@ -4055,6 +4072,376 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   return info.gift || null;
 });
 
+// ---------- 1.32: más para Resto Experience (clientes, equipo y Vercel) ----------
+const r132 = require('./src/resto132');
+const r132State = () => store.read('resto132.json', {});
+const r132Push = () => win && !win.isDestroyed() && win.webContents.send('r132:changed');
+function r132Save(patch) {
+  const s = { ...r132State(), ...patch };
+  store.write('resto132.json', s);
+  r132Push();
+  return s;
+}
+/** Los proyectos de Vercel (si nunca se cargaron, se cargan ahora). */
+async function vercelProjects() {
+  const c = store.read('vercel.json', null);
+  if (c?.projects?.length && Date.now() - c.at < 7 * DAYMS) return c.projects;
+  return (await webhealth.deployments(ctxRW)).projects;
+}
+/** Repos de las webs: los website-… con actividad en el último año. */
+async function websiteRepos() {
+  const out = [];
+  for (let page = 1; page <= 3; page++) {
+    const j = await teamweek.gh('orgs/' + ORG() + '/repos?per_page=100&sort=pushed&page=' + page);
+    out.push(...j.filter((r) => /^website-/i.test(r.name) && !r.archived && Date.now() - Date.parse(r.pushed_at) < 365 * DAYMS).map((r) => r.name));
+    if (j.length < 100) break;
+  }
+  return out;
+}
+const R132_JOBS = {
+  prs: { every: 3 * 3600000, run: () => r132.prQueue(teamweek.gh, ORG()) },
+  broken: { every: 3 * 3600000, run: () => r132.brokenDeploys(webhealth.vercelApi, store.read) },
+  cycle: { every: 20 * 3600000, run: async () => r132.cycleTime(teamweek.gh, ORG(), webhealth.vercelApi, store.read, await vercelProjects()) },
+  bus: { every: 6.5 * DAYMS, run: () => r132.busFactor(teamweek.gh, ORG()) },
+  versions: { every: 6.5 * DAYMS, run: async () => r132.versions(teamweek.gh, ORG(), await websiteRepos()) },
+  env: { every: 6.5 * DAYMS, run: async () => r132.envDiff(webhealth.vercelApi, store.read, await vercelProjects()) },
+  previews: { every: 2.5 * DAYMS, run: async () => r132.forgottenPreviews(webhealth.vercelApi, store.read, teamweek.gh, await vercelProjects()) },
+};
+const r132Busy = {};
+function r132Run(kind) {
+  const job = R132_JOBS[kind];
+  if (!job) throw new Error('No sé revisar eso.');
+  if (r132Busy[kind]) return r132Busy[kind];
+  r132Busy[kind] = (async () => {
+    r132Push();
+    try {
+      const v = await job.run();
+      // la hora de cada revisión va aparte (los PRs son una lista, sin «at» propio)
+      r132Save({ [kind]: v, [kind + 'Error']: null, [kind + 'At']: Date.now() });
+      return v;
+    } catch (e) {
+      r132Save({ [kind + 'Error']: e.message });
+      throw e;
+    }
+  })().finally(() => {
+    delete r132Busy[kind];
+    r132Push();
+  });
+  return r132Busy[kind];
+}
+ipcMain.handle('r132:get', () => ({ ...r132State(), busy: Object.keys(r132Busy).concat(usageBusy ? ['usage'] : [], reviewsBusy ? ['reviews'] : []) }));
+ipcMain.handle('r132:run', (_e, kind) => (kind === 'usage' ? usageTick(true) : kind === 'reviews' ? reviewsTick(true) : r132Run(String(kind))).then(() => true));
+
+// ---- consumo de Vercel: día a día (cada día se pide una vez y los 3 últimos se repasan)
+let usageBusy = null;
+async function usageTick(force) {
+  if (usageBusy) return usageBusy;
+  usageBusy = (async () => {
+    const u = store.read('vercel-usage.json', { days: {}, at: 0 });
+    if (!force && Date.now() - (u.at || 0) < 20 * 3600000) return u;
+    const token = webhealth.getSecret(store.read, 'vercelEnc');
+    if (!token) throw new Error('Pega tu token de Vercel en Websites → Despliegues de Vercel.');
+    const team = store.read('settings.json', {}).vercelTeam || null;
+    const dayKey = (t) => new Date(t).toISOString().slice(0, 10);
+    const today = Date.parse(dayKey(Date.now()) + 'T00:00:00Z');
+    const now = new Date();
+    const firstPrev = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
+    let from = firstPrev;
+    for (let t = firstPrev; t < today - 3 * DAYMS; t += DAYMS) {
+      if (!u.days[dayKey(t)]) break;
+      from = t + DAYMS;
+    }
+    from = Math.min(from, today - 3 * DAYMS);
+    try {
+      for (let a = from; a < today + DAYMS; a += 7 * DAYMS) {
+        const got = await r132.vercelCharges(token, team, a, Math.min(a + 7 * DAYMS, today + DAYMS));
+        Object.assign(u.days, got);
+        u.error = null;
+        store.write('vercel-usage.json', u);
+        r132Push();
+      }
+    } catch (e) {
+      u.error = e.message;
+      store.write('vercel-usage.json', u);
+      throw e;
+    }
+    for (const k of Object.keys(u.days)) if (Date.parse(k) < firstPrev - 10 * DAYMS) delete u.days[k];
+    u.at = Date.now();
+    store.write('vercel-usage.json', u);
+    // avisos: el mes va a pasar del límite y saltos raros de un proyecto
+    const sum = r132.usageSummary(u.days, Number(store.read('settings.json', {}).vercelBudget) || null);
+    const money = (x) => 'US$' + Math.round(x).toLocaleString('es');
+    if (sum.over && once('vcusage:' + sum.month)) notify('Vercel va a pasar de ' + money(sum.limit) + ' este mes', 'Llevas ' + money(sum.mtd) + ' y al ritmo actual cierras en ' + money(sum.projected) + '. Lo que más gasta: ' + sum.projects.slice(0, 2).map((p) => p.name + ' ' + money(p.cost)).join(', ') + '.', null);
+    for (const p of sum.projects) if (p.spike && once('vcspike:' + p.name + ':' + new Date().toLocaleDateString('sv'))) notify(p.name + ' gastó ' + money(p.spike.last) + ' en Vercel ayer', 'Lo normal es unos ' + money(p.spike.base) + ' al día. Revisa si hay tráfico raro o un bucle de funciones.', null);
+    return u;
+  })().finally(() => {
+    usageBusy = null;
+    r132Push();
+  });
+  return usageBusy;
+}
+ipcMain.handle('r132:usage', () => {
+  const u = store.read('vercel-usage.json', { days: {} });
+  const budget = Number(store.read('settings.json', {}).vercelBudget) || null;
+  return { at: u.at || null, error: u.error || null, busy: !!usageBusy, summary: Object.keys(u.days).length ? r132.usageSummary(u.days, budget) : null };
+});
+ipcMain.handle('r132:setBudget', (_e, v) => {
+  const s = store.read('settings.json', {});
+  s.vercelBudget = Math.max(0, Math.round(Number(v) || 0)) || null;
+  store.write('settings.json', s);
+  return true;
+});
+
+// ---- reseñas de Google de cada restaurante (una vez al día)
+let reviewsBusy = null;
+async function reviewsTick(force) {
+  if (reviewsBusy) return reviewsBusy;
+  reviewsBusy = (async () => {
+    const R = store.read('reviews.json', { sites: {}, seen: {}, replies: {}, at: 0 });
+    if (!force && Date.now() - (R.at || 0) < 20 * 3600000) return R;
+    const key = googleKey();
+    if (!key) throw new Error('Añade tu clave de Google en Salud de las webs (con «Places API (New)» activada).');
+    const first = !Object.keys(R.seen).length;
+    const fresh = [];
+    for (const s of clientSites().slice(0, Number(process.env.BJ_SITES_LIMIT) || 999)) {
+      try {
+        const places = await r132.placeReviews(key, s.name, s.url);
+        R.sites[s.url] = { at: Date.now(), name: s.name, places };
+        for (const p of places) for (const r of p.reviews) {
+          if (R.seen[r.id]) continue;
+          R.seen[r.id] = Date.now();
+          if (!first && r.stars <= 3 && r.at && Date.now() - r.at < 45 * DAYMS) fresh.push({ site: s.name, place: p.name, ...r });
+        }
+      } catch (e) {
+        R.sites[s.url] = { ...(R.sites[s.url] || {}), at: Date.now(), name: s.name, error: e.message };
+      }
+    }
+    for (const [k, t] of Object.entries(R.seen)) if (Date.now() - t > 400 * DAYMS) delete R.seen[k];
+    R.at = Date.now();
+    store.write('reviews.json', R);
+    r132Push();
+    if (fresh.length === 1) notify('Reseña de ' + fresh[0].stars + '★ en ' + fresh[0].place, '«' + fresh[0].text.slice(0, 120) + '» Abre Websites → Clientes → Reseñas para ver una respuesta sugerida.', null);
+    else if (fresh.length > 1) notify(fresh.length + ' reseñas negativas nuevas en Google', fresh.slice(0, 3).map((r) => r.place + ' ' + r.stars + '★').join(' · ') + '. Están en Websites → Clientes → Reseñas.', null);
+    return R;
+  })().finally(() => {
+    reviewsBusy = null;
+    r132Push();
+  });
+  return reviewsBusy;
+}
+ipcMain.handle('r132:reviews', () => {
+  const R = store.read('reviews.json', { sites: {}, replies: {}, at: 0 });
+  return { at: R.at || null, busy: !!reviewsBusy, google: !!googleKey(), sites: Object.entries(R.sites).map(([url, v]) => ({ url, ...v })), replies: R.replies || {} };
+});
+ipcMain.handle('r132:reply', async (_e, id, again) => {
+  const R = store.read('reviews.json', { sites: {}, seen: {}, replies: {} });
+  if (R.replies?.[id] && !again) return R.replies[id];
+  let found = null;
+  for (const s of Object.values(R.sites)) for (const p of s.places || []) for (const r of p.reviews || []) if (r.id === id) found = { site: s.name, place: p, r };
+  if (!found) throw new Error('No encontré esa reseña.');
+  const prompt = 'Escribe la respuesta pública del restaurante «' + found.place.name + '» a esta reseña de Google de ' + found.r.stars + ' estrellas, de ' + (found.r.author || 'un cliente') + ':\n\n«' + found.r.text + '»\n\n' +
+    'Reglas: en el mismo idioma de la reseña; cálida, breve (3–5 frases), sin excusas ni discutir; agradece, reconoce lo concreto que menciona, explica qué se hará si aplica e invita a escribir al restaurante para arreglarlo. No prometas descuentos ni regalos. No inventes datos (teléfonos, nombres, correos). Firma como «El equipo de ' + found.place.name + '». Responde SOLO con JSON: {"reply":"…"}';
+  const j = await aiJson(prompt, { system: 'Escribes respuestas a reseñas para restaurantes: amables, concretas y profesionales. Respondes SOLO con un bloque de código json válido.' });
+  if (!j?.reply) throw new Error('No pude escribir la respuesta. Prueba otra vez.');
+  R.replies = { ...(R.replies || {}), [id]: String(j.reply) };
+  store.write('reviews.json', R);
+  return R.replies[id];
+});
+
+// ---- vencimientos: dominios, SSL y suscripciones de los clientes
+const subsList = () => store.read('client-subs.json', []);
+ipcMain.handle('r132:expiries', () => {
+  const st = siteState();
+  const health = store.read('webhealth.json', { sites: {} }).sites;
+  const today = new Date().toLocaleDateString('sv');
+  const left = (d) => Math.floor((Date.parse(d + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / DAYMS);
+  const items = [];
+  for (const s of clientSites()) {
+    const d = st.domains[s.url];
+    if (d?.until) {
+      const date = new Date(d.until).toLocaleDateString('sv');
+      items.push({ kind: 'dominio', id: 'd:' + s.url, title: d.domain, client: s.name, date, left: left(date), note: d.registrar ? 'Registrado en ' + d.registrar : '' });
+    }
+    const h = health[s.url];
+    if (h?.sslUntil) {
+      const date = new Date(h.sslUntil).toLocaleDateString('sv');
+      items.push({ kind: 'ssl', id: 's:' + s.url, title: 'SSL de ' + hostOf(s.url), client: s.name, date, left: left(date), note: h.sslIssuer ? 'Emitido por ' + h.sslIssuer + ' (suele renovarse solo)' : '' });
+    }
+  }
+  for (const x of subsList()) {
+    const date = r132.nextDate(x);
+    if (!date) continue;
+    items.push({ kind: 'suscripcion', id: x.id, sub: x, title: x.name, client: x.client || '', date, left: left(date), note: [x.amount ? x.amount + ' ' + (x.currency || 'USD') : '', x.cycle && x.cycle !== 'unico' ? 'se renueva ' + x.cycle.replace('mensual', 'cada mes').replace('trimestral', 'cada 3 meses').replace('anual', 'cada año') : 'pago único', x.note || ''].filter(Boolean).join(' · ') });
+  }
+  return items.filter((x) => x.left >= -30).sort((a, b) => a.date.localeCompare(b.date));
+});
+ipcMain.handle('r132:subSave', (_e, x) => {
+  const list = subsList();
+  const clean = { id: x.id || require('crypto').randomBytes(4).toString('hex'), name: String(x.name || '').slice(0, 80), client: String(x.client || '').slice(0, 80), date: /^\d{4}-\d{2}-\d{2}$/.test(x.date) ? x.date : new Date().toLocaleDateString('sv'), cycle: ['mensual', 'trimestral', 'anual', 'unico'].includes(x.cycle) ? x.cycle : 'anual', amount: x.amount ? Number(x.amount) || null : null, currency: String(x.currency || 'USD').slice(0, 4), note: String(x.note || '').slice(0, 200) };
+  if (!clean.name) throw new Error('Ponle un nombre.');
+  const i = list.findIndex((y) => y.id === clean.id);
+  if (i >= 0) list[i] = clean;
+  else list.push(clean);
+  store.write('client-subs.json', list);
+  return clean;
+});
+ipcMain.handle('r132:subDelete', (_e, id) => {
+  store.write('client-subs.json', subsList().filter((x) => x.id !== id));
+  return true;
+});
+function subsTick() {
+  const today = new Date().toLocaleDateString('sv');
+  for (const x of subsList()) {
+    const date = r132.nextDate(x);
+    if (!date) continue;
+    const left = Math.floor((Date.parse(date + 'T12:00:00') - Date.parse(today + 'T12:00:00')) / DAYMS);
+    for (const lim of [30, 7]) if (left >= 0 && left <= lim && once('sub:' + x.id + ':' + date + ':' + lim)) notify(x.name + (x.client ? ' de ' + x.client : '') + ' vence en ' + left + ' días', 'El ' + new Date(date + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long' }) + (x.amount ? ' · ' + x.amount + ' ' + (x.currency || 'USD') : '') + '. Está en Websites → Clientes → Vencimientos.', null);
+  }
+}
+
+// ---- incidentes: cada caída con su causa y un análisis corto
+function incidentsSync() {
+  const data = store.read('incidents.json', { list: [] });
+  const byId = new Map(data.list.map((x) => [x.id, x]));
+  const now = new Date();
+  const months = [now.toLocaleDateString('sv').slice(0, 7), new Date(now.getFullYear(), now.getMonth() - 1, 15).toLocaleDateString('sv').slice(0, 7)];
+  for (const s of clientSites()) {
+    for (const m of months) {
+      const up = sitewatch.uptimeOf(store.read, s.url, m);
+      (up?.incidents || []).forEach((inc, i) => {
+        const id = hostOf(s.url) + '|' + inc.day + '|' + i;
+        const prev = byId.get(id);
+        byId.set(id, { ...(prev || {}), id, url: s.url, name: s.name, day: inc.day, minutes: Math.max(inc.minutes, prev?.minutes || 0), why: inc.why || prev?.why || '', auto: true });
+      });
+    }
+  }
+  const list = [...byId.values()].sort((a, b) => b.day.localeCompare(a.day)).slice(0, 300);
+  store.write('incidents.json', { list });
+  return list;
+}
+ipcMain.handle('r132:incidents', () => incidentsSync());
+ipcMain.handle('r132:incidentSave', (_e, x) => {
+  const data = store.read('incidents.json', { list: [] });
+  const id = x.id || 'm|' + require('crypto').randomBytes(4).toString('hex');
+  const i = data.list.findIndex((y) => y.id === id);
+  const site = clientSites().find((s) => s.url === x.url);
+  const cur = i >= 0 ? data.list[i] : { id, url: x.url, name: site?.name || hostOf(x.url), day: x.day || new Date().toLocaleDateString('sv'), minutes: Number(x.minutes) || 0, why: '', auto: false };
+  const next = { ...cur, cause: String(x.cause ?? cur.cause ?? '').slice(0, 300), notes: String(x.notes ?? cur.notes ?? '').slice(0, 4000), ...(cur.auto ? {} : { day: x.day || cur.day, minutes: Number(x.minutes) || cur.minutes }) };
+  if (i >= 0) data.list[i] = next;
+  else data.list.unshift(next);
+  store.write('incidents.json', data);
+  return next;
+});
+ipcMain.handle('r132:incidentDelete', (_e, id) => {
+  const data = store.read('incidents.json', { list: [] });
+  data.list = data.list.filter((x) => x.id !== id || x.auto);
+  store.write('incidents.json', data);
+  return true;
+});
+ipcMain.handle('r132:incidentDraft', async (_e, id) => {
+  const data = store.read('incidents.json', { list: [] });
+  const inc = data.list.find((x) => x.id === id);
+  if (!inc) throw new Error('No encontré ese incidente.');
+  const projects = await vercelProjects().catch(() => []);
+  const proj = projects.find((p) => p.domain && hostOf(p.domain) === hostOf(inc.url));
+  let deploys = [];
+  if (proj) {
+    const t = Date.parse(inc.day + 'T12:00:00');
+    const j = await webhealth.vercelApi(store.read, '/v6/deployments', { projectId: proj.id, since: String(t - 1.5 * DAYMS), until: String(t + 1.5 * DAYMS), limit: '20' }).catch(() => null);
+    deploys = (j?.deployments || []).map((d) => '- ' + new Date(d.created).toLocaleString('es') + ' · ' + (d.target || 'preview') + ' · ' + (d.state || d.readyState) + ' · ' + (d.meta?.githubCommitAuthorName || d.creator?.username || '?') + ': ' + String(d.meta?.githubCommitMessage || '').split('\n')[0].slice(0, 100));
+  }
+  const prompt = 'La web ' + inc.url + ' (' + inc.name + ') estuvo caída unos ' + inc.minutes + ' minutos el ' + inc.day + '. Motivo que vio el monitor: ' + (inc.why || 'sin detalle') + '.\n' +
+    (deploys.length ? 'Despliegues de Vercel alrededor de ese día:\n' + deploys.join('\n') : 'No hay despliegues de Vercel cerca de esa fecha (o no encontré el proyecto).') +
+    (inc.notes ? '\nNotas del equipo: ' + inc.notes : '') +
+    '\n\nEscribe en español: la causa más probable en una frase (si no hay pruebas, dilo: «probablemente…» o «sin causa clara») y un análisis posterior breve con: qué pasó, impacto, qué lo resolvió (si se sabe) y 1–3 acciones para que no se repita. No inventes hechos. Responde SOLO con JSON: {"cause":"…","postmortem":"…"}';
+  const j = await aiJson(prompt, { system: 'Escribes análisis de incidentes de webs, breves y honestos: separas lo que se sabe de lo que se supone. Respondes SOLO con un bloque de código json válido.' });
+  if (!j?.cause) throw new Error('No pude redactarlo. Prueba otra vez.');
+  inc.cause = String(j.cause).slice(0, 300);
+  inc.notes = (inc.notes ? inc.notes.trim() + '\n\n' : '') + String(j.postmortem || '').trim();
+  store.write('incidents.json', data);
+  return inc;
+});
+
+// ---- retro del sprint (las últimas 2 semanas, por squad)
+ipcMain.handle('r132:retro', async () => {
+  const team = store.read('notion-team.json', null);
+  const tw = store.read('team-week.json', null);
+  const st = r132State();
+  if (!team?.people?.length && !tw) throw new Error('Primero prepara «La semana del equipo» en Squads (necesita Notion y GitHub).');
+  const lines = [];
+  for (const p of team?.people || []) {
+    const ai = (tw?.ai?.people || []).find((x) => String(x.squad).toLowerCase() === p.squad);
+    lines.push('## Squad ' + p.squad.toUpperCase() + ' (' + p.leader + ')',
+      'Tickets cerrados: esta semana ' + (p.closed?.[3] || 0) + ', la anterior ' + (p.closed?.[2] || 0) + '. Abiertos ' + p.open + ', vencidos ' + p.late + ', vencen en 3 días ' + p.soon + '.',
+      p.week?.closed?.length ? 'Cerró: ' + p.week.closed.map((t) => t.title).slice(0, 10).join(' | ') : '',
+      p.tickets?.filter((t) => t.late).length ? 'Vencidos: ' + p.tickets.filter((t) => t.late).map((t) => t.title + ' (' + t.deadline + ')').slice(0, 8).join(' | ') : '',
+      ai?.week?.length ? 'Resumen de su semana: ' + ai.week.join(' | ') : '',
+      ai?.watch?.length ? 'Ojo: ' + ai.watch.join(' | ') : '',
+      (tw?.stale || []).filter((b) => b.squad === p.squad).length ? 'Ramas sin pasar a main: ' + tw.stale.filter((b) => b.squad === p.squad).slice(0, 6).map((b) => b.repo + '/' + b.branch).join(', ') : '',
+      (st.broken?.list || []).filter((d) => !d.fixedAt && new RegExp('^website-' + p.squad + '-', 'i').test(d.project)).length ? 'Deploys rotos sin arreglar: ' + st.broken.list.filter((d) => !d.fixedAt && new RegExp('^website-' + p.squad + '-', 'i').test(d.project)).map((d) => d.project + ' (' + d.branch + ')').join(', ') : '',
+      (st.prs || []).filter((x) => new RegExp('^website-' + p.squad + '-', 'i').test(x.repo) && !x.reviewed && x.ageDays >= 2).length ? 'PRs sin revisar: ' + st.prs.filter((x) => new RegExp('^website-' + p.squad + '-', 'i').test(x.repo) && !x.reviewed && x.ageDays >= 2).map((x) => x.repo + '#' + x.number).join(', ') : '');
+  }
+  const prompt = 'Prepara la retro del sprint (las últimas 2 semanas) de cada squad de Resto Experience con estos datos:\n\n' + lines.filter(Boolean).join('\n') +
+    '\n\nPara cada squad: «cerrado» (lo importante que se terminó, 2–5 puntos), «pendiente» (lo que quedó arrastrándose), «bloqueado» (lo que está trabado o en riesgo, con el porqué si se ve) y «mejorar» (1–3 propuestas concretas para el próximo sprint). Español, frases cortas, sin inventar. Si un squad no tiene datos, pon listas vacías. Añade «general» con 1–2 frases del equipo entero. Responde SOLO con JSON: {"general":"…","squads":[{"squad":"a","leader":"…","cerrado":[],"pendiente":[],"bloqueado":[],"mejorar":[]}]}';
+  const j = await aiJson(prompt, { system: 'Preparas retros de sprint para un equipo de desarrollo web: concretas, justas y útiles. Respondes SOLO con un bloque de código json válido.' });
+  if (!j?.squads) throw new Error('No pude preparar la retro. Prueba otra vez.');
+  const retro = { at: Date.now(), general: j.general || '', squads: j.squads };
+  r132Save({ retro });
+  return retro;
+});
+
+// ---- la ficha de cada cliente: contacto, tickets, pipeline y deploys
+const contactsOf = () => store.read('client-contacts.json', {});
+ipcMain.handle('r132:contactSave', (_e, url, c) => {
+  const all = contactsOf();
+  const k = hostOf(url);
+  const clean = Object.fromEntries(['name', 'role', 'email', 'phone', 'notes'].map((f) => [f, String(c?.[f] || '').slice(0, f === 'notes' ? 1000 : 120)]));
+  if (Object.values(clean).some(Boolean)) all[k] = clean;
+  else delete all[k];
+  store.write('client-contacts.json', all);
+  r132Push();
+  return true;
+});
+function siteClient(s) {
+  const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const name = norm(s.name).replace(/^website-[a-d]-/, '').replace(/[-_]/g, ' ');
+  const flat = name.replace(/[^a-z0-9]/g, '');
+  const words = name.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !/^(restaurant|restaurante|grill|kitchen|cafe|bar|tacos|pizza|food|house|cocina|redesign|website|landing)$/.test(w));
+  const hits = (title) => {
+    const t = norm(title);
+    return (flat.length >= 5 && t.replace(/[^a-z0-9]/g, '').includes(flat)) || (words.length && words.every((w) => t.includes(w)));
+  };
+  const nc = store.read('notion-cache.json', null)?.data;
+  const team = store.read('notion-team.json', null);
+  const seen = new Set();
+  const tickets = [];
+  for (const t of [...(nc?.tickets || []), ...(team?.people || []).flatMap((p) => (p.tickets || []).map((x) => ({ ...x, who: p.leader })))]) {
+    if (!t?.url || seen.has(t.url) || t.group === 'done' || !hits(t.title)) continue;
+    seen.add(t.url);
+    tickets.push({ title: t.title, status: t.status, deadline: t.deadline || null, url: t.url, late: !!(t.deadline && t.deadline < new Date().toLocaleDateString('sv')), who: t.who && typeof t.who === 'string' && !/^[0-9a-f-]{20,}/.test(t.who) ? t.who : null });
+  }
+  const pipe = (nc?.pipeline?.rows || []).find((r) => r.production && hostOf(r.production) === hostOf(s.url));
+  const vp = (store.read('vercel.json', null)?.projects || []).find((p) => p.domain && hostOf(p.domain) === hostOf(s.url));
+  return {
+    contact: contactsOf()[hostOf(s.url)] || null,
+    tickets: tickets.slice(0, 8),
+    pipe: pipe ? { status: pipe.status, clientStatus: pipe.clientStatus, squad: pipe.squad, url: pipe.url, staging: pipe.staging } : null,
+    vercel: vp ? { project: vp.name, production: vp.production, latest: vp.latest } : null,
+  };
+}
+
+// ---- revisiones automáticas (se reparten para no cargar todo a la vez)
+async function r132Tick() {
+  const st = r132State();
+  for (const [kind, job] of Object.entries(R132_JOBS)) {
+    if (st[kind + 'At'] && Date.now() - st[kind + 'At'] < job.every) continue;
+    await r132Run(kind).catch(() => {});
+  }
+  await usageTick(false).catch(() => {});
+  await reviewsTick(false).catch(() => {});
+  subsTick();
+}
+
 // ---------- 1.31: televisores (Google TV / Android TV) ----------
 const tv = require('./src/tv');
 const tvRemotes = new Map(); // host → Remote
@@ -4835,6 +5222,7 @@ ipcMain.handle('sites:get', () => {
         hours: st.hours[s.url] || null,
         security: sec.find((r) => r.repo === repo) || null,
         month: { commits: commits.length, hours: commits.length ? sitewatch.hoursOf(commits) : null },
+        client: siteClient(s),
       };
     }),
     otherSecurity: sec.filter((r) => !clientSites().some((s) => repoOfSite(s) === r.repo)),

@@ -258,6 +258,19 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.32
+
+Más para Resto Experience, en **Websites**:
+
+- **Clientes → Webs**: la ficha de cada web suma el contacto del cliente (lo anotas tú), sus tickets abiertos de Notion, su estado en el pipeline y los últimos deploys de Vercel.
+- **Clientes → Reseñas**: las reseñas de Google de cada local de los restaurantes. Las de 3★ o menos de los últimos 60 días salen arriba con una respuesta sugerida (en el idioma de la reseña) para copiar y pegar en Google. Se revisan una vez al día y te aviso de cada negativa nueva. Usa tu clave de Google de Salud de las webs con «Places API (New)»; Google solo comparte las 5 reseñas más relevantes de cada local.
+- **Clientes → Vencimientos**: dominios, certificados SSL y las suscripciones de los clientes (hosting, plugins, licencias…) en un solo calendario por mes. Las suscripciones las añades tú y te aviso 30 y 7 días antes.
+- **Clientes → Incidentes**: cada caída que ve el monitor entra sola, con su duración. Anotas la causa y qué se hizo, o Claude las redacta con los deploys de Vercel de ese día.
+- **Equipo dev** (pestaña nueva): PRs que llevan más de 2 días sin revisión y quién tiene que revisarlos; deploys que fallaron, quién los rompió, el motivo del build y si ya se arreglaron; tiempo de ciclo por persona y por web (PR abierto → fusionado → en producción); la retro del sprint de cada squad, lista para copiar en Slack; y quién conoce cada web (las que solo ha tocado una persona en 6 meses, para cubrir ausencias).
+- **Vercel y versiones** (pestaña nueva): lo que gasta Vercel este mes por proyecto y servicio, la proyección a fin de mes y un aviso si va a pasar de tu límite (o del mes pasado + 20 %) o si un proyecto se dispara de un día a otro; las versiones de Next.js, React, Tailwind y demás en cada web frente a la última; las variables de entorno de preview que faltan en producción (solo los nombres, nunca los valores); y los previews de ramas sin fusionar que llevan más de 2 semanas quietos.
+
+Todo se lee de GitHub (con tu sesión de `gh`), Vercel (tu token) y Google: ViperTeca no cambia nada allí.
+
 ## Novedades de la 1.31.3
 
 - **Televisores**: encender, apagar, volumen y abrir apps ahora sí llegan al televisor. Al conectarse, ViperTeca le pedía funciones que el televisor no tiene (como la voz), así que el televisor no lo aceptaba como control y no hacía caso a las teclas. Ahora pide solo las que el televisor ofrece. Mientras se conecta, la tarjeta dice «Conectando…», y si el televisor rechaza una orden, lo muestra.

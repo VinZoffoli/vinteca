@@ -117,6 +117,7 @@
             s.security.dependabot?.length ? h('p', { class: 'hint', text: 'Dependabot: ' + s.security.dependabot.length + ' alertas altas o críticas (' + [...new Set(s.security.dependabot.map((a) => a.pkg))].slice(0, 4).join(', ') + ')' }) : null,
             ...(s.security.secrets || []).map((x) => h('p', { class: 'bad-t', text: 'Posible ' + x.what + ' en ' + x.file + ' (commit ' + x.sha + ')' })),
           ]),
+          ...(window.v132?.cardExtra(s) || []),
           h('section', {}, h('h4', { text: 'Trabajo este mes' }), s.month?.hours ? [h('p', { text: s.month.commits + ' commits · ~' + s.month.hours.total + ' h' }), h('small', { class: 'hint', text: Object.entries(s.month.hours.who).map(([w, x]) => w + ' ' + x + ' h').join(' · ') + ' (estimado por los commits)' })] : h('p', { class: 'hint', text: 'Sin commits este mes.' }))
         ),
         h('div', { class: 'cl-actions' },
@@ -230,5 +231,8 @@
   }
 
   window.clientsTab = clientsTab;
+  // 1.32: para los formularios de Incidentes y la ficha de cliente
+  window.clientsData = () => C.data?.sites || [];
+  window.clientsReload = () => load(C.rr);
   window.squadsExtras = squadsExtras;
 })();

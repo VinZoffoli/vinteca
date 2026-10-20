@@ -86,6 +86,8 @@ const dateTimeFmt = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 's
 const rtf = new Intl.RelativeTimeFormat('es', { numeric: 'auto' });
 
 function relTime(unix) {
+  // una fecha que falta o no se entiende no rompe la vista
+  if (!Number.isFinite(Number(unix))) return '—';
   const diff = unix * 1000 - Date.now();
   const days = Math.round(diff / 86400000);
   if (Math.abs(days) < 1) {
