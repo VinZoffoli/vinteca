@@ -258,6 +258,14 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.29
+
+- **Casa → Suscripciones**: Netflix, Spotify, Game Pass y demás con su precio, cada cuánto se cobran y la próxima renovación; cuánto suman al mes y al año en colones (los dólares con el tipo de cambio del día). Te aviso 3 días antes y el día de cada renovación (y la fecha pasa sola a la siguiente).
+- **Correo personal (facturas y suscripciones)**: conecta tu correo personal (en Gmail, con una contraseña de aplicación que creas y pegas tú; se guarda cifrada en este PC). Una vez al día ViperTeca lee, sin marcar nada, solo los correos con «factura», «recibo», «suscripción», «receipt»… Tu Claude Code reconoce las facturas de luz, agua o internet y las anota solas en Pagos con su monto y vencimiento (sin marcarlas pagadas), y añade o actualiza las suscripciones que encuentra.
+- **Casa → Gatitos → Comida y arena**: con el tamaño de la bolsa y cuánto se usa al día, ves cuántos días quedan; 5 días antes te aviso y lo pongo en la lista de compras. «Abrí una nueva» empieza a contar desde hoy.
+- **Casa → Vehículo**: cargas de gasolina (kilometraje, litros y lo pagado) con el consumo en km por litro y el gasto de los últimos 30 días; mantenimientos (aceite, llantas, frenos…) cada tantos km o meses, con aviso cuando faltan 500 km o 2 semanas. El Riteve y el marchamo siguen en Trámites.
+- **Conexiones** (en Tu PC): Steam, Epic, Notion, Vercel, los dos correos, el calendario, HoYoLAB, Spotify, Netflix, Crunchyroll, GitHub, la clave de Google, el iPhone y Claude Code, cada una en verde, amarillo (sin datos recientes), gris (sin conectar) o rojo (falla), con el botón para reconectar. Se revisan cada 30 minutos y te aviso si una que estaba bien se cae.
+
 ## Novedades de la 1.28
 
 - **Estadísticas → Gasto en juegos**: abre tu historial de compras de Steam o Epic en una ventana de la app, inicias sesión tú y pulsa «Leer». Muestra cuánto gastaste por año (en colones, con el tipo de cambio del día) y cuánto te costó cada hora jugada: lo que mejor y lo que peor rindió.

@@ -196,6 +196,9 @@ contextBridge.exposeInMainWorld('api', {
   receipt: (img) => ipcRenderer.invoke('casa:receipt', img),
   receiptApply: (r) => ipcRenderer.invoke('casa:receiptApply', r),
   weekReview: () => ipcRenderer.invoke('week:review'),
+  subsSummary: () => ipcRenderer.invoke('subs:summary'),
+  billMail: { account: () => ipcRenderer.invoke('billmail:account'), set: (a) => ipcRenderer.invoke('billmail:set', a), scan: () => ipcRenderer.invoke('billmail:scan'), last: () => ipcRenderer.invoke('billmail:last') },
+  conn: () => ipcRenderer.invoke('conn:status'),
   launch: { list: () => ipcRenderer.invoke('launch:list'), check: (url, name) => ipcRenderer.invoke('launch:check', url, name), onChanged: (cb) => ipcRenderer.on('launch:changed', () => cb()) },
   onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
   backup: {

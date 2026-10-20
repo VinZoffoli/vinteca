@@ -953,3 +953,36 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .gc-inc { margin-top: 10px; }
 .gc-inc summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 @media (max-width: 1000px) { .gx-two { grid-template-columns: 1fr; } }
+
+/* 1.29 casa y conexiones */
+.sb-mail { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 1px dashed var(--line, rgba(255,255,255,.14)); }
+.sb-mail > div:first-child { display: grid; flex: 1 1 320px; }
+.sb-mail-form { display: grid; grid-template-columns: 1.3fr 1fr 1.2fr auto; gap: 8px; flex: 1 1 100%; }
+.sb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sb-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 12px; align-items: center; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.sb-list li > div { display: grid; min-width: 0; }
+.sb-list li.off { opacity: .55; }
+.sb-list li.due { box-shadow: inset 3px 0 0 #ff5d73; }
+.sb-amt { font: 600 14px var(--display); }
+.sb-next { font: 600 12.5px var(--display); color: var(--muted); }
+.sb-next.soon { color: #f5b942; }
+.sup { display: grid; gap: 8px; margin-top: 16px; padding: 14px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.08)); }
+.sup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sup-list li { display: grid; grid-template-columns: minmax(0, 1fr) 160px 80px auto auto; gap: 10px; align-items: center; }
+.sup-list li > div { display: grid; }
+.sup-bar.low i { background: #ff5d73; }
+.sup-left { font: 600 13px var(--display); text-align: right; }
+.veh-bars { height: 70px; margin: 6px 0 10px; }
+.cn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-width: 900px; }
+.cn-list li { display: grid; grid-template-columns: 14px minmax(0, 1fr) 150px auto; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.cn-list li > div { display: grid; min-width: 0; }
+.cn-list li small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.cn-ok .cn-dot { background: #4fdc9b; }
+.cn-warn .cn-dot { background: #f5b942; }
+.cn-error .cn-dot { background: #ff5d73; box-shadow: 0 0 0 4px rgba(255,93,115,.18); }
+.cn-off .cn-dot { background: color-mix(in srgb, var(--muted) 60%, transparent); }
+.cn-state { font: 600 12.5px var(--display); color: var(--muted); }
+.cn-error .cn-state { color: #ff7a8c; }
+.cn-warn .cn-state { color: #f5b942; }
+.cn-ok .cn-state { color: #4fdc9b; }

@@ -355,6 +355,10 @@ function snapshot(dir) {
         'x-ach': [`showView('ach')`, 40000],
         'x-deals': [`showView('deals'); setTimeout(() => document.getElementById('gxGp')?.scrollIntoView(), 20000)`, 26000],
         'x-friends': [`showView('friends')`, 25000],
+        'x-subs': [`showView('casa-suscripciones')`, 5000],
+        'x-veh': [`showView('casa-vehiculo')`, 3000],
+        'x-gatos': [`showView('casa-gatitos'); setTimeout(() => document.querySelector('.sup')?.scrollIntoView({ block: 'center' }), 1500)`, 3000],
+        'x-conn': [`showView('conn')`, 9000],
         'x-calc': [`showView('genshin'); setGenshinTab('tiradas'); setTimeout(() => { document.querySelector('.gc-inc')?.setAttribute('open', ''); document.querySelector('.gc-form')?.scrollIntoView(); }, 4000)`, 7000],
         'ach': [`showView('ach')`, 3500],
         'backlog': [`showView('backlog')`, 4000],
@@ -965,6 +969,13 @@ app.whenReady().then(() => {
       setInterval(() => releaseTick().catch(() => {}), 6 * 3600000);
       setInterval(breakTick, 60000);
       setInterval(() => checkinEveningTick().catch(() => {}), 20 * 60000);
+      // casa: renovaciones, insumos y vehículo cada hora; correo personal una vez al día; conexiones cada 30 min
+      setTimeout(() => casaExtrasTick().catch(() => {}), 5 * 60000);
+      setInterval(() => casaExtrasTick().catch(() => {}), 3600000);
+      setTimeout(() => { if (home129.account(store.read).hasPassword) billScan().catch(() => {}); }, 16 * 60000);
+      setInterval(() => { if (home129.account(store.read).hasPassword) billScan().catch(() => {}); }, 6 * 3600000);
+      setTimeout(() => connTick().catch(() => {}), 3 * 60000);
+      setInterval(() => connTick().catch(() => {}), 30 * 60000);
       setInterval(() => premiereTick().catch(() => {}), 30 * 60000);
     }
     setInterval(sundayTick, 30 * 60000);
@@ -4016,6 +4027,156 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.29: suscripciones, facturas por correo, insumos de los gatitos, vehículo y conexiones ----------
+const home129 = require('./src/home129');
+async function casaExtrasTick() {
+  const c = casa.load(ctxRW);
+  const r = home129.notices(c);
+  if (r.changed) {
+    casa.save(ctxRW, c);
+    casaChanged();
+  }
+  for (const n of r.out) if (once(n.key)) notify(n.title, n.body, null);
+}
+ipcMain.handle('subs:summary', async () => home129.subsSummary(casa.load(ctxRW).subscriptions, (await fx.get(ctxRW).catch(() => null))?.sell || null));
+
+// correo personal: cuenta (la contraseña la escribes tú) y lectura de facturas y cobros
+ipcMain.handle('billmail:account', () => home129.account(store.read));
+ipcMain.handle('billmail:set', (_e, a) => home129.setAccount(ctxRW, a || {}));
+let billBusy = null;
+async function billScan(force) {
+  if (billBusy) return billBusy;
+  billBusy = (async () => {
+    const prev = store.read('billmail.json', { seen: [] });
+    if (!force && prev.at && Date.now() - prev.at < 20 * 3600000) return prev;
+    let msgs;
+    try {
+      msgs = await home129.scan(store.read);
+    } catch (e) {
+      const out = { ...prev, at: Date.now(), error: e.message };
+      store.write('billmail.json', out);
+      throw e;
+    }
+    const seen = new Set(prev.seen || []);
+    const fresh = msgs.filter((m) => !seen.has(m.uid));
+    const c = casa.load(ctxRW);
+    const pays = (c.payments || []).map((p) => ({ id: p.id, name: p.name, group: p.group }));
+    const found = [];
+    for (let i = 0; i < fresh.length; i += 8) {
+      const part = fresh.slice(i, i + 8);
+      const prompt = 'Estos son correos de mi buzón personal. Para cada uno dime si es una FACTURA de un servicio de la casa (luz, agua, internet, teléfono, cable…), el COBRO o RENOVACIÓN de una SUSCRIPCIÓN (Netflix, Spotify, iCloud, Game Pass, Crunchyroll, ChatGPT, YouTube Premium, Amazon Prime, etc.) u OTRO (publicidad, avisos, compras sueltas).\n' +
+        'Mis pagos mensuales: ' + JSON.stringify(pays) + '\n\n' +
+        part.map((m, k) => '### ' + (k + 1) + '\nDe: ' + m.from + '\nAsunto: ' + m.subject + '\nFecha: ' + (m.date ? new Date(m.date).toISOString().slice(0, 10) : '?') + '\n' + m.text.slice(0, 1800)).join('\n\n') +
+        '\n\nResponde SOLO con JSON: {"items":[{"n":1,"kind":"bill|subscription|other","service":"","company":"","amount":0,"currency":"CRC|USD","due":"AAAA-MM-DD","month":"AAAA-MM","paymentId":"","period":"mes|año|semana","renewal":"AAAA-MM-DD"}]}';
+      const r = await aiJson(prompt, { system: 'Clasificas correos de facturas y suscripciones con cuidado; el monto es el total a pagar o cobrado. Si no estás seguro, es "other". Respondes SOLO con un bloque de código json válido.' }).catch(() => null);
+      for (const x of r?.items || []) {
+        const m = part[Number(x.n) - 1];
+        if (!m || !['bill', 'subscription'].includes(x.kind)) continue;
+        found.push({ ...x, uid: m.uid, subject: m.subject, from: m.from, date: m.date });
+      }
+    }
+    // facturas: se anota el monto del mes (sin marcarlo pagado) y se avisa
+    const c2 = casa.load(ctxRW);
+    let changed = false;
+    for (const b of found.filter((x) => x.kind === 'bill' && Number(x.amount) > 0)) {
+      const p = (c2.payments || []).find((y) => y.id === b.paymentId);
+      const month = /^\d{4}-\d{2}$/.test(b.month || '') ? b.month : /^\d{4}-\d{2}/.test(b.due || '') ? b.due.slice(0, 7) : new Date(b.date || Date.now()).toLocaleDateString('sv').slice(0, 7);
+      if (!p || p.bills?.[month]) continue;
+      p.bills = { ...(p.bills || {}), [month]: { amount: Number(b.amount), currency: b.currency === 'USD' ? 'USD' : 'CRC', due: /^\d{4}-\d{2}-\d{2}$/.test(b.due || '') ? b.due : null, at: Date.now(), from: 'correo' } };
+      changed = true;
+      notify('Llegó la factura de ' + p.name, (b.currency === 'USD' ? '$' : '₡') + Number(b.amount).toLocaleString('es') + (b.due ? ' · vence el ' + b.due.split('-').reverse().join('/') : '') + '. Ya está anotada en Pagos.', null);
+    }
+    // suscripciones: se actualizan o se añaden
+    const plain = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    c2.subscriptions ||= [];
+    for (const s of found.filter((x) => x.kind === 'subscription' && x.service)) {
+      const ex = c2.subscriptions.find((y) => plain(y.name) === plain(s.service) || (plain(s.service).length > 4 && plain(y.name).includes(plain(s.service))));
+      const row = { amount: Number(s.amount) > 0 ? Number(s.amount) : ex?.amount ?? null, currency: s.currency === 'CRC' ? 'CRC' : 'USD', period: ['mes', 'año', 'semana'].includes(s.period) ? s.period : ex?.period || 'mes', next: /^\d{4}-\d{2}-\d{2}$/.test(s.renewal || '') ? s.renewal : ex?.next || null, seenAt: Date.now() };
+      if (ex) Object.assign(ex, row);
+      else {
+        c2.subscriptions.push({ id: require('crypto').randomBytes(6).toString('hex'), name: s.service, category: '', from: 'correo', note: s.company || '', active: true, ...row });
+        notify('Encontré una suscripción: ' + s.service, (row.amount ? (row.currency === 'USD' ? '$' : '₡') + row.amount.toLocaleString('es') + ' al ' + (row.period === 'año' ? 'año' : 'mes') + '. ' : '') + 'Revísala en Casa → Suscripciones.', null);
+      }
+      changed = true;
+    }
+    if (changed) {
+      casa.save(ctxRW, c2);
+      casaChanged();
+    }
+    const out = { at: Date.now(), error: null, scanned: msgs.length, found: [...found, ...(prev.found || [])].slice(0, 60), seen: [...new Set([...(prev.seen || []), ...msgs.map((m) => m.uid)])].slice(-2000) };
+    store.write('billmail.json', out);
+    return out;
+  })().finally(() => (billBusy = null));
+  return billBusy;
+}
+ipcMain.handle('billmail:scan', () => billScan(true).then((r) => ({ at: r.at, scanned: r.scanned, found: (r.found || []).slice(0, 20) })));
+ipcMain.handle('billmail:last', () => {
+  const r = store.read('billmail.json', null);
+  return r ? { at: r.at, error: r.error, scanned: r.scanned, found: (r.found || []).slice(0, 20) } : null;
+});
+
+// estado de las conexiones (y aviso si una se cae)
+const ago = (t) => (t ? Date.now() - t : Infinity);
+let ghCache = { at: 0, ok: null, login: null };
+async function connStatus() {
+  const s = store.read('settings.json', {});
+  const rows = [];
+  const add = (key, name, state, detail, go) => rows.push({ key, name, state, detail, go });
+  const fresh = (t, h) => ago(t) < h * 3600000;
+  add('steam', 'Steam', store.getSteamKey() ? 'ok' : 'off', store.getSteamKey() ? 'Clave de la API puesta' + (s.steamId ? '' : ' (falta el SteamID)') : 'Pega tu clave de la API de Steam', 'settings');
+  const lib = store.read('library.json', null);
+  add('epic', 'Epic Games', (lib?.games || []).some((g) => g.store === 'epic') ? 'ok' : 'off', (lib?.games || []).some((g) => g.store === 'epic') ? (lib.games.filter((g) => g.store === 'epic').length + ' juegos') : 'Vincula tu cuenta de Epic', 'settings');
+  const nc = store.read('notion-cache.json', null);
+  const nt = store.read('notion-team.json', null);
+  add('notion', 'Notion', !notion.linked(store.read) ? 'off' : fresh(Math.max(nc?.at || 0, nt?.at || 0), 12) ? 'ok' : 'warn', !notion.linked(store.read) ? 'Sin conectar' : 'Leído ' + (nc?.at ? new Date(Math.max(nc.at, nt?.at || 0)).toLocaleString('es') : 'nunca'), 'notion');
+  const vc = store.read('vercel.json', null);
+  const hasV = !!webhealth.getSecret(store.read, 'vercelEnc');
+  add('vercel', 'Vercel', !hasV ? 'off' : vc?.error ? 'error' : fresh(vc?.at, 6) ? 'ok' : 'warn', !hasV ? 'Pega tu token de Vercel' : vc?.error || 'Leído ' + (vc?.at ? new Date(vc.at).toLocaleString('es') : 'nunca'), 'webs');
+  const m = mail.account(store.read);
+  const mc = store.read('mail-cache.json', null);
+  add('mail', 'Correo de trabajo', !m.hasPassword ? 'off' : fresh(mc?.at, 3) ? 'ok' : 'warn', m.hasPassword ? m.user + (mc?.at ? ' · leído ' + new Date(mc.at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : '') : 'Escribe la contraseña del correo', 'mail');
+  const bm = home129.account(store.read);
+  const bl = store.read('billmail.json', null);
+  add('billmail', 'Correo personal (facturas)', !bm.hasPassword ? 'off' : bl?.error ? 'error' : 'ok', !bm.hasPassword ? 'Conéctalo en Casa → Suscripciones' : bl?.error || bm.user, 'casa-suscripciones');
+  const cc = store.read('calendar-cache.json', null);
+  add('cal', 'Calendario', !calendar.linked(store.read) ? 'off' : fresh(cc?.at, 3) ? 'ok' : 'warn', calendar.linked(store.read) ? 'Leído ' + (cc?.at ? new Date(cc.at).toLocaleString('es') : 'nunca') : 'Pega el enlace iCal de tu calendario', 'cal');
+  const hc = store.read('hoyolab-cache.json', null);
+  add('hoyolab', 'HoYoLAB', !hoyolab.linked(store.read) ? 'off' : hc?.error ? 'error' : 'ok', hoyolab.linked(store.read) ? hc?.error || 'Conectado' : 'Inicia sesión en Genshin → Notas', 'genshin');
+  add('spotify', 'Spotify', spotify.linked(store.read) ? 'ok' : 'off', spotify.linked(store.read) ? 'Conectado' : 'Sin conectar', 'music');
+  const st = store.read('streaming.json', {});
+  for (const [k, label] of [['netflix', 'Netflix'], ['crunchyroll', 'Crunchyroll']]) {
+    const accs = Object.values(st).filter((a) => a.platform === k);
+    const last = Math.max(0, ...accs.map((a) => a.at || 0));
+    add(k, label, !accs.length ? 'off' : fresh(last, 24 * 14) ? 'ok' : 'warn', accs.length ? accs.map((a) => (a.who === 'emily' ? 'Emily' : 'Vincenzo')).join(' y ') + ' · leído ' + new Date(last).toLocaleDateString('es') : 'Lee un perfil en Viendo', 'viendo');
+  }
+  if (Date.now() - ghCache.at > 3600000) {
+    const u = await teamweek.gh('user').catch(() => null);
+    ghCache = { at: Date.now(), ok: !!u?.login, login: u?.login || null };
+  }
+  add('github', 'GitHub (gh)', ghCache.ok ? 'ok' : 'error', ghCache.ok ? 'Sesión de ' + ghCache.login : 'En una terminal: gh auth login', null);
+  add('google', 'Clave de Google', googleKey() ? 'ok' : 'off', googleKey() ? 'PageSpeed, CrUX y Places' : 'Pégala en Websites → Salud de las webs', 'webs');
+  const li = lan ? lan.info() : { running: false };
+  add('phone', 'iPhone (ViperTeca en el celular)', li.running ? (li.tailscale ? 'ok' : 'warn') : 'off', li.running ? (li.tailscale ? 'Por Tailscale: ' + (li.tailscale.name || li.tailscale.ip) : 'Solo en la wifi de casa (Tailscale apagado)') : 'Apagado', 'lan');
+  // comprobar Claude Code lanza un proceso: se guarda 6 h
+  if (!connStatus.claude || Date.now() - connStatus.claude.at > 6 * 3600000) connStatus.claude = { at: Date.now(), v: claudeChat.available() };
+  const claude = connStatus.claude.v;
+  add('claude', 'Claude Code', claude?.ok || claude === true ? 'ok' : 'error', claude?.ok || claude === true ? 'Listo para el asistente y los resúmenes' : 'No encuentro Claude Code instalado', 'assist');
+  return { at: Date.now(), rows };
+}
+ipcMain.handle('conn:status', () => connStatus());
+async function connTick() {
+  const st = await connStatus().catch(() => null);
+  if (!st) return;
+  const prev = store.read('conn-state.json', {});
+  const now = {};
+  for (const r of st.rows) {
+    now[r.key] = r.state;
+    // se cayó: estaba bien y ahora no (desconectada o con error)
+    if (prev[r.key] === 'ok' && (r.state === 'error' || r.state === 'off')) notify('Se cayó la conexión con ' + r.name, (r.detail || 'Vuelve a conectarla') + '. Revisa ViperTeca → Conexiones.', null);
+  }
+  store.write('conn-state.json', now);
+}
 
 // ---------- 1.28: juegos (Game Pass, logros fáciles, gasto, lanzamientos, pausas, jugar con amigos) ----------
 const gamesextra = require('./src/gamesextra');

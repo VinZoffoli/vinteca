@@ -2041,7 +2041,7 @@ const VIEWS = [
   ['news', 'Novedades'], ['viendo', 'Viendo: Netflix y Crunchyroll'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
   ['day', 'Mi día'], ['assist', 'Pregúntale a ViperTeca'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
   ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
-  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'],
+  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'], ['casa-suscripciones', 'Suscripciones'], ['casa-vehiculo', 'Vehículo'], ['conn', 'Conexiones'],
 ];
 let palIndex = 0;
 let palItems = [];
