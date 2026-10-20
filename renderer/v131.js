@@ -105,7 +105,7 @@
     return h('article', { class: 'tv-card' + (on ? ' on' : on === false ? ' off' : '') },
       h('header', {},
         h('div', {}, h('b', { text: t.label }), h('small', { class: 'hint', text: [t.model, t.host].filter(Boolean).join(' · ') })),
-        h('span', { class: 'tv-dot', text: !t.paired ? 'Sin vincular' : st.connected ? (on ? 'Encendido' : 'En reposo') : st.reachable ? 'Conectando…' : 'Apagado' })
+        h('span', { class: 'tv-dot', text: !t.paired ? 'Sin vincular' : st.connected && !st.active ? 'Conectando…' : st.connected ? (on ? 'Encendido' : 'En reposo') : st.reachable ? 'Conectando…' : 'Apagado' })
       ),
       h('div', { class: 'tv-now' },
         media?.image ? h('img', { src: media.image, alt: '', referrerPolicy: 'no-referrer' }) : h('span', { class: 'tv-now-ic', text: '▶' }),
@@ -124,6 +124,7 @@
           ib('playpause', 'Reproducir / pausa', () => cmd(t, 'playpause')),
           ib('home', 'Inicio', () => cmd(t, 'home'))
         ),
+        st.error ? h('p', { class: 'hint warn', text: st.error }) : null,
         vol ? h('label', { class: 'tv-vol-row' }, h('span', { text: 'Volumen ' + vol.level + (vol.muted ? ' (silencio)' : '') }), slider) : null,
         (() => {
           const a = T.apps[t.id];

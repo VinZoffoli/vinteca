@@ -214,6 +214,7 @@ function pair(host, creds) {
 
 // ============================================================ CONTROL REMOTO
 const KEY = { power: 26, wakeup: 224, sleep: 223, volup: 24, voldown: 25, mute: 164, playpause: 85, home: 3, back: 4, up: 19, down: 20, left: 21, right: 22, ok: 23, next: 87, prev: 88 };
+const WANT = 1 | 2 | 4 | 32 | 64 | 512;
 class Remote extends EventEmitter {
   constructor(host, creds) {
     super();
@@ -233,8 +234,18 @@ class Remote extends EventEmitter {
     s.on(
       'data',
       framer((m) => {
-        if (m[1]) send([[1, 'm', [[1, 'v', 622], [2, 'm', [[1, 's', 'ViperTeca'], [2, 's', 'ViperTeca'], [3, 'v', 1], [4, 's', '1'], [5, 's', 'atvremote'], [6, 's', '1.0.0']]]]]]);
-        if (m[2]) send([[2, 'm', [[1, 'v', 622]]]]);
+        // funciones: solo las que el televisor dice tener (si se le piden otras, como la voz,
+        // no activa el control y no hace caso a las teclas). PING 1 · KEY 2 · IME 4 (qué app
+        // está abierta) · POWER 32 · VOLUME 64 · APP_LINK 512
+        if (m[1]) {
+          const tvHas = num(sub(m, 1) || {}, 1);
+          this.features = WANT & (tvHas || WANT);
+          send([[1, 'm', [[1, 'v', this.features], [2, 'm', [[1, 's', 'ViperTeca'], [2, 's', 'ViperTeca'], [3, 'v', 1], [4, 's', '1'], [5, 's', 'atvremote'], [6, 's', '1.0.0']]]]]]);
+        }
+        if (m[2]) {
+          send([[2, 'm', [[1, 'v', this.features || WANT]]]]);
+          this.set({ active: true, error: null });
+        }
         if (m[8]) send([[9, 'm', [[1, 'v', num(sub(m, 8) || {}, 1) || 0]]]]);
         if (m[20]) {
           const app = sub(sub(m, 20) || {}, 1);
@@ -246,13 +257,13 @@ class Remote extends EventEmitter {
           const v = sub(m, 50) || {};
           this.set({ volume: { level: num(v, 7) || 0, max: num(v, 6) || 100, muted: !!num(v, 8) } });
         }
-        if (m[3]) this.emit('error', new Error('El televisor devolvió un error.'));
+        if (m[3]) this.set({ error: 'El televisor rechazó la última orden.' });
       })
     );
     const bye = (err) => {
       if (this.sock !== s) return;
       this.sock = null;
-      this.set({ connected: false });
+      this.set({ connected: false, active: false });
       if (err && /certificate|handshake|alert/i.test(String(err.message))) this.set({ unpaired: true });
       if (!this.closed) setTimeout(() => this.connect(), (this.retry = Math.min(60000, this.retry * 2)));
     };
@@ -267,11 +278,13 @@ class Remote extends EventEmitter {
     const code = typeof name === 'number' ? name : KEY[name];
     if (!code) throw new Error('Tecla desconocida');
     if (!this.sock || !this.state.connected) throw new Error('El televisor no está conectado.');
+    if (!this.state.active) throw new Error('El televisor todavía no aceptó el control; espera unos segundos o vuelve a vincularlo.');
     this.send([[10, 'm', [[1, 'v', code], [2, 'v', 3]]]]);
   }
   /** Abre una app por su enlace (https://www.netflix.com/title, https://www.youtube.com…). */
   open(link) {
     if (!this.sock || !this.state.connected) throw new Error('El televisor no está conectado.');
+    if (!this.state.active) throw new Error('El televisor todavía no aceptó el control; espera unos segundos o vuelve a vincularlo.');
     this.send([[90, 'm', [[1, 's', link]]]]);
   }
   close() {

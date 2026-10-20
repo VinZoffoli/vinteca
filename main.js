@@ -4180,7 +4180,7 @@ async function tvCmd(id, what, arg) {
   const r = tvRemotes.get(t.host);
   const st = tvState.get(t.host) || {};
   if (what === 'on') {
-    if (r && st.connected) r.key('wakeup');
+    if (r && st.connected && st.active) r.key('wakeup');
     else if (t.mac) tv.wake(t.mac);
     else throw new Error('El televisor está en reposo profundo y no sé su MAC para encenderlo.');
     if (!st.connected && t.mac) tv.wake(t.mac);
