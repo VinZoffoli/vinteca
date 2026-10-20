@@ -258,6 +258,16 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.28
+
+- **Estadísticas → Gasto en juegos**: abre tu historial de compras de Steam o Epic en una ventana de la app, inicias sesión tú y pulsa «Leer». Muestra cuánto gastaste por año (en colones, con el tipo de cambio del día) y cuánto te costó cada hora jugada: lo que mejor y lo que peor rindió.
+- **Ofertas → PC Game Pass**: el catálogo de PC Game Pass cruzado con tu lista de deseados (los que ya están, los que se van pronto y los que llegaron). Te aviso cuando un deseado llega o se va.
+- **Ofertas → Próximos lanzamientos de tu lista**: con la fecha y si tu PC lo mueve (recomendado, mínimo o no llega). Te aviso 3 días antes, el día anterior (para dejarlo precargando) y el día que sale.
+- **Amigos → Para jugar ahora**: los juegos multijugador que tienes en común con los amigos que están conectados, con el botón Jugar.
+- **Pausas al jugar**: cada 2 h seguidas (o el intervalo que pusiste en Ajustes) sale un aviso suave arriba de la pantalla, sin sonido ni notificación de Windows, para estirarte y tomar agua. Se apaga en Estadísticas.
+- **Genshin → Tiradas**: el cálculo de protogemas hasta la fecha cuenta por separado las diarias, la Luna, el Abismo (día 16), el Teatro (día 1), los eventos, los códigos y el mantenimiento, el Pase Gnóstico y los destinos de la tienda de Paimon, con el desglose de dónde sale cada cosa.
+- **HoYoLAB**: si a las 8 de la noche sigue sin hacerse el check-in, un segundo recordatorio.
+
 ## Novedades de la 1.27
 
 - **Panel del case siempre visible**: mientras ViperTeca esté abierta, el panel con todas las estadísticas se pone solo de fondo en la tercera pantalla (la vertical). Cada 15 segundos se comprueba que siga ahí: si la pantalla estaba apagada al arrancar, si Windows la reconoce tarde, si cambia la resolución o vuelve de la suspensión, el panel vuelve a su sitio. Si la pantalla no está, se espera a que vuelva (no tapa la principal).

@@ -351,6 +351,11 @@ function snapshot(dir) {
         'r-notion': [`showView('notion')`, 4000],
         'r-webs': [`showView('webs')`, 4000],
         'stats': [`showView('stats')`, 3500],
+        'x-stats': [`showView('stats'); setTimeout(() => document.getElementById('gxSpend')?.scrollIntoView(), 6000)`, 9000],
+        'x-ach': [`showView('ach')`, 40000],
+        'x-deals': [`showView('deals'); setTimeout(() => document.getElementById('gxGp')?.scrollIntoView(), 20000)`, 26000],
+        'x-friends': [`showView('friends')`, 25000],
+        'x-calc': [`showView('genshin'); setGenshinTab('tiradas'); setTimeout(() => { document.querySelector('.gc-inc')?.setAttribute('open', ''); document.querySelector('.gc-form')?.scrollIntoView(); }, 4000)`, 7000],
         'ach': [`showView('ach')`, 3500],
         'backlog': [`showView('backlog')`, 4000],
         'c-compras': [`showView('casa-compras')`, 2500],
@@ -953,6 +958,13 @@ app.whenReady().then(() => {
       setTimeout(() => siteWeekly().catch(() => {}), 40 * 60000);
       setInterval(() => { repoDaily().catch(() => {}); siteDaily().catch(() => {}); siteWeekly().catch(() => {}); }, 2 * 3600000);
       setInterval(() => teamMorningTick().catch(() => {}), 10 * 60000);
+      // juegos: Game Pass y lanzamientos una vez al día, pausas cada minuto, check-in por la noche
+      setTimeout(() => gamePassTick().catch(() => {}), 12 * 60000);
+      setInterval(() => gamePassTick().catch(() => {}), 24 * 3600000);
+      setTimeout(() => releaseTick().catch(() => {}), 13 * 60000);
+      setInterval(() => releaseTick().catch(() => {}), 6 * 3600000);
+      setInterval(breakTick, 60000);
+      setInterval(() => checkinEveningTick().catch(() => {}), 20 * 60000);
       setInterval(() => premiereTick().catch(() => {}), 30 * 60000);
     }
     setInterval(sundayTick, 30 * 60000);
@@ -1527,7 +1539,8 @@ setInterval(() => {
     const step = Math.floor((Date.now() - cur.start) / 60000 / remindEveryMin);
     if (step > remindStep) {
       remindStep = step;
-      notify(`Llevas ${fmtMin(step * remindEveryMin)} jugando`, `${cur.title}. Buen momento para estirar las piernas o beber agua.`);
+      // aviso suave en pantalla (el de Windows queda retenido por el modo No molestar)
+      nudge(`Llevas ${fmtMin(step * remindEveryMin)} jugando ${cur.title}. Buen momento para estirar las piernas o beber agua.`);
     }
   }
 }, 60000);
@@ -4003,6 +4016,158 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.28: juegos (Game Pass, logros fáciles, gasto, lanzamientos, pausas, jugar con amigos) ----------
+const gamesextra = require('./src/gamesextra');
+const wishItems = () => store.read('wishlist.json', null)?.items || [];
+let gpBusy = null;
+function gamePassGet(force) {
+  const c = store.read('gamepass.json', null);
+  if (!force && c && Date.now() - c.at < 12 * 3600000) return Promise.resolve(c);
+  if (!gpBusy) gpBusy = gamesextra.gamePass(ctxRW, wishItems()).finally(() => (gpBusy = null));
+  return gpBusy;
+}
+ipcMain.handle('games:gamepass', (_e, force) => gamePassGet(!!force));
+async function gamePassTick() {
+  const r = await gamePassGet(true).catch(() => null);
+  if (!r) return;
+  for (const g of r.wishOnPass) {
+    if (r.added.some((x) => x.id === g.id) && once('gp-add:' + g.id)) notify(g.title + ' llegó a Game Pass', 'Está en tu lista de deseados: ya lo puedes jugar con PC Game Pass.', null);
+    if (g.leaving && once('gp-leave:' + g.id + ':' + new Date().toLocaleDateString('sv').slice(0, 7))) notify(g.title + ' se va de Game Pass', 'Está en tu lista de deseados. Si lo quieres jugar con Game Pass, es ahora.', null);
+  }
+}
+
+// logros más fáciles (los que te faltan, de más común a más raro)
+ipcMain.handle('games:easy', async (_e, force) => {
+  const c = store.read('ach-easy.json', null);
+  if (!force && c && Date.now() - c.at < 12 * 3600000) return c;
+  const auth = await steamAuth();
+  const lib = store.read('library.json', null)?.games || [];
+  const titleOf = (appid) => lib.find((g) => g.id === 'steam:' + appid)?.title || String(appid);
+  const list = await gamesextra.easiest(store.read('achievements.json', null), (appid) => achievements.detail({ ...auth, appid, read: store.read, write: store.write }), titleOf);
+  const out = { at: Date.now(), list };
+  store.write('ach-easy.json', out);
+  return out;
+});
+
+// gasto: historial de Steam y Epic leído en una ventana de la app con tu sesión
+const spendWins = {};
+ipcMain.handle('games:spendOpen', (_e, which) => {
+  const k = which === 'epic' ? 'epic' : 'steam';
+  if (spendWins[k] && !spendWins[k].isDestroyed()) {
+    spendWins[k].show();
+    spendWins[k].focus();
+    return true;
+  }
+  const w = new BrowserWindow({ width: 1200, height: 860, title: k === 'epic' ? 'Epic Games · historial de compras' : 'Steam · historial de compras', autoHideMenuBar: true, webPreferences: { partition: 'persist:vt-' + k + 'store', sandbox: true, contextIsolation: true } });
+  w.webContents.setWindowOpenHandler(({ url }) => (/^https:\/\/([a-z]+\.)?(steampowered|steamcommunity|epicgames)\.com\//.test(url) ? { action: 'allow' } : { action: 'deny' }));
+  w.loadURL(k === 'epic' ? gamesextra.EPIC_HISTORY : gamesextra.STEAM_HISTORY);
+  w.on('closed', () => delete spendWins[k]);
+  spendWins[k] = w;
+  return true;
+});
+ipcMain.handle('games:spendRead', async (_e, which) => {
+  const k = which === 'epic' ? 'epic' : 'steam';
+  const w = spendWins[k];
+  if (!w || w.isDestroyed()) throw new Error('Abre primero el historial de ' + (k === 'epic' ? 'Epic' : 'Steam') + ' e inicia sesión.');
+  const r = await w.webContents.executeJavaScript(k === 'epic' ? gamesextra.READ_EPIC : gamesextra.READ_STEAM);
+  if (!r.rows.length) throw new Error(r.login ? 'Inicia sesión en la ventana y vuelve a pulsar «Leer».' : 'No encontré compras en esa página. ¿Está abierto el historial?');
+  const list = gamesextra.purchases(k, r.rows);
+  const all = store.read('spend.json', {});
+  all[k] = { at: Date.now(), list };
+  store.write('spend.json', all);
+  return { count: list.length };
+});
+ipcMain.handle('games:spend', async () => {
+  const all = store.read('spend.json', {});
+  const list = [...(all.steam?.list || []), ...(all.epic?.list || [])];
+  const rate = (await fx.get(ctxRW).catch(() => null))?.sell || null;
+  const lib = store.read('library.json', null)?.games || [];
+  return { sources: { steam: all.steam?.at || null, epic: all.epic?.at || null }, rate, ...gamesextra.spendSummary(list, lib, rate) };
+});
+
+// lanzamientos de tus deseados: si tu PC los mueve y avisos para la precarga
+ipcMain.handle('games:upcoming', async () => {
+  steam.setRegion(store.getSettings().country);
+  const ids = wishItems().map((i) => i.appid);
+  const list = ids.length ? await news.releases(ids).catch(() => []) : [];
+  const soon = list.filter((x) => x.date).slice(0, 20);
+  const run = soon.length ? await storeinfo.canRun(soon.map((x) => x.appid), ctxRW).catch(() => ({})) : {};
+  return list.slice(0, 30).map((x) => ({ ...x, run: run[x.appid] || null }));
+});
+async function releaseTick() {
+  const ids = wishItems().map((i) => i.appid);
+  if (!ids.length) return;
+  steam.setRegion(store.getSettings().country);
+  const list = (await news.releases(ids).catch(() => [])).filter((x) => x.date && x.exact);
+  const today0 = new Date().setHours(0, 0, 0, 0);
+  for (const x of list) {
+    const days = Math.round((new Date(x.date * 1000).setHours(0, 0, 0, 0) - today0) / DAYMS);
+    if (![3, 1, 0].includes(days) || !once('rel:' + x.appid + ':' + days)) continue;
+    const run = (await storeinfo.canRun([x.appid], ctxRW).catch(() => ({})))[x.appid];
+    const v = run?.verdict === 'rec' ? 'Tu PC cumple lo recomendado.' : run?.verdict === 'min' ? 'Tu PC cumple lo mínimo (calidad baja o media).' : run?.verdict === 'no' ? 'Ojo: tu PC no llega a los requisitos mínimos.' : '';
+    notify(days === 0 ? x.name + ' sale hoy' : x.name + (days === 1 ? ' sale mañana' : ' sale en 3 días'), [days > 0 ? 'Si lo compraste, déjalo precargando.' : '', v].filter(Boolean).join(' '), 'https://store.steampowered.com/app/' + x.appid);
+  }
+}
+
+// pausas: aviso suave en pantalla (sin sonido ni aviso de Windows) cada 2 h de juego seguidas
+let nudgeWin = null;
+function nudge(text) {
+  const { screen } = require('electron');
+  const a = screen.getPrimaryDisplay().workArea;
+  if (nudgeWin && !nudgeWin.isDestroyed()) nudgeWin.destroy();
+  nudgeWin = new BrowserWindow({ width: 420, height: 74, x: Math.round(a.x + a.width / 2 - 210), y: a.y + 18, frame: false, transparent: true, resizable: false, skipTaskbar: true, focusable: false, alwaysOnTop: true, show: false, webPreferences: { sandbox: true, javascript: false } });
+  nudgeWin.setAlwaysOnTop(true, 'screen-saver');
+  nudgeWin.setIgnoreMouseEvents(true);
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  nudgeWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent('<body style="margin:0;font:600 15px Segoe UI,sans-serif;color:#fff"><div style="margin:6px;padding:14px 18px;border-radius:16px;background:rgba(20,14,18,.88);box-shadow:0 8px 24px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12)">' + esc(text) + '</div></body>'));
+  nudgeWin.once('ready-to-show', () => nudgeWin && !nudgeWin.isDestroyed() && nudgeWin.showInactive());
+  setTimeout(() => nudgeWin && !nudgeWin.isDestroyed() && nudgeWin.destroy(), 9000);
+}
+let breakState = { id: null, n: 0 };
+function breakTick() {
+  const s = store.read('settings.json', {});
+  // si elegiste otro intervalo en Ajustes, ese recordatorio ya avisa
+  if (s.breakReminders === false || s.remindEveryMin) return;
+  const cur = tracker.current;
+  if (!cur) return (breakState = { id: null, n: 0 });
+  if (breakState.id !== cur.id + ':' + cur.start) breakState = { id: cur.id + ':' + cur.start, n: 0 };
+  const mins = (Date.now() - cur.start) / 60000;
+  const every = Number(s.breakEveryMin) || 120;
+  const due = Math.floor(mins / every);
+  if (due > breakState.n) {
+    breakState.n = due;
+    const h = Math.round(mins / 6) / 10;
+    nudge('Llevas ' + (h >= 1 ? h.toString().replace('.', ',') + ' h' : Math.round(mins) + ' min') + ' jugando ' + cur.title + '. Estírate, toma agua y descansa la vista 5 minutos.');
+  }
+}
+
+// jugar con amigos ahora: los conectados que tienen un juego multijugador en común contigo
+ipcMain.handle('friends:playNow', async () => {
+  const auth = await steamAuth();
+  const list = await friends.friendsList({ ...auth, read: store.read, write: store.write });
+  const online = list.filter((f) => f.online);
+  if (!online.length) return { online: 0, list: [] };
+  const MULTI = /multijugador|cooperativ|jcj|pvp|en l[ií]nea|online|mmo|multiplayer|co-op/i;
+  const myGames = (store.read('library.json', null)?.games || []).filter((g) => g.store === 'steam' && g.kind !== 'tool').map((g) => ({ id: g.id, appid: Number(g.id.split(':')[1]), title: g.title, multiplayer: MULTI.test((g.tags || []).join(' ')) }));
+  const common = await friends.commonGames({ apiKey: auth.apiKey, friends: online, myGames, read: store.read, write: store.write }).catch(() => []);
+  const rows = (Array.isArray(common) ? common : common.rows || []).filter((r) => r.multiplayer).slice(0, 12).map((r) => ({ ...r, title: myGames.find((g) => g.id === r.id)?.title || r.title || r.id }));
+  return { online: online.length, friends: online.map((f) => ({ name: f.name, state: f.state, playing: f.playing, avatar: f.avatar })), list: rows };
+});
+
+// Genshin: segundo recordatorio del check-in por la noche si sigue sin hacerse
+async function checkinEveningTick() {
+  if (!settingsOn('checkinAlert') || !hoyolab.linked(store.read)) return;
+  const hour = Number(store.read('settings.json', {}).checkinEveningHour) || 20;
+  if (new Date().getHours() < hour) return;
+  const key = 'checkin-pm:' + new Date().toLocaleDateString('sv');
+  const s = store.read('site-notified.json', {});
+  if (s[key]) return;
+  const r = await hoyolab.signInfo(store.read).catch(() => null);
+  if (!r || r.error || r.signed) return;
+  once(key);
+  notify('Todavía te falta el check-in de HoYoLAB', 'Se reinicia a medianoche (hora del servidor). Haz clic para reclamarlo.', hoyolab.SIGN_PAGE);
+}
 
 // ---------- 1.27: las webs de los clientes (uptime, dominios, contenido, capturas, CWV, horarios, seguridad) ----------
 const sitewatch = require('./src/sitewatch');

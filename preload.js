@@ -288,6 +288,8 @@ contextBridge.exposeInMainWorld('api', {
   exportLibrary: (format, opts) => ipcRenderer.invoke('library:export', format, opts),
   friends: () => ipcRenderer.invoke('friends:list'),
   friendsCommon: (ids) => ipcRenderer.invoke('friends:common', ids),
+  friendsPlayNow: () => ipcRenderer.invoke('friends:playNow'),
+  gx: { gamepass: (f) => ipcRenderer.invoke('games:gamepass', f), easy: (f) => ipcRenderer.invoke('games:easy', f), spend: () => ipcRenderer.invoke('games:spend'), spendOpen: (w) => ipcRenderer.invoke('games:spendOpen', w), spendRead: (w) => ipcRenderer.invoke('games:spendRead', w), upcoming: () => ipcRenderer.invoke('games:upcoming') },
   shots: (id) => ipcRenderer.invoke('shots:get', id),
   openShot: (file) => ipcRenderer.invoke('shots:open', file),
   savesInfo: (id) => ipcRenderer.invoke('saves:info', id),

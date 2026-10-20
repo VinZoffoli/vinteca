@@ -156,7 +156,7 @@ function getSteamKey() {
   }
 }
 
-const FLAGS = ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert', 'weatherAlerts', 'eventAlerts', 'webAlerts'];
+const FLAGS = ['breakReminders', 'autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'onboarded', 'lanAuto', 'priceAlerts', 'calReminders', 'calNewAlerts', 'sensorAlerts', 'resinAlert', 'codesAlert', 'notionAlerts', 'healthAlerts', 'vercelAlerts', 'panelAuto', 'mailAlerts', 'giveawayAlerts', 'checkinAlert', 'rentAlerts', 'cloudBackup', 'dndGaming', 'gatherAlerts', 'sundaySummary', 'paimonAlert', 'weatherAlerts', 'eventAlerts', 'webAlerts'];
 
 function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country, focus, trackSessions, keepTracking, ...rest }) {
   const s = read('settings.json', {});

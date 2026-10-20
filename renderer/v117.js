@@ -159,18 +159,62 @@
     }
     return gi.wish;
   }
+  /**
+   * Protogemas (y destinos) que entran hasta una fecha: diarias, Luna, Abismo (día 16),
+   * Teatro (día 1), eventos y códigos por versión (cada 6 semanas desde la próxima),
+   * Pase Gnóstico y la tienda de Paimon. Lo demás, en «otro extra al mes».
+   */
+  function incomeTo(target, v, nextAt) {
+    const now = Date.now();
+    const days = Math.max(0, Math.floor((target - now) / DAY));
+    const between = (dayOfMonth) => {
+      let n = 0;
+      const d = new Date(now);
+      d.setHours(12, 0, 0, 0);
+      d.setDate(1);
+      for (let i = 0; i < 24; i++) {
+        const t = new Date(d.getFullYear(), d.getMonth() + i, dayOfMonth, 12).getTime();
+        if (t > now && t <= target) n++;
+      }
+      return n;
+    };
+    // inicios de versión dentro del plazo (cada 42 días desde la próxima conocida)
+    let versions = 0;
+    if (nextAt) for (let t = nextAt; t <= target; t += 42 * DAY) if (t > now) versions++;
+    const evDays = Math.max(0, Math.round(days * (1600 / 42)));
+    const parts = [
+      ['Misiones diarias', days * 60],
+      ['Bendición de la Luna', v.welkin ? days * 90 : 0],
+      ['Abismo', (v.abyss ?? true) ? between(16) * 800 : 0],
+      ['Teatro Imaginario', (v.theater ?? true) ? between(1) * 800 : 0],
+      ['Eventos', (v.events ?? true) ? evDays : 0],
+      ['Códigos y mantenimiento', (v.codes ?? true) ? versions * 900 : 0],
+      ['Pase Gnóstico', v.bp ? versions * 680 : 0],
+      ['Otro extra', Math.round((Number(v.extra) || 0) * (days / 30))],
+    ];
+    const fates = (v.bp ? versions * 4 : 0) + ((v.shop ?? true) ? between(1) * 5 : 0);
+    if (fates) parts.push(['Destinos (pase y tienda)', fates]);
+    return { primos: parts.filter((p) => p[0] !== 'Destinos (pase y tienda)').reduce((a, p) => a + p[1], 0), fates, parts, versions };
+  }
   function renderCalc() {
     ensureWish();
     const v = GC.v;
+    // 1.28: el Abismo, el Teatro y los eventos ya se cuentan aparte; el «extra» viejo los incluía
+    if (!v.v128) {
+      v.v128 = true;
+      v.extra = null;
+      saveCalc();
+    }
     const pool = (typeof gi !== 'undefined' && gi.wish?.pools || []).find((p) => p.key === v.banner);
     const pity = v.pity ?? pool?.pity5 ?? 0;
     const guaranteed = v.banner === 'weapon' ? !!v.guaranteed : (v.guaranteed ?? pool?.guaranteed ?? false);
     const nextAt = (typeof gi !== 'undefined' && gi.news?.next?.at) || null;
     const target = v.date ? new Date(v.date + 'T12:00:00').getTime() : nextAt || Date.now() + 21 * DAY;
     const days = Math.max(0, Math.floor((target - Date.now()) / DAY));
-    const income = days * (60 + (v.welkin ? 90 : 0)) + Math.round((Number(v.extra) || 0) * (days / 30));
+    const inc = incomeTo(target, v, nextAt);
+    const income = inc.primos;
     const primosTotal = (Number(v.primos) || 0) + income;
-    const pulls = Math.floor(primosTotal / 160) + (Number(v.fates) || 0) + Math.floor((Number(v.glitter) || 0) / 5);
+    const pulls = Math.floor(primosTotal / 160) + (Number(v.fates) || 0) + inc.fates + Math.floor((Number(v.glitter) || 0) / 5);
     const copies = Math.max(1, Math.min(v.banner === 'weapon' ? 5 : 7, Number(v.copies) || 1));
     const maxPulls = Math.max(pulls, (v.banner === 'weapon' ? 160 : 180) * copies);
     const key = JSON.stringify([v.banner, pity, guaranteed, copies, maxPulls]);
@@ -208,15 +252,17 @@
           num('primos', 'Protogemas que tienes', { step: 160 }),
           num('fates', 'Destinos entrelazados'),
           num('glitter', 'Brillos estelares', { hint: '5 brillos = 1 tirada' }),
-          num('extra', 'Extra al mes', { step: 100, hint: 'Abismo, Teatro, eventos y tienda de Paimon' }),
+          num('extra', 'Otro extra al mes', { step: 100, hint: 'Lo que no esté en la lista de abajo' }),
           h('label', { class: 'gc-field' }, h('span', { text: v.banner === 'weapon' ? 'Refinamiento que quieres' : 'Constelación que quieres' }),
             h('select', { class: 'sn-select', onchange: (e) => set('copies', Number(e.target.value)) },
               (v.banner === 'weapon' ? [1, 2, 3, 4, 5].map((c) => [c, `R${c}`]) : [1, 2, 3, 4, 5, 6, 7].map((c) => [c, c === 1 ? 'El personaje (C0)' : `C${c - 1}`])).map(([c, l]) => h('option', { value: c, selected: copies === c, text: l })))),
           h('label', { class: 'gc-field' }, h('span', { text: 'Hasta el día' }), h('input', { type: 'date', class: 'rx-input', value: v.date || (nextAt ? new Date(nextAt).toLocaleDateString('sv') : ''), onchange: (e) => set('date', e.target.value) }), h('small', { class: 'hint', text: nextAt && !v.date ? 'Por defecto, el inicio de la próxima versión' : '' })),
           h('label', { class: 'gc-field' }, h('span', { text: 'Tiradas desde tu último 5★' }), h('input', { type: 'number', class: 'rx-input', min: 0, max: v.banner === 'weapon' ? 79 : 89, value: pity, onchange: (e) => set('pity', Number(e.target.value) || 0) }), pool && v.pity == null && h('small', { class: 'hint', text: 'Leído de tu historial de deseos' })),
           h('label', { class: 'rx-check gc-check' }, h('input', { type: 'checkbox', checked: !!guaranteed, onchange: (e) => set('guaranteed', e.target.checked) }), h('span', { text: v.banner === 'weapon' ? 'Tengo el punto de destino (el próximo 5★ es el elegido)' : 'El próximo 5★ es garantizado (perdí el 50/50)' })),
-          h('label', { class: 'rx-check gc-check' }, h('input', { type: 'checkbox', checked: !!v.welkin, onchange: (e) => set('welkin', e.target.checked) }), h('span', { text: 'Tengo la Bendición de la Luna (+90 al día)' }))
+          h('label', { class: 'rx-check gc-check' }, h('input', { type: 'checkbox', checked: !!v.welkin, onchange: (e) => set('welkin', e.target.checked) }), h('span', { text: 'Tengo la Bendición de la Luna (+90 al día)' })),
+          ...[['abyss', 'Completo el Abismo (800 cada día 16)', true], ['theater', 'Completo el Teatro Imaginario (800 cada día 1)', true], ['events', 'Hago los eventos (≈ 1.600 por versión)', true], ['codes', 'Canjeo los códigos del directo y el mantenimiento (≈ 900 por versión)', true], ['bp', 'Compro el Pase de Batalla Gnóstico (680 + 4 destinos por versión)', false], ['shop', 'Canjeo los 5 destinos de la tienda de Paimon cada mes', true]].map(([k, l, def]) => h('label', { class: 'rx-check gc-check' }, h('input', { type: 'checkbox', checked: v[k] ?? def, onchange: (e) => set(k, e.target.checked) }), h('span', { text: l })))
         ),
+        h('details', { class: 'gc-inc' }, h('summary', { text: 'De dónde salen las ' + income.toLocaleString('es') + ' protogemas' + (inc.fates ? ' y ' + inc.fates + ' destinos' : '') }), h('ul', { class: 'cl-ul' }, inc.parts.filter((p) => p[1]).map(([l, n]) => h('li', { text: l + ': ' + n.toLocaleString('es') })))),
         h('p', { class: 'hint', text: v.banner === 'weapon' ? 'Arma: probabilidad base 0,7 %, segura en la 80 y con el Camino Trazado (37,5 % de que salga la elegida, garantizada después de fallar una).' : 'Personaje: probabilidad base 0,6 %, sube desde la 74, segura en la 90. El 50/50 cuenta el «Brillo capturado» (≈ 55 % de ganar).' })
       )
     );
@@ -232,9 +278,8 @@
     const pool = ((typeof gi !== 'undefined' && gi.wish?.pools) || []).find((p) => p.key === 'character');
     const pity = v.banner === 'character' && v.pity != null ? v.pity : pool?.pity5 ?? 0;
     const guaranteed = v.banner === 'character' && v.guaranteed != null ? !!v.guaranteed : !!pool?.guaranteed;
-    const days = Math.max(0, Math.floor((target - Date.now()) / DAY));
-    const income = days * (60 + (v.welkin ? 90 : 0)) + Math.round((Number(v.extra) || 0) * (days / 30));
-    const pulls = Math.floor(((Number(v.primos) || 0) + income) / 160) + (Number(v.fates) || 0) + Math.floor((Number(v.glitter) || 0) / 5);
+    const inc = incomeTo(target, v, (typeof gi !== 'undefined' && gi.news?.next?.at) || null);
+    const pulls = Math.floor(((Number(v.primos) || 0) + inc.primos) / 160) + (Number(v.fates) || 0) + inc.fates + Math.floor((Number(v.glitter) || 0) / 5);
     if (!pulls) return { p: 0, pulls };
     const curve = simulate({ banner: 'character', pity, guaranteed, copies: 1, max: pulls });
     return { p: curve[Math.min(pulls, curve.length - 1)], pulls };
