@@ -86,6 +86,7 @@
       <button class="tab" data-view="lan" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="2.2"/><path d="M11 17.5h2"/></svg><span class="tab-lbl">En el móvil</span><span id="countLan" class="count"></span></button>
       <button class="tab" data-view="rgb" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg><span class="tab-lbl">Iluminación</span></button>
       <button class="tab" data-view="conn" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7.5 7 5.5a3.5 3.5 0 0 0-5 5l2 2M15 16.5l2 2a3.5 3.5 0 0 0 5-5l-2-2"/><path d="M8.5 15.5l7-7"/></svg><span class="tab-lbl">Conexiones</span></button>
+      <button class="tab" data-view="copies" role="tab" aria-selected="undefined"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18V7.5"/><rect x="3" y="4" width="18" height="3.5" rx="1"/><path d="M12 10.5v6M9.5 14l2.5 2.5 2.5-2.5"/></svg><span class="tab-lbl">Copias</span></button>
     </nav>
   <main id="scroller">
     <!-- Juegos -->
@@ -429,6 +430,15 @@
       <div id="diskBody"></div>
     </section>
 
+    <!-- Copias (1.30) -->
+    <section id="copiesView" class="view" hidden>
+      <div class="view-head">
+        <h1>Copias de seguridad</h1>
+        <p class="sub">Tus datos se copian solos a OneDrive cada día. Si algo se borra o se rompe, restaura solo ese archivo del día que quieras: lo de ahora se guarda antes, por si acaso.</p>
+      </div>
+      <div id="copiesBody"></div>
+    </section>
+
     <!-- Conexiones (1.29) -->
     <section id="connView" class="view" hidden>
       <div class="view-head">
@@ -707,6 +717,7 @@
   <script src="v127.js"></script>
   <script src="v128.js"></script>
   <script src="v129.js"></script>
+  <script src="v130.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>

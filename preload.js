@@ -199,6 +199,9 @@ contextBridge.exposeInMainWorld('api', {
   subsSummary: () => ipcRenderer.invoke('subs:summary'),
   billMail: { account: () => ipcRenderer.invoke('billmail:account'), set: (a) => ipcRenderer.invoke('billmail:set', a), scan: () => ipcRenderer.invoke('billmail:scan'), last: () => ipcRenderer.invoke('billmail:last') },
   conn: () => ipcRenderer.invoke('conn:status'),
+  copies: { list: () => ipcRenderer.invoke('copies:list'), preview: (d, n) => ipcRenderer.invoke('copies:preview', d, n), restore: (d, n) => ipcRenderer.invoke('copies:restore', d, n), now: () => ipcRenderer.invoke('copies:now'), open: () => ipcRenderer.invoke('copies:open') },
+  gameCal: () => ipcRenderer.invoke('gamecal:get'),
+  journal: { save: (id, t, m) => ipcRenderer.invoke('journal:save', id, t, m), get: (id) => ipcRenderer.invoke('journal:get', id), close: () => ipcRenderer.invoke('journal:close') },
   launch: { list: () => ipcRenderer.invoke('launch:list'), check: (url, name) => ipcRenderer.invoke('launch:check', url, name), onChanged: (cb) => ipcRenderer.on('launch:changed', () => cb()) },
   onMarketChanged: (cb) => ipcRenderer.on('mk:changed', () => cb()),
   backup: {

@@ -223,6 +223,17 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_T130) {
+        try {
+          askJournal({ id: 'steam:367520', title: 'Hollow Knight', start: Date.now() - 50 * 60000, end: Date.now() });
+          await wait(2500);
+          if (journalWin) fs.writeFileSync(path.join(dir, 'diario.png'), (await journalWin.webContents.capturePage()).toPNG());
+          const cal = await (async () => { const r = []; return r; })();
+          log('T130 journal ' + !!journalWin);
+        } catch (e) {
+          log('[error] t130: ' + e.stack);
+        }
+      }
       if (process.env.BJ_PANELTEST) {
         // el vigilante abre el panel en la pantalla del case y lo devuelve si se cierra
         try {
@@ -359,6 +370,9 @@ function snapshot(dir) {
         'x-veh': [`showView('casa-vehiculo')`, 3000],
         'x-gatos': [`showView('casa-gatitos'); setTimeout(() => document.querySelector('.sup')?.scrollIntoView({ block: 'center' }), 1500)`, 3000],
         'x-conn': [`showView('conn')`, 9000],
+        'x-copies': [`window.api.copies.now().then(() => showView('copies'))`, 5000],
+        'x-gcal': [`showView('cal'); setTimeout(() => document.getElementById('gameCal')?.scrollIntoView(), 6000)`, 9000],
+        'x-journal': [`window.api.journal.get('x')`, 500],
         'x-calc': [`showView('genshin'); setGenshinTab('tiradas'); setTimeout(() => { document.querySelector('.gc-inc')?.setAttribute('open', ''); document.querySelector('.gc-form')?.scrollIntoView(); }, 4000)`, 7000],
         'ach': [`showView('ach')`, 3500],
         'backlog': [`showView('backlog')`, 4000],
@@ -975,6 +989,10 @@ app.whenReady().then(() => {
       setTimeout(() => { if (home129.account(store.read).hasPassword) billScan().catch(() => {}); }, 16 * 60000);
       setInterval(() => { if (home129.account(store.read).hasPassword) billScan().catch(() => {}); }, 6 * 3600000);
       setTimeout(() => connTick().catch(() => {}), 3 * 60000);
+      setTimeout(forgottenTick, 20 * 60000);
+      setInterval(forgottenTick, 24 * 3600000);
+      setTimeout(() => endgameTick().catch(() => {}), 25 * 60000);
+      setInterval(() => endgameTick().catch(() => {}), 6 * 3600000);
       setInterval(() => connTick().catch(() => {}), 30 * 60000);
       setInterval(() => premiereTick().catch(() => {}), 30 * 60000);
     }
@@ -1190,6 +1208,7 @@ const tracker = new SessionTracker({
   getGames: () => store.read('library.json', null)?.games || [],
   onChange: (cur) => {
     if (win && !win.isDestroyed()) win.webContents.send('session:update', cur);
+    if (cur) showJournal(cur);
     if (!cur) maybeQuit();
   },
 });
@@ -1503,6 +1522,9 @@ tracker.getExtra = (s) => {
 };
 
 tracker.onEnd = async (s) => {
+  try {
+    askJournal(s); // diario de partidas (1.30)
+  } catch {}
   const min = (s.end - s.start) / 60000;
   const parts = [fmtMin(min)];
   if (s.fps) parts.push(`${Math.round(s.fps)} FPS de media${s.low1 ? ` (1 % bajo: ${Math.round(s.low1)})` : ''}`);
@@ -3758,7 +3780,8 @@ function genshinContext() {
 }
 const AI_TTL = { insights: 3 * 86400000, advice: 86400000, teams: 7 * 86400000 };
 const aiBusy = {};
-ipcMain.handle('gai:get', async (_e, kind, force, extra) => {
+ipcMain.handle('gai:get', (_e, kind, force, extra) => genshinAi(kind, force, extra));
+async function genshinAi(kind, force, extra) {
   if (!AI_TTL[kind]) throw new Error('Tipo desconocido');
   const cache = store.read('genshin-ai.json', {});
   if (!force && cache[kind] && Date.now() - cache[kind].at < AI_TTL[kind]) return cache[kind];
@@ -3787,7 +3810,7 @@ ipcMain.handle('gai:get', async (_e, kind, force, extra) => {
     return all[kind];
   }).finally(() => delete aiBusy[kind]);
   return aiBusy[kind];
-});
+}
 ipcMain.handle('gai:cached', () => store.read('genshin-ai.json', {}));
 
 
@@ -4027,6 +4050,134 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.30: copias y restauración, calendario de juego, diario de partidas ----------
+const DATA_DIR_NOW = () => path.join(app.getPath('appData'), 'biblioteca-juegos');
+const dataDir130 = () => process.env.BJ_USERDATA || DATA_DIR_NOW();
+/** Resumen de un archivo de datos para ver qué tiene (cuántos pagos, regalos…). */
+function describeData(name, j) {
+  const n = (x) => (Array.isArray(x) ? x.length : x && typeof x === 'object' ? Object.keys(x).length : 0);
+  if (name === 'casa.json') return [['pagos', n(j.payments)], ['regalos', n(j.gifts)], ['cosas por comprar', n((j.shopping || []).filter((x) => !x.done))], ['cumpleaños', n(j.birthdays)], ['recordatorios', n(j.reminders)], ['suscripciones', n(j.subscriptions)], ['trámites', n(j.tramites)]].filter((x) => x[1]).map(([l, v]) => v + ' ' + l).join(' · ');
+  if (name === 'sessions.json') return n(j) + ' partidas';
+  if (name === 'genshin-wishes.json') return n(j.items) + ' deseos';
+  if (name === 'streaming.json') return Object.values(j || {}).map((a) => (a.platform || '') + ' ' + (a.who || '') + ': ' + n(a.items)).join(' · ');
+  return n(j) + ' elementos';
+}
+ipcMain.handle('copies:list', () => {
+  const st = cloudbackup.status();
+  if (!st.available) return { available: false };
+  return { available: true, folder: st.folder, days: cloudbackup.list().slice(0, 30) };
+});
+ipcMain.handle('copies:preview', (_e, day, name) => {
+  const j = cloudbackup.readCopy(String(day), String(name));
+  const cur = store.read(String(name), null);
+  return { copy: describeData(name, j), now: cur ? describeData(name, cur) : 'no existe ahora' };
+});
+ipcMain.handle('copies:restore', async (_e, day, name) => {
+  const nm = String(name);
+  const j = cloudbackup.readCopy(String(day), nm);
+  const kept = cloudbackup.keepCurrent(dataDir130(), nm);
+  store.write(nm, j);
+  // que todo lo abierto se vuelva a leer
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed() && /index\.html|panel\.html|widget\.html/.test(w.webContents.getURL())) w.webContents.reload();
+  return { ok: true, kept };
+});
+ipcMain.handle('copies:now', () => cloudbackup.run(dataDir130()));
+ipcMain.handle('copies:open', () => shell.openPath(cloudbackup.root() || dataDir130()));
+
+// calendario de juego: ofertas que terminan, gratis de Epic, eventos de Genshin y lanzamientos
+ipcMain.handle('gamecal:get', async () => {
+  const now = Date.now();
+  const until = now + 31 * DAYMS;
+  const out = [];
+  const add = (kind, title, at, extra = {}) => at && at > now && at < until && out.push({ kind, title, at, ...extra });
+  for (const w of wishItems()) if (w.price?.discountPct && w.price.endsAt) add('oferta', w.name + ' −' + w.price.discountPct + '% termina', w.price.endsAt > 1e12 ? w.price.endsAt : w.price.endsAt * 1000, { detail: w.price.final, url: 'https://store.steampowered.com/app/' + w.appid });
+  const free = await extras.epicFreeGames(store.getSettings().country).catch(() => []);
+  for (const f of free) {
+    if (f.when === 'now' && f.end) add('gratis', f.title + ' deja de ser gratis', f.end, { url: f.url });
+    if (f.when !== 'now' && f.start) add('gratis', f.title + ' gratis en Epic', f.start, { url: f.url });
+  }
+  const news = store.read('genshin-news.json', null)?.data;
+  for (const e of news?.events || []) if (!/gachap|deseo|invocaci/i.test(e.kind || '')) add('genshin', 'Termina: ' + ((String(e.title).match(/«([^»]+)»/) || [])[1] || e.title), e.end);
+  if (news?.next?.at) add('genshin', 'Genshin ' + news.next.number + ' (nueva versión)', news.next.at);
+  const d0 = new Date(now);
+  for (let i = 0; i < 2; i++) {
+    add('genshin', 'Se reinicia el Abismo de Espiral', new Date(d0.getFullYear(), d0.getMonth() + i, 16, 4).getTime());
+    add('genshin', 'Se reinicia el Teatro Imaginario', new Date(d0.getFullYear(), d0.getMonth() + i + 1, 1, 4).getTime());
+  }
+  steam.setRegion(store.getSettings().country);
+  const rel = wishItems().length ? await news130Releases() : [];
+  for (const r of rel) if (r.date && r.exact) add('lanzamiento', r.name + ' sale', r.date * 1000, { url: 'https://store.steampowered.com/app/' + r.appid });
+  return out.sort((a, b) => a.at - b.at);
+});
+async function news130Releases() {
+  return news.releases(wishItems().map((i) => i.appid)).catch(() => []);
+}
+
+// diario de partidas: al cerrar un juego, una nota de dónde lo dejaste; al volver, se muestra
+let journalWin = null;
+function askJournal(s) {
+  if (store.read('settings.json', {}).gameJournal === false) return;
+  if ((s.end - s.start) / 60000 < 15) return; // partidas cortas: sin nota
+  const { screen } = require('electron');
+  const a = screen.getPrimaryDisplay().workArea;
+  if (journalWin && !journalWin.isDestroyed()) journalWin.destroy();
+  journalWin = new BrowserWindow({
+    width: 440, height: 250, x: a.x + a.width - 460, y: a.y + a.height - 270, frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: false, show: false, title: 'Diario de partidas',
+    backgroundColor: '#1a1214', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },
+  });
+  journalWin.loadFile(path.join(__dirname, 'renderer', 'journal.html'), { query: { id: s.id, title: s.title, min: String(Math.round((s.end - s.start) / 60000)) } });
+  journalWin.once('ready-to-show', () => journalWin && !journalWin.isDestroyed() && journalWin.show());
+  setTimeout(() => journalWin && !journalWin.isDestroyed() && !journalWin.isFocused() && journalWin.destroy(), 3 * 60000);
+}
+ipcMain.handle('journal:save', (_e, id, text, minutes) => {
+  const t = String(text || '').trim().slice(0, 1000);
+  const all = store.read('journal.json', {});
+  if (t) {
+    const list = (all[String(id)] ||= []);
+    list.push({ at: Date.now(), text: t, minutes: Number(minutes) || null });
+    if (list.length > 50) list.splice(0, list.length - 50);
+    store.write('journal.json', all);
+  }
+  if (journalWin && !journalWin.isDestroyed()) journalWin.destroy();
+  return true;
+});
+ipcMain.handle('journal:get', (_e, id) => (store.read('journal.json', {})[String(id)] || []).slice(-20));
+ipcMain.handle('journal:close', () => {
+  if (journalWin && !journalWin.isDestroyed()) journalWin.destroy();
+  return true;
+});
+/** Al abrir un juego: si dejaste una nota, sale arriba unos segundos. */
+function showJournal(cur) {
+  if (!cur || store.read('settings.json', {}).gameJournal === false) return;
+  const last = (store.read('journal.json', {})[cur.id] || []).slice(-1)[0];
+  if (!last) return;
+  setTimeout(() => nudge('La última vez en ' + cur.title + ' (' + new Date(last.at).toLocaleDateString('es', { day: 'numeric', month: 'short' }) + '): ' + last.text), 20000);
+}
+
+// juegos olvidados: aviso una vez al mes si ocupan mucho
+function forgottenTick() {
+  const key = 'forgotten:' + new Date().toLocaleDateString('sv').slice(0, 7);
+  const lib = store.read('library.json', null)?.games || [];
+  const limit = Date.now() - 90 * DAYMS;
+  const list = lib.filter((g) => g.installed && g.sizeBytes && g.kind !== 'tool' && (!g.lastPlayed || g.lastPlayed * (g.lastPlayed < 1e12 ? 1000 : 1) < limit));
+  const total = list.reduce((a, g) => a + g.sizeBytes, 0);
+  if (total < 50 * 1024 ** 3 || !once(key)) return;
+  notify(Math.round(total / 1024 ** 3) + ' GB en juegos que no abres hace 3 meses', list.sort((a, b) => b.sizeBytes - a.sizeBytes).slice(0, 3).map((g) => g.title).join(', ') + '… Míralos en Espacio en disco.', null);
+}
+
+// Genshin: los equipos del Abismo y el Teatro se preparan solos cuando cambia la temporada
+async function endgameTick() {
+  const now = new Date();
+  const cur = store.read('genshin-ai.json', {}).teams;
+  // última reinicio: día 16 (Abismo) o día 1 (Teatro), a las 4:00
+  const resets = [new Date(now.getFullYear(), now.getMonth(), 16, 4), new Date(now.getFullYear(), now.getMonth(), 1, 4), new Date(now.getFullYear(), now.getMonth() - 1, 16, 4)].map((d) => d.getTime()).filter((t) => t <= now.getTime());
+  const last = Math.max(...resets);
+  if (cur && cur.at >= last) return;
+  if (Date.now() - last > 5 * DAYMS && cur) return; // ya se perdió el momento; se hará al abrirlo
+  const r = await genshinAi('teams', true).catch(() => null);
+  if (r?.data) notify('Nueva temporada en Genshin', 'Ya están tus equipos para el Abismo y el Teatro con tus personajes. Míralos en Genshin → Equipos.', null);
+}
 
 // ---------- 1.29: suscripciones, facturas por correo, insumos de los gatitos, vehículo y conexiones ----------
 const home129 = require('./src/home129');

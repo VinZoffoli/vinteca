@@ -258,6 +258,14 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.30
+
+- **Copias de seguridad** (en Tu PC): las copias diarias de OneDrive, día por día. «Ver qué tiene» compara la copia con lo de ahora (por ejemplo «7 pagos · 12 regalos») y «Restaurar» devuelve solo ese archivo al día que elijas; lo de ahora se guarda antes en «antes-de-restaurar», por si acaso. Ahora se copian también las notas de los 1:1, el diario de partidas, el gasto en juegos, los historiales de precios, el uptime y la velocidad de las webs, Viendo y más, y se guardan 30 días (antes 10).
+- **Calendario de juego**: en la agenda, debajo de tus reuniones, los próximos 30 días de juegos: cuándo terminan las ofertas de tu lista de deseados, los gratis de Epic (cuándo empiezan y terminan), los eventos de Genshin que terminan, los reinicios del Abismo y del Teatro, la próxima versión y los lanzamientos de tu lista.
+- **Diario de partidas**: al cerrar una partida de más de 15 minutos sale una ventanita para anotar dónde lo dejaste; la próxima vez que abras ese juego, la nota aparece arriba de la pantalla. Todas las notas están en la ficha de cada juego, donde también puedes añadir más.
+- **Juegos olvidados**: Espacio en disco muestra cuánto ocupan en total los juegos instalados que no abres hace 3 meses, y si pasan de 50 GB te aviso una vez al mes.
+- **Genshin → Equipos**: cuando se reinicia el Abismo (día 16) o el Teatro (día 1), tu Claude Code prepara solo los equipos de la nueva temporada con tus personajes y te avisa.
+
 ## Novedades de la 1.29
 
 - **Casa → Suscripciones**: Netflix, Spotify, Game Pass y demás con su precio, cada cuánto se cobran y la próxima renovación; cuánto suman al mes y al año en colones (los dólares con el tipo de cambio del día). Te aviso 3 días antes y el día de cada renovación (y la fecha pasa sola a la siguiente).

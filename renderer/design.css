@@ -986,3 +986,24 @@ dialog::backdrop { background: rgba(var(--night-rgb), .62); backdrop-filter: blu
 .cn-error .cn-state { color: #ff7a8c; }
 .cn-warn .cn-state { color: #f5b942; }
 .cn-ok .cn-state { color: #4fdc9b; }
+
+/* 1.30 copias, calendario de juego y diario */
+.cp-days { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.cp-day { display: grid; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line, rgba(255,255,255,.1)); background: color-mix(in srgb, var(--surface) 60%, transparent); color: var(--text); text-align: left; cursor: pointer; }
+.cp-day.on { border-color: var(--pink); box-shadow: inset 0 0 0 1px var(--pink); }
+.cp-day small { color: var(--muted); font-size: 11.5px; }
+.cp-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-width: 980px; }
+.cp-files li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.cp-files li > div { display: grid; min-width: 0; }
+.gcal { margin-top: 16px; }
+.gcal-days { display: grid; gap: 10px; }
+.gcal-day { display: grid; grid-template-columns: 110px 1fr; gap: 10px; align-items: start; }
+.gcal-day > b { font: 600 13px var(--display); color: var(--muted); padding-top: 2px; }
+.gcal-day ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.gcal-day li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 13.5px; }
+.gcal-tag { font: 600 11px var(--display); padding: 1px 7px; border-radius: 999px; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+.jr { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.jr h3 { margin: 0; font-size: 15px; }
+.jr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.jr-list p { margin: 2px 0 0; white-space: pre-wrap; }
+.jr-add { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }

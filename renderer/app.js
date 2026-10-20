@@ -1714,7 +1714,7 @@ function renderDisk() {
         'section',
         { class: 'panel' },
         h('h2', { class: 'section-h', text: 'Para liberar espacio' }),
-        h('p', { class: 'hint', text: `Instalados que no juegas desde hace más de ${STALE_DAYS} días, o nunca, de mayor a menor.` }),
+        h('p', { class: 'hint', text: `Instalados que no juegas desde hace más de ${STALE_DAYS} días, o nunca, de mayor a menor${stale.length ? ` (en total ${fmtBytes(stale.reduce((a, g) => a + (g.sizeBytes || 0), 0))})` : ''}. Si pasan de 50 GB te aviso una vez al mes.` }),
         stale.length
           ? h(
               'div',
@@ -2041,7 +2041,7 @@ const VIEWS = [
   ['news', 'Novedades'], ['viendo', 'Viendo: Netflix y Crunchyroll'], ['friends', 'Amigos'], ['deals', 'Ofertas'], ['disk', 'Espacio'],
   ['day', 'Mi día'], ['assist', 'Pregúntale a ViperTeca'], ['backlog', 'Backlog'], ['genshin', 'Genshin'], ['sensors', 'Sensores'], ['cal', 'Calendario'], ['notion', 'Notion'], ['webs', 'Websites'],
   ['workana', 'Workana'], ['linkedin', 'LinkedIn'], ['mail', 'Email'], ['casa-compras', 'Compras'], ['casa-pagos', 'Pagos'], ['casa-presupuesto', 'Presupuesto'],
-  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'], ['casa-suscripciones', 'Suscripciones'], ['casa-vehiculo', 'Vehículo'], ['conn', 'Conexiones'],
+  ['casa-recordatorios', 'Recordatorios'], ['casa-cumples', 'Cumpleaños'], ['casa-regalos', 'Regalos'], ['casa-gatitos', 'Gatitos'], ['casa-menu', 'Menú semanal'], ['casa-hogar', 'Hogar: mantenimiento y garantías'], ['casa-compartidos', 'Gastos compartidos'], ['casa-tramites', 'Trámites'], ['casa-feriados', 'Feriados'], ['casa-alquileres', 'Alquileres'], ['casa-suscripciones', 'Suscripciones'], ['casa-vehiculo', 'Vehículo'], ['conn', 'Conexiones'], ['copies', 'Copias de seguridad'],
 ];
 let palIndex = 0;
 let palItems = [];
