@@ -223,6 +223,44 @@ function snapshot(dir) {
     }
     if (process.env.BJ_SNAPSHOT_ONLY === 'v118') {
       const steps = (process.env.BJ_STEPS || 'dia,biblioteca,casa-pagos,casa-cumples,genshin-mapa,movil,ajustes').split(',');
+      if (process.env.BJ_PANELTEST) {
+        // el vigilante abre el panel en la pantalla del case y lo devuelve si se cierra
+        try {
+          panelWatch();
+          await wait(9000);
+          const d = panelTarget();
+          log('PANEL destino ' + JSON.stringify(d && d.bounds) + ' abierto=' + !!(panelWin && !panelWin.isDestroyed()) + ' bounds=' + JSON.stringify(panelWin && !panelWin.isDestroyed() && panelWin.getBounds()) + ' visible=' + (panelWin && !panelWin.isDestroyed() && panelWin.isVisible()));
+          if (panelWin) fs.writeFileSync(path.join(dir, 'panel-case.png'), (await panelWin.webContents.capturePage()).toPNG());
+          panelWin?.destroy();
+          await wait(17000);
+          log('PANEL tras cerrarlo: abierto=' + !!(panelWin && !panelWin.isDestroyed()) + ' bounds=' + JSON.stringify(panelWin && !panelWin.isDestroyed() && panelWin.getBounds()));
+        } catch (e) {
+          log('[error] panel: ' + e.stack);
+        }
+      }
+      if (process.env.BJ_T127) {
+        try {
+          const t0 = Date.now();
+          await repoDaily(true);
+          log('T127 repos ' + Math.round((Date.now() - t0) / 1000) + 's ' + JSON.stringify((siteState().security?.repos || []).length));
+          await siteDaily(true);
+          const st = siteState();
+          log('T127 daily ' + Math.round((Date.now() - t0) / 1000) + 's ' + JSON.stringify({ dom: Object.values(st.domains).map((d) => d.domain + ':' + (d.until ? new Date(d.until).toISOString().slice(0, 10) : '?')), stale: Object.entries(st.stale).map(([u, x]) => u + ':' + x.items.map((i) => i.label).join('|')), shots: Object.entries(st.shots).map(([u, x]) => u + ':' + Object.entries(x.views).map(([k, v]) => k + v.change).join(',')) }));
+          const s = await standup();
+          log('T127 standup ' + JSON.stringify(s.squads.map((x) => x.text.slice(0, 160))));
+          const first = healthSites()[0];
+          const rep = await siteReport(first.url, new Date().toLocaleDateString('sv').slice(0, 7), 'en');
+          log('T127 report ' + rep.file);
+          await js(`showView('webs'); setTimeout(() => { [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Clientes')?.click(); setTimeout(() => document.querySelector('.cl-card header')?.click(), 1500); }, 1200)`);
+          await wait(4500);
+          await shot('clientes.png');
+          await js(`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click()`);
+          await wait(5000);
+          await shot('squads-extras.png');
+        } catch (e) {
+          log('[error] t127: ' + e.stack);
+        }
+      }
       if (process.env.BJ_T126) {
         // prueba 1.26: recibo de ejemplo, compras de Emi y precios de regalos
         try {
@@ -872,7 +910,7 @@ app.whenReady().then(() => {
     setTimeout(notionTick, 45000);
     setInterval(notionTick, 10 * 60000);
     setTimeout(healthTick, 120000);
-    setInterval(healthTick, 30 * 60000);
+    setInterval(healthTick, 5 * 60000);
     setTimeout(vercelTick, 75000);
     setInterval(vercelTick, 10 * 60000);
     setTimeout(casaTick, 30000);
@@ -909,10 +947,17 @@ app.whenReady().then(() => {
       setTimeout(() => launchTick().catch(() => {}), 6 * 60000);
       setInterval(() => launchTick().catch(() => {}), 30 * 60000);
       setTimeout(() => premiereTick().catch(() => {}), 8 * 60000);
+      // webs de los clientes: lo diario y lo semanal se revisa cada 2 h si toca
+      setTimeout(() => repoDaily().catch(() => {}), 10 * 60000);
+      setTimeout(() => siteDaily().catch(() => {}), 15 * 60000);
+      setTimeout(() => siteWeekly().catch(() => {}), 40 * 60000);
+      setInterval(() => { repoDaily().catch(() => {}); siteDaily().catch(() => {}); siteWeekly().catch(() => {}); }, 2 * 3600000);
+      setInterval(() => teamMorningTick().catch(() => {}), 10 * 60000);
       setInterval(() => premiereTick().catch(() => {}), 30 * 60000);
     }
     setInterval(sundayTick, 30 * 60000);
-    if (store.read('settings.json', {}).panelAuto) setTimeout(() => { try { openPanel(); } catch {} }, 5000);
+    // el panel del case se abre solo y se vigila mientras la app esté abierta
+    if (!process.env.BJ_SNAPSHOT) panelWatch();
     setInterval(() => calendarTick(true), 5 * 60000);
     setInterval(calendarReminders, 30000);
   }
@@ -1391,7 +1436,8 @@ ipcMain.handle('card:save', async (_e, rect, name) => {
 // ---------- Fin de partida: resumen, copia automática y control del tiempo ----------
 const dndQueue = [];
 const notify = (title, body, url, opts = {}) => {
-  if (!Notification.isSupported()) return;
+  if (!Notification.isSupported() || process.env.BJ_SNAPSHOT) return; // las pruebas no avisan
+
   if (!opts.urgent && focus.mode === 'on' && store.read('settings.json', {}).dndGaming !== false) {
     dndQueue.push({ at: Date.now(), title: String(title || '').slice(0, 200), body: String(body || '').slice(0, 400), url: url || null });
     return;
@@ -2382,19 +2428,74 @@ function openPanel() {
     panelWin = null;
     sensors.want(false);
   });
+  panelWin.webContents.on('render-process-gone', () => {
+    if (panelWin && !panelWin.isDestroyed()) panelWin.destroy();
+    setTimeout(panelCheck, 3000);
+  });
   return true;
 }
+/**
+ * Panel en la pantalla del case como fondo: se abre al arrancar y cada 15 s se
+ * comprueba que siga ahí (las pantallas se apagan, Windows arranca sin detectarla,
+ * cambia la resolución…). Si la pantalla no está, se espera a que vuelva.
+ */
+let panelWatching = false;
+function panelTarget() {
+  const { screen } = require('electron');
+  const s = store.read('settings.json', {});
+  const all = screen.getAllDisplays();
+  return all.find((x) => x.id === Number(s.panelDisplay)) || all.find((x) => x.size.height > x.size.width * 1.5) || null;
+}
+function panelCheck() {
+  if (store.read('settings.json', {}).panelAuto === false) return;
+  const d = panelTarget();
+  const open = panelWin && !panelWin.isDestroyed();
+  if (!d) {
+    // sin la pantalla del case: que no tape la pantalla principal
+    if (open && panelWin.isVisible()) panelWin.hide();
+    return;
+  }
+  if (!open) {
+    try {
+      openPanel();
+    } catch {}
+    return;
+  }
+  // en pantalla completa Windows la agranda unos píxeles: basta con que esté en esa pantalla
+  const on = require('electron').screen.getDisplayMatching(panelWin.getBounds());
+  const off = on.id !== d.id;
+  if (off || !panelWin.isVisible()) {
+    panelWin.setFullScreen(false);
+    panelWin.setBounds(d.bounds);
+    panelWin.showInactive();
+    panelWin.setFullScreen(true);
+  }
+}
+function panelWatch() {
+  if (panelWatching) return;
+  panelWatching = true;
+  const { screen } = require('electron');
+  setTimeout(panelCheck, 4000);
+  setInterval(panelCheck, 15000);
+  for (const ev of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(ev, () => setTimeout(panelCheck, 2500));
+  require('electron').powerMonitor.on('resume', () => setTimeout(panelCheck, 5000));
+  require('electron').powerMonitor.on('unlock-screen', () => setTimeout(panelCheck, 3000));
+}
 let spCache = { at: 0, v: null };
-ipcMain.handle('panel:displays', () => ({ displays: panelDisplays(), chosen: store.read('settings.json', {}).panelDisplay || null, open: !!(panelWin && !panelWin.isDestroyed()), auto: !!store.read('settings.json', {}).panelAuto }));
+ipcMain.handle('panel:displays', () => ({ displays: panelDisplays(), chosen: store.read('settings.json', {}).panelDisplay || null, open: !!(panelWin && !panelWin.isDestroyed()), auto: store.read('settings.json', {}).panelAuto !== false }));
 ipcMain.handle('panel:set', (_e, opts) => {
   const s = store.read('settings.json', {});
   if (opts && 'display' in opts) s.panelDisplay = opts.display == null ? null : Number(opts.display);
   if (opts && 'auto' in opts) s.panelAuto = !!opts.auto;
   store.write('settings.json', s);
+  if (opts && ('auto' in opts || 'display' in opts)) setTimeout(panelCheck, 500);
   return true;
 });
 ipcMain.handle('panel:open', () => openPanel());
 ipcMain.handle('panel:close', () => {
+  const st = store.read('settings.json', {});
+  st.panelAuto = false;
+  store.write('settings.json', st);
   if (panelWin && !panelWin.isDestroyed()) panelWin.destroy();
   return true;
 });
@@ -2598,6 +2699,10 @@ async function healthTick() {
   const sites = healthSites();
   if (!sites.length || !settingsOn('healthAlerts')) return;
   const r = await webhealth.checkAll(sites, ctxRW).catch(() => null);
+  if (r) {
+    const slow = sitewatch.recordUptime(ctxRW, sites.map((s) => ({ ...r.sites[s.url], url: s.url, name: s.name })).filter((x) => x.at));
+    for (const s of slow) notify(s.name + ' va lenta', 'Responde en ' + (s.ms / 1000).toFixed(1) + ' s (lo normal es ' + (s.base / 1000).toFixed(1) + ' s).', null);
+  }
   for (const c of r?.changes || []) {
     if (c.kind === 'down') notify(`${c.site.name} está caída`, `${c.site.url} no responde (${c.r.error || 'HTTP ' + c.r.status}).`, null);
     if (c.kind === 'up') notify(`${c.site.name} volvió`, `${c.site.url} responde otra vez.`);
@@ -3898,6 +4003,387 @@ ipcMain.handle('gifts:link', async (_e, renew) => {
   const info = l.running ? l.info() : await l.start();
   return info.gift || null;
 });
+
+// ---------- 1.27: las webs de los clientes (uptime, dominios, contenido, capturas, CWV, horarios, seguridad) ----------
+const sitewatch = require('./src/sitewatch');
+const ORG = () => store.read('settings.json', {}).githubOrg || 'Resto-Experience';
+const googleKey = () => webhealth.getSecret(store.read, 'psiKeyEnc');
+const once = (key) => {
+  const s = store.read('site-notified.json', {});
+  if (s[key]) return false;
+  s[key] = Date.now();
+  for (const k of Object.keys(s)) if (Date.now() - s[k] > 120 * DAYMS) delete s[k];
+  store.write('site-notified.json', s);
+  return true;
+};
+const shotsDir = () => path.join(app.getPath('userData'), 'capturas');
+// las webs de clientes: sin los proyectos internos que solo vienen de Vercel
+const clientSites = () => healthSites().filter((s) => !s.fromVercel);
+const siteState = () => store.read('site-watch.json', { stale: {}, shots: {}, domains: {}, hours: {}, security: null, at: {} });
+const saveSiteState = (s) => {
+  store.write('site-watch.json', s);
+  if (win && !win.isDestroyed()) win.webContents.send('sites:changed');
+};
+/** El repo de una web: por el pipeline de Notion, por Vercel o por el nombre. */
+function repoOfSite(site) {
+  const pipe = (store.read('notion-cache.json', null)?.data?.pipeline?.rows || []).find((r) => r.production && sitewatch.hostOf(r.production) === sitewatch.hostOf(site.url));
+  const m = String(pipe?.repo || '').replace(/\.git$/, '').match(/github\.com\/[^/]+\/([^/?#]+)/);
+  if (m) return m[1];
+  const vp = (store.read('vercel.json', null)?.projects || []).find((p) => p.domain && sitewatch.hostOf(p.domain) === sitewatch.hostOf(site.url));
+  if (vp?.repo) return String(vp.repo).split('/').pop();
+  const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^website-[a-d]-/, '').replace(/[^a-z0-9]/g, '');
+  const want = slug(site.name);
+  const repos = Object.keys(store.read('month-commits.json', {}).repos || {});
+  return repos.find((r) => slug(r) === want) || repos.find((r) => want.length > 4 && (slug(r).includes(want) || want.includes(slug(r)))) || null;
+}
+
+// cada día: dominios, SSL a 30/7 días, contenido vencido y capturas
+let siteDailyBusy = null;
+async function siteDaily(force) {
+  if (siteDailyBusy) return siteDailyBusy;
+  siteDailyBusy = (async () => {
+    const st = siteState();
+    const day = new Date().toLocaleDateString('sv');
+    if (!force && st.at.daily === day) return st;
+    const sites = clientSites().slice(0, Number(process.env.BJ_SITES_LIMIT) || 999);
+    const health = store.read('webhealth.json', { sites: {} }).sites;
+    for (const s of sites) {
+      const d = await sitewatch.domainExpiry(ctxRW, s.url).catch(() => null);
+      if (d) st.domains[s.url] = { domain: d.domain, until: d.until || null, registrar: d.registrar || null };
+      const days = d?.until ? Math.floor((d.until - Date.now()) / DAYMS) : null;
+      for (const lim of [30, 7]) if (days != null && days <= lim && once('dom:' + d.domain + ':' + lim + ':' + new Date(d.until).getFullYear())) notify('El dominio ' + d.domain + ' vence en ' + days + ' días', (d.registrar ? 'Renuévalo en ' + d.registrar + '. ' : '') + s.name, null);
+      const ssl = health[s.url]?.sslDays;
+      for (const lim of [30, 7]) if (ssl != null && ssl <= lim && once('ssl:' + sitewatch.hostOf(s.url) + ':' + lim + ':' + day.slice(0, 7))) notify('El SSL de ' + s.name + ' vence en ' + ssl + ' días', 'Revisa la renovación automática del certificado de ' + sitewatch.hostOf(s.url) + '.', null);
+    }
+    saveSiteState(st);
+    for (const s of sites) {
+      const found = await sitewatch.staleContent(s.url).catch(() => null);
+      if (!found) continue;
+      st.stale[s.url] = { at: Date.now(), items: found };
+      // sin aviso de Windows: el contenido vencido se ve en Websites → Clientes
+      saveSiteState(st);
+    }
+    for (const s of sites) {
+      const r = await sitewatch.dailyShots(shotsDir(), s).catch(() => null);
+      if (!r) continue;
+      st.shots[s.url] = r;
+      const big = Object.entries(r.views).filter(([, v]) => v.change != null && v.change >= 25);
+      if (big.length && once('shot:' + s.url + ':' + day)) notify('La portada de ' + s.name + ' cambió mucho', big.map(([k, v]) => (k === 'd' ? 'Escritorio ' : 'Celular ') + v.change + '%').join(' · ') + ' respecto a ayer. Revisa que no esté rota.', null);
+      saveSiteState(st);
+    }
+    st.at.daily = day;
+    saveSiteState(st);
+    return st;
+  })().finally(() => (siteDailyBusy = null));
+  return siteDailyBusy;
+}
+
+// cada semana: Core Web Vitals (PageSpeed + CrUX) y horarios frente a Google
+let siteWeeklyBusy = null;
+async function siteWeekly(force) {
+  if (siteWeeklyBusy) return siteWeeklyBusy;
+  siteWeeklyBusy = (async () => {
+    const st = siteState();
+    if (!force && st.at.weekly && Date.now() - st.at.weekly < 6.5 * DAYMS) return st;
+    const key = googleKey();
+    if (!key) return st;
+    const sites = clientSites().slice(0, Number(process.env.BJ_SITES_LIMIT) || 999);
+    for (const s of sites) {
+      const psi = await webhealth.pagespeed(store.read, s.url).catch((e) => ({ error: e.message }));
+      const field = await sitewatch.crux(key, s.url).catch((e) => ({ error: e.message }));
+      const list = sitewatch.recordCwv(ctxRW, s.url, { perf: psi?.performance ?? null, seo: psi?.seo ?? null, labLcp: psi?.lcp || null, ...(field?.none || field?.error ? {} : field) });
+      const prev = list[list.length - 2];
+      const cur = list[list.length - 1];
+      if (prev?.perf != null && cur.perf != null && cur.perf <= prev.perf - 15 && once('cwv:' + s.url + ':' + new Date().toLocaleDateString('sv'))) notify(s.name + ' va más lenta', 'Velocidad en celular de ' + prev.perf + ' a ' + cur.perf + ' esta semana. ¿Algún deploy reciente?', null);
+    }
+    // horarios: Google Places + lo que dice la web, comparados por tu Claude Code (de 6 en 6)
+    const batch = [];
+    for (const s of sites) {
+      const places = await sitewatch.googlePlaces(key, s.name, s.url).catch((e) => ({ error: e.message }));
+      if (!Array.isArray(places) || !places.length) {
+        st.hours[s.url] = { at: Date.now(), error: places?.error || 'No encontré el restaurante en Google con esta web.' };
+        continue;
+      }
+      const web = await sitewatch.webHoursText(s.url).catch(() => '');
+      if (!web.trim()) {
+        st.hours[s.url] = { at: Date.now(), places, error: 'La web no muestra horarios que pueda leer.' };
+        continue;
+      }
+      batch.push({ s, places, web });
+    }
+    for (let i = 0; i < batch.length; i += 6) {
+      const part = batch.slice(i, i + 6);
+      const prompt = 'Compara los horarios de cada restaurante: lo que dice su web frente a su ficha de Google. Hay restaurantes con varios locales.\n\n' +
+        part.map((b, k) => '### ' + (k + 1) + '. ' + b.s.name + ' (' + b.s.url + ')\nGOOGLE:\n' + b.places.map((p) => '- ' + p.name + ' (' + p.address + '): ' + (p.hours.join('; ') || 'sin horario') + (p.status && p.status !== 'OPERATIONAL' ? ' [' + p.status + ']' : '')).join('\n') + '\nWEB:\n' + b.web.slice(0, 2500)).join('\n\n') +
+        '\n\nPara cada uno responde si coinciden y, si no, qué día y local difiere (en español, breve). Si la web no tiene horarios claros, dilo. Responde SOLO con JSON: {"results":[{"n":1,"match":true,"differences":["Sábado: web 11am–10pm, Google 11am–11pm"],"note":""}]}';
+      const r = await aiJson(prompt, { system: 'Comparas horarios de restaurantes con cuidado (formatos 11am, 11:00, 11 AM son lo mismo; "Closed" es cerrado). Respondes SOLO con un bloque de código json válido.' }).catch(() => null);
+      for (const x of r?.results || []) {
+        const b = part[Number(x.n) - 1];
+        if (!b) continue;
+        st.hours[b.s.url] = { at: Date.now(), places: b.places, match: !!x.match, differences: (x.differences || []).slice(0, 6), note: x.note || '' };
+        if (!x.match && (x.differences || []).length && once('hours:' + b.s.url + ':' + JSON.stringify(x.differences).slice(0, 80))) notify('Horarios distintos en ' + b.s.name, 'La web y Google no coinciden: ' + x.differences.slice(0, 2).join(' · '), null);
+      }
+    }
+    st.at.weekly = Date.now();
+    saveSiteState(st);
+    return st;
+  })().finally(() => (siteWeeklyBusy = null));
+  return siteWeeklyBusy;
+}
+
+// cada día: seguridad de los repos y commits del mes (horas por cliente)
+let repoBusy = null;
+async function repoDaily(force) {
+  if (repoBusy) return repoBusy;
+  repoBusy = (async () => {
+    const st = siteState();
+    const day = new Date().toLocaleDateString('sv');
+    if (!force && st.at.repos === day) return st;
+    const sec = await sitewatch.repoSecurity(teamweek.gh, ORG(), { pool: teamweek.pool }).catch((e) => ({ error: e.message }));
+    st.security = Array.isArray(sec) ? { at: Date.now(), repos: sec } : { at: Date.now(), error: sec.error, repos: st.security?.repos || [] };
+    for (const r of st.security.repos) {
+      for (const x of r.secrets) if (once('secret:' + r.repo + ':' + x.sha + ':' + x.what)) notify('Posible clave subida a ' + r.repo, x.what + ' en ' + x.file + ' (commit ' + x.sha + '). Cámbiala y quítala del repo.', null);
+      // las actualizaciones de Next.js se ven en Websites → Clientes, sin aviso de Windows
+    }
+    const month = day.slice(0, 7);
+    const repos = await sitewatch.monthCommits(teamweek.gh, ORG(), month, { pool: teamweek.pool }).catch(() => null);
+    if (repos) store.write('month-commits.json', { at: Date.now(), month, repos });
+    st.at.repos = day;
+    saveSiteState(st);
+    return st;
+  })().finally(() => (repoBusy = null));
+  return repoBusy;
+}
+
+/** Todo lo de cada web junto, para la pestaña Clientes. */
+ipcMain.handle('sites:get', () => {
+  const st = siteState();
+  const health = store.read('webhealth.json', { sites: {} }).sites;
+  const cwv = store.read('cwv.json', {});
+  const mc = store.read('month-commits.json', {});
+  const sec = st.security?.repos || [];
+  return {
+    at: st.at,
+    google: !!googleKey(),
+    busy: { daily: !!siteDailyBusy, weekly: !!siteWeeklyBusy, repos: !!repoBusy },
+    securityError: st.security?.error || null,
+    sites: clientSites().map((s) => {
+      const repo = repoOfSite(s);
+      const commits = (mc.repos || {})[repo] || [];
+      return {
+        ...s,
+        repo,
+        health: health[s.url] || null,
+        uptime: sitewatch.uptimeOf(store.read, s.url),
+        domain: st.domains[s.url] || null,
+        stale: st.stale[s.url] || null,
+        shots: st.shots[s.url] ? Object.fromEntries(Object.entries(st.shots[s.url].views).map(([k, v]) => [k, { change: v.change }])) : null,
+        cwv: (cwv[s.url] || []).slice(-12),
+        hours: st.hours[s.url] || null,
+        security: sec.find((r) => r.repo === repo) || null,
+        month: { commits: commits.length, hours: commits.length ? sitewatch.hoursOf(commits) : null },
+      };
+    }),
+    otherSecurity: sec.filter((r) => !clientSites().some((s) => repoOfSite(s) === r.repo)),
+  };
+});
+ipcMain.handle('sites:run', (_e, what) => (what === 'weekly' ? siteWeekly(true) : what === 'repos' ? repoDaily(true) : siteDaily(true)).then(() => true));
+ipcMain.handle('sites:shots', (_e, url) => {
+  const r = siteState().shots[String(url)];
+  if (!r) return null;
+  const data = (f) => {
+    try {
+      return f && require('fs').existsSync(f) ? 'data:image/jpeg;base64,' + require('fs').readFileSync(f).toString('base64') : null;
+    } catch {
+      return null;
+    }
+  };
+  return Object.fromEntries(Object.entries(r.views).map(([k, v]) => [k, { now: data(v.file), prev: data(v.prev), change: v.change }]));
+});
+
+/** Changelog del mes de una web, escrito para el cliente (caché por mes). */
+async function siteChangelog(url, month, lang = 'en') {
+  const site = healthSites().find((s) => s.url === url) || { url, name: sitewatch.hostOf(url) };
+  const repo = repoOfSite(site);
+  const cache = store.read('changelogs.json', {});
+  const ck = url + '|' + month + '|' + lang;
+  if (cache[ck] && Date.now() - cache[ck].at < 12 * 3600000) return cache[ck];
+  let commits = month === store.read('month-commits.json', {}).month ? (store.read('month-commits.json', {}).repos || {})[repo] || [] : null;
+  if (!commits && repo) commits = ((await sitewatch.monthCommits(teamweek.gh, ORG(), month, { pool: teamweek.pool }).catch(() => ({}))) || {})[repo] || [];
+  if (!commits?.length) return { at: Date.now(), repo, items: [], empty: true };
+  const prompt = (lang === 'es' ? 'Escribe en español' : 'Write in English') + ' a short changelog for the restaurant owner of ' + site.name + ' (' + url + ') for ' + month + ', based on these commits from the website repo. Group into 3–8 plain-language bullet points about what changed on their website (no technical jargon, no file names, no commit hashes, nothing internal like refactors or lint). If something is only internal, skip it.\n\nCommits:\n' + commits.slice(0, 150).map((c) => '- ' + new Date(c.at).toISOString().slice(0, 10) + ' ' + c.msg).join('\n') + '\n\nRespond ONLY with JSON: {"items":["…"],"summary":"one sentence"}';
+  const r = await aiJson(prompt, { system: 'You write clear, friendly client-facing website changelogs for restaurant owners. You respond ONLY with a valid json code block.' });
+  const out = { at: Date.now(), repo, items: (r.items || []).slice(0, 10), summary: r.summary || '', commits: commits.length };
+  cache[ck] = out;
+  store.write('changelogs.json', cache);
+  return out;
+}
+ipcMain.handle('sites:changelog', (_e, url, month, lang) => siteChangelog(String(url), String(month || new Date().toLocaleDateString('sv').slice(0, 7)), lang === 'es' ? 'es' : 'en'));
+
+/** Informe mensual para el cliente en PDF (Documentos\ViperTeca\Informes\AAAA-MM). */
+async function siteReport(url, month, lang = 'en') {
+  const site = healthSites().find((s) => s.url === url);
+  if (!site) throw new Error('Esa web no está en Salud de las webs.');
+  const es = lang === 'es';
+  const up = sitewatch.uptimeOf(store.read, url, month);
+  const st = siteState();
+  const cw = (store.read('cwv.json', {})[url] || []).slice(-1)[0] || null;
+  const vercelP = (store.read('vercel.json', null)?.projects || []).find((p) => p.domain && sitewatch.hostOf(p.domain) === sitewatch.hostOf(url));
+  const deps = vercelP ? await webhealth.vercelApi(store.read, '/v6/deployments', { projectId: vercelP.id, target: 'production', limit: '100', since: String(new Date(month + '-01T00:00:00').getTime()) }).then((j) => (j.deployments || []).filter((d) => new Date(d.created).toISOString().startsWith(month)).length).catch(() => null) : null;
+  const log = await siteChangelog(url, month, lang).catch(() => ({ items: [] }));
+  const launch = store.read('launch-checks.json', {})[url] || Object.values(store.read('launch-checks.json', {})).find((x) => sitewatch.hostOf(x.url) === sitewatch.hostOf(url)) || null;
+  const dom = st.domains[url];
+  const ssl = store.read('webhealth.json', { sites: {} }).sites[url]?.sslDays;
+  const monthName = new Date(month + '-15').toLocaleDateString(es ? 'es' : 'en-US', { month: 'long', year: 'numeric' });
+  const T = es
+    ? { title: 'Informe mensual del sitio web', up: 'Disponibilidad', avg: 'Tiempo de respuesta medio', inc: 'Incidencias', none: 'Sin caídas este mes', deploys: 'Publicaciones', changes: 'Cambios en tu web', speed: 'Velocidad y experiencia (celular)', seo: 'SEO', domain: 'Dominio', sslT: 'Certificado SSL', renew: 'vence el', days: 'días', good: 'Bien', fix: 'Por mejorar', checks: 'Revisión técnica', by: 'Preparado por Resto Experience' }
+    : { title: 'Monthly website report', up: 'Uptime', avg: 'Average response time', inc: 'Incidents', none: 'No downtime this month', deploys: 'Updates published', changes: 'What changed on your website', speed: 'Speed & experience (mobile)', seo: 'SEO', domain: 'Domain', sslT: 'SSL certificate', renew: 'renews on', days: 'days', good: 'Good', fix: 'To improve', checks: 'Technical check', by: 'Prepared by Resto Experience' };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const ms = (v) => (v == null ? '—' : v >= 1000 ? (v / 1000).toFixed(1) + ' s' : Math.round(v) + ' ms');
+  const rate = (v, good, poor) => (v == null ? '' : v <= good ? 'ok' : v <= poor ? 'mid' : 'bad');
+  const fixes = (launch?.items || []).filter((i) => !i.ok);
+  const kpi = (v, label, cls = '') => (v == null || v === '—' ? '' : '<div class="k"><b class="' + cls + '">' + v + '</b><span>' + label + '</span></div>');
+  const grid = (cells) => (cells.join('') ? '<div class="grid">' + cells.join('') + '</div>' : '');
+  const html = '<!doctype html><html><head><meta charset="utf-8"><style>' +
+    '@page{size:A4;margin:18mm 16mm}body{font:13px/1.5 "Segoe UI",Arial,sans-serif;color:#1d1b20}h1{font-size:26px;margin:0}h2{font-size:15px;margin:22px 0 8px;color:#6b1d2b;border-bottom:1px solid #eee;padding-bottom:4px}' +
+    '.sub{color:#777;margin:4px 0 18px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.k{border:1px solid #eee;border-radius:10px;padding:10px 12px}.k b{display:block;font-size:22px}.k span{color:#777;font-size:11.5px}' +
+    'ul{margin:6px 0;padding-left:18px}li{margin:3px 0}.ok{color:#16803c}.mid{color:#b26b00}.bad{color:#b3261e}.foot{margin-top:28px;color:#999;font-size:11px}' +
+    '</style></head><body>' +
+    '<h1>' + esc(site.name) + '</h1><p class="sub">' + esc(T.title) + ' · ' + esc(monthName) + ' · ' + esc(sitewatch.hostOf(url)) + '</p>' +
+    grid([kpi(up?.month != null ? up.month + '%' : null, T.up), kpi(up?.avgMs != null ? ms(up.avgMs) : null, T.avg), kpi(deps, T.deploys)]) +
+    (up ? '<h2>' + T.inc + '</h2>' + (up.incidents?.length ? '<ul>' + up.incidents.map((i) => '<li>' + esc(i.day) + ': ~' + i.minutes + ' min (' + esc(i.why) + ')</li>').join('') + '</ul>' : '<p class="ok">' + T.none + '</p>') : '') +
+    (log.items?.length ? '<h2>' + T.changes + '</h2>' + (log.summary ? '<p>' + esc(log.summary) + '</p>' : '') + '<ul>' + log.items.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+    '<h2>' + T.speed + '</h2>' + grid([kpi(cw?.lcp != null ? ms(cw.lcp) : null, 'LCP', rate(cw?.lcp, 2500, 4000)), kpi(cw?.inp != null ? ms(cw.inp) : null, 'INP', rate(cw?.inp, 200, 500)), kpi(cw?.cls, 'CLS', rate(cw?.cls, 0.1, 0.25)), kpi(cw?.perf, 'PageSpeed'), kpi(cw?.seo, T.seo), kpi(ssl != null ? ssl + ' ' + T.days : null, T.sslT)]) +
+    (dom?.until ? '<p>' + T.domain + ' ' + esc(dom.domain) + ' ' + T.renew + ' ' + new Date(dom.until).toLocaleDateString(es ? 'es' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' }) + '.</p>' : '') +
+    (launch ? '<h2>' + T.checks + '</h2>' + (fixes.length ? '<p class="mid">' + T.fix + ':</p><ul>' + fixes.slice(0, 8).map((i) => '<li>' + esc(i.label) + '</li>').join('') + '</ul>' : '<p class="ok">' + T.good + '</p>') : '') +
+    '<p class="foot">' + T.by + ' · ' + new Date().toLocaleDateString(es ? 'es' : 'en-US') + '</p></body></html>';
+  const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+  await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  const pdf = await w.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+  w.destroy();
+  const dir = path.join(app.getPath('documents'), 'ViperTeca', 'Informes', month);
+  require('fs').mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, site.name.replace(/[^\w\s.-]/g, '').trim().replace(/\s+/g, '-') + '-' + month + (es ? '-es' : '') + '.pdf');
+  require('fs').writeFileSync(file, pdf);
+  shell.showItemInFolder(file);
+  return { file };
+}
+ipcMain.handle('sites:report', (_e, url, month, lang) => siteReport(String(url), String(month || new Date().toLocaleDateString('sv').slice(0, 7)), lang === 'es' ? 'es' : 'en'));
+
+// ---------- 1.27: Squads — riesgo, comentarios sin responder, standup, 1:1, carga ----------
+/** Tickets que vencen en 3 días sin commits recientes en el repo de esa web. */
+async function teamRisk() {
+  const team = store.read('notion-team.json', null);
+  if (!team?.people?.length) return [];
+  const mc = store.read('month-commits.json', {});
+  const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^website-[a-d]-/, '').replace(/[^a-z0-9]/g, '');
+  const repos = Object.keys(mc.repos || {});
+  const allRepos = repos.length ? repos : [];
+  const out = [];
+  const today = new Date().toLocaleDateString('sv');
+  const limit = new Date(Date.now() + 3 * DAYMS).toLocaleDateString('sv');
+  for (const p of team.people) {
+    for (const t of p.tickets || []) {
+      if (!t.deadline || t.deadline < today || t.deadline > limit) continue;
+      const ts = slug(t.title.replace(/^(web|website|landing|pop ?up|cambios web)\s*[-|:]?\s*/i, ''));
+      const repo = allRepos.find((r) => { const s = slug(r); return s.length > 3 && (ts.includes(s) || (s.length > 5 && ts.includes(s.slice(0, 6)))); });
+      if (!repo) continue; // ticket que no es de una web: no se puede saber
+      const last = Math.max(0, ...(mc.repos[repo] || []).map((c) => c.at));
+      const quiet = Date.now() - last > 4 * DAYMS;
+      if (quiet) out.push({ squad: p.squad, leader: p.leader, ticket: t.title, url: t.url, deadline: t.deadline, repo, lastCommit: last || null });
+    }
+  }
+  return out;
+}
+/** Borrador del standup por squad: lo de ayer (commits) y lo de hoy (tickets). */
+async function standup() {
+  const y0 = new Date();
+  y0.setHours(0, 0, 0, 0);
+  const from = y0.getTime() - (y0.getDay() === 1 ? 3 : 1) * DAYMS; // el lunes cuenta el viernes
+  const mc = store.read('month-commits.json', {});
+  const team = store.read('notion-team.json', null);
+  const ids = { ...teamweek.DEFAULT_IDS, ...(store.read('settings.json', {}).teamIds || {}) };
+  const today = new Date().toLocaleDateString('sv');
+  const out = [];
+  for (const [sq, leader] of Object.entries(SQUAD_LEADERS)) {
+    const logins = (ids[sq]?.gh || []).map((x) => x.toLowerCase());
+    const done = [];
+    for (const [repo, list] of Object.entries(mc.repos || {})) {
+      const mine = list.filter((c) => c.at >= from && c.at < y0.getTime() && logins.includes(String(c.login).toLowerCase()));
+      if (mine.length) done.push({ repo: repo.replace(/^website-[a-d]-/, ''), n: mine.length, msgs: [...new Set(mine.map((c) => c.msg))].slice(0, 2) });
+    }
+    const p = (team?.people || []).find((x) => x.squad === sq);
+    const cut = new Date(Date.now() - 14 * DAYMS).toLocaleDateString('sv');
+    const todo = (p?.tickets || []).filter((t) => t.deadline && t.deadline >= cut && t.deadline <= new Date(Date.now() + 2 * DAYMS).toLocaleDateString('sv')).slice(0, 5);
+    const lines = ['*Squad ' + sq.toUpperCase() + ' · ' + leader + '*', (y0.getDay() === 1 ? 'El viernes:' : 'Ayer:') + (done.length ? '' : ' sin commits'), ...done.map((d) => '• ' + d.repo + ' (' + d.n + '): ' + d.msgs.join('; ')), 'Hoy:' + (todo.length ? '' : ' sin tickets que venzan'), ...todo.map((t) => '• ' + t.title + (t.late ? ' (vencido ' + t.deadline + ')' : t.deadline === today ? ' (vence hoy)' : ' (vence ' + t.deadline + ')'))];
+    out.push({ squad: sq, leader, text: lines.join('\n') });
+  }
+  const res = { at: Date.now(), day: today, squads: out };
+  store.write('standup.json', res);
+  return res;
+}
+/** Carga: semanas de trabajo pendiente según el ritmo de cierre de cada uno. */
+function teamLoad() {
+  const team = store.read('notion-team.json', null);
+  const rows = (team?.people || []).map((p) => {
+    const rate = (p.closed || []).reduce((a, b) => a + b, 0) / 4;
+    return { squad: p.squad, leader: p.leader, open: p.open, late: p.late, rate: Math.round(rate * 10) / 10, weeks: rate ? Math.round((p.open / rate) * 10) / 10 : null };
+  });
+  const known = rows.filter((r) => r.weeks != null);
+  const avg = known.length ? known.reduce((a, r) => a + r.weeks, 0) / known.length : null;
+  const tips = [];
+  const heavy = known.filter((r) => r.weeks > avg * 1.6 && r.open >= 5).sort((a, b) => b.weeks - a.weeks);
+  const light = known.filter((r) => r.weeks < avg * 0.7).sort((a, b) => a.weeks - b.weeks);
+  for (const h of heavy) if (light[0]) tips.push(h.leader + ' tiene ' + h.weeks + ' semanas de trabajo pendiente (el equipo, ' + Math.round(avg * 10) / 10 + '). ' + light[0].leader + ' va más holgado: podría tomar ' + Math.max(1, Math.round((h.open - avg * h.rate) / 2)) + ' tickets.');
+  return { rows, avg: avg == null ? null : Math.round(avg * 10) / 10, tips };
+}
+ipcMain.handle('team:extras', async () => ({
+  standup: store.read('standup.json', null),
+  risk: await teamRisk().catch(() => []),
+  comments: store.read('team-comments.json', null),
+  load: teamLoad(),
+}));
+ipcMain.handle('team:standup', () => standup());
+ipcMain.handle('team:comments', async () => {
+  const team = await notion.team(rx, false, SQUAD_LEADERS);
+  const list = await notion.teamComments(rx, team.people);
+  const out = { at: Date.now(), list };
+  store.write('team-comments.json', out);
+  return out;
+});
+// notas de 1:1 por persona
+ipcMain.handle('oneonone:get', (_e, squad) => (store.read('oneonone.json', {})[String(squad)] || []).slice(-20));
+ipcMain.handle('oneonone:save', (_e, squad, text) => {
+  const all = store.read('oneonone.json', {});
+  const list = (all[String(squad)] ||= []);
+  const t = String(text || '').trim().slice(0, 5000);
+  if (t) list.push({ at: Date.now(), text: t });
+  store.write('oneonone.json', all);
+  return list.slice(-20);
+});
+async function teamMorningTick() {
+  const now = new Date();
+  const day = now.toLocaleDateString('sv');
+  const st = store.read('team-morning.json', {});
+  if (st.day === day || now.getHours() < 9 || now.getDay() === 0 || now.getDay() === 6) return;
+  store.write('team-morning.json', { day });
+  await repoDaily().catch(() => {});
+  if (notion.linked(store.read)) {
+    await notion.team(rx, true, SQUAD_LEADERS).catch(() => {});
+    const team = store.read('notion-team.json', null);
+    if (team?.people?.length) {
+      const list = await notion.teamComments(rx, team.people).catch(() => null);
+      if (list) {
+        store.write('team-comments.json', { at: Date.now(), list });
+        if (list.length) notify(list.length + (list.length === 1 ? ' comentario sin responder' : ' comentarios sin responder'), list.slice(0, 3).map((c) => c.leader.split(' ')[0] + ': «' + c.ticket + '» (' + c.author + ', hace ' + Math.round(c.hours / 24) + ' días)').join(' · '), null);
+      }
+    }
+  }
+  const s = await standup().catch(() => null);
+  if (s) notify('Standup listo', 'El borrador de cada squad está en Websites → Squads, listo para pegar en Slack.', null);
+  const risk = await teamRisk().catch(() => []);
+  if (risk.length) notify(risk.length + (risk.length === 1 ? ' ticket en riesgo' : ' tickets en riesgo'), risk.slice(0, 3).map((r) => r.leader.split(' ')[0] + ': ' + r.ticket + ' vence ' + r.deadline + ' y no hay commits recientes').join(' · '), null);
+}
 
 // ---------- 1.26: regalos que bajan de precio y fechas importantes ----------
 const giftwatch = require('./src/giftwatch');

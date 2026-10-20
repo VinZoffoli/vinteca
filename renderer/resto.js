@@ -496,7 +496,7 @@
     return s ? s[1].toLowerCase() : 'other';
   }
   function websTabs() {
-    const T = [['alertas', 'Alertas'], ['squads', 'Squads'], ['lanzamientos', 'Lanzamientos'], ['repos', 'Repositorios'], ['health', 'Salud de las webs'], ['vercel', 'Despliegues de Vercel']];
+    const T = [['alertas', 'Alertas'], ['squads', 'Squads'], ['lanzamientos', 'Lanzamientos'], ['clientes', 'Clientes'], ['repos', 'Repositorios'], ['health', 'Salud de las webs'], ['vercel', 'Despliegues de Vercel']];
     return h('div', { class: 'seg rx-tabs', role: 'tablist' }, T.map(([k, l]) => h('button', { class: W.tab === k ? 'on' : '', role: 'tab', 'aria-selected': String(W.tab === k), text: l, onclick: () => { W.tab = k; if (k === 'health') healthLoad(); if (k === 'vercel') vercelLoad(); websRender(); } })));
   }
 
@@ -569,7 +569,7 @@
       ),
       h('div', { class: 'toolbar flat' },
         h('button', { class: 'btn primary small', text: HL.busy ? 'Revisando…' : 'Revisar ahora', disabled: HL.busy, onclick: () => healthLoad(true) }),
-        h('span', { class: 'hint', text: d.last ? `Última revisión ${ago(d.last.at)}. Se revisan solas cada 30 minutos.` : 'Todavía sin revisar.' })
+        h('span', { class: 'hint', text: d.last ? `Última revisión ${ago(d.last.at)}. Se revisan solas cada 5 minutos (el historial de uptime está en Clientes).` : 'Todavía sin revisar.' })
       ),
       rows.length ? h('ul', { class: 'rx-repos' }, rows.map(row)) : h('p', { class: 'empty' }, h('b', { text: 'No hay webs para vigilar' }), 'Salen solas las webs publicadas del pipeline de Notion y los dominios de Vercel. También puedes añadir una abajo.'),
       h('section', { class: 'rx-card' },
@@ -771,6 +771,7 @@
     if (W.tab === 'alertas') return fill(body, websTabs(), window.webAlertsTab?.(websRender));
     if (W.tab === 'squads') return fill(body, websTabs(), window.squadsTab?.(websRender));
     if (W.tab === 'lanzamientos') return fill(body, websTabs(), window.launchTab?.(websRender));
+    if (W.tab === 'clientes') return fill(body, websTabs(), window.clientsTab?.(websRender));
     if (W.tab === 'health') return fill(body, websTabs(), healthTab());
     if (W.tab === 'vercel') return fill(body, websTabs(), vercelTab());
     const search = h('label', { class: 'search' }, svg('M10.5 4a6.5 6.5 0 1 0 4 11.6l4.4 4.4 1.1-1.1-4.4-4.4A6.5 6.5 0 0 0 10.5 4z'), h('input', { type: 'search', placeholder: 'Buscar web', value: W.q, oninput: (e) => { W.q = e.target.value; const pos = e.target.selectionStart; websRender(); const i = $('#websBody input[type=search]'); i?.focus(); i?.setSelectionRange(pos, pos); } }));

@@ -74,5 +74,5 @@
       d?.others?.length ? h('p', { class: 'hint', text: 'También hicieron commits: ' + d.others.map((o) => o.login + ' (' + o.commits + ')').join(', ') }) : null
     );
   }
-  window.teamWeekUI = { block };
+  window.teamWeekUI = { block, data: () => W.data };
 })();

@@ -206,4 +206,4 @@ function prompt(data) {
     'Responde SOLO con este JSON: {"team":"","people":[{"squad":"a","week":[""],"next":[""],"watch":[""]}]}';
 }
 
-module.exports = { collect, prompt, weekStart, DEFAULT_IDS, staleBranches, withoutTicket };
+module.exports = { collect, prompt, weekStart, DEFAULT_IDS, staleBranches, withoutTicket, gh, pool };

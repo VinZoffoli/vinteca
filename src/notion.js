@@ -214,15 +214,15 @@ const TICKET_GROUP = {
 };
 const groupOf = (status, map) => Object.keys(map).find((g) => map[g].includes(status)) || 'doing';
 
-// Un ticket abierto cuya fecha límite pasó hace más de un mes se da por hecho
+// Un ticket abierto cuya fecha límite pasó hace más de dos semanas se da por hecho
 // (solo en ViperTeca; en Notion sigue igual).
-const STALE_DAYS = 30;
+const STALE_DAYS = 14;
 const isStale = (deadline) => !!deadline && new Date(deadline + 'T23:59:59').getTime() < Date.now() - STALE_DAYS * 86400000;
 const cleanText = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\*\*|\\\|/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 
 function ticket(r) {
   const t = ticketRaw(r);
-  if (t.group !== 'done' && isStale(t.deadline)) Object.assign(t, { group: 'done', stale: true, status: 'Done (más de un mes vencido)' });
+  if (t.group !== 'done' && isStale(t.deadline)) Object.assign(t, { group: 'done', stale: true, status: 'Done (más de 2 semanas vencido)' });
   return t;
 }
 function ticketRaw(r) {
@@ -443,7 +443,7 @@ async function users(ctx) {
  */
 async function team(ctx, force, leaders = {}) {
   const c = ctx.read('notion-team.json', null);
-  if (!force && c && c.v === 2 && Date.now() - c.at < 30 * 60000) return c;
+  if (!force && c && c.v === 3 && Date.now() - c.at < 30 * 60000) return c;
   // si la conexión falla, un solo aviso (no uno por persona)
   const names = await users(ctx);
   const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -453,7 +453,7 @@ async function team(ctx, force, leaders = {}) {
     return (all.find(([, v]) => norm(v) === n) || all.find(([, v]) => norm(v).startsWith(n + ' ')) || all.find(([, v]) => norm(v).startsWith(n)) || [])[0] || null;
   };
   // Una sola lectura (por páginas, una tras otra) de los tickets de los responsables:
-  // abiertos y los cerrados del último mes. Los vencidos hace más de un mes solo se cuentan.
+  // abiertos y los cerrados del último mes. Los vencidos hace más de dos semanas solo se cuentan.
   const ids = Object.values(leaders).map(findId).filter(Boolean);
   const dashed = (id) => id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
   const T = '"' + TICKETS + '"';
@@ -465,14 +465,14 @@ async function team(ctx, force, leaders = {}) {
       mode: 'sql',
       data_source_urls: [TICKETS],
       query: 'SELECT url, "What to Do", "Status", "date:Deadline:start", "Created time", "Last edited time", "Responsible" FROM ' + T + ' WHERE ' + anyOf +
-        " AND ((\"Status\" NOT IN ('Done','Canceled') AND (\"date:Deadline:start\" IS NULL OR \"date:Deadline:start\" >= date('now','-30 day'))) OR (\"Status\" = 'Done' AND date(\"Last edited time\") >= date('now','-31 day'))) ORDER BY url LIMIT 100 OFFSET " + off,
+        " AND ((\"Status\" NOT IN ('Done','Canceled') AND (\"date:Deadline:start\" IS NULL OR \"date:Deadline:start\" >= date('now','-14 day'))) OR (\"Status\" = 'Done' AND date(\"Last edited time\") >= date('now','-31 day'))) ORDER BY url LIMIT 100 OFFSET " + off,
       params: likes,
     });
     rows.push(...(j.results || []));
     if ((j.results || []).length < 100) break;
   }
   const staleRows = ids.length
-    ? (await query(ctx, { mode: 'sql', data_source_urls: [TICKETS], query: 'SELECT "Responsible" FROM ' + T + ' WHERE ' + anyOf + " AND \"Status\" NOT IN ('Done','Canceled') AND \"date:Deadline:start\" < date('now','-30 day') LIMIT 1000", params: likes }).catch(() => ({ results: [] }))).results || []
+    ? (await query(ctx, { mode: 'sql', data_source_urls: [TICKETS], query: 'SELECT "Responsible" FROM ' + T + ' WHERE ' + anyOf + " AND \"Status\" NOT IN ('Done','Canceled') AND \"date:Deadline:start\" < date('now','-14 day') LIMIT 1000", params: likes }).catch(() => ({ results: [] }))).results || []
     : [];
   const all = rows.map(ticket);
   const open = all.filter((t) => t.group !== 'done');
@@ -539,9 +539,46 @@ async function team(ctx, force, leaders = {}) {
       week: p.week,
     });
   }
-  const out = { v: 2, at: Date.now(), people, errors, openTotal: people.reduce((x, p) => x + p.open, 0), closedTotal: people.reduce((x, p) => x + p.closed.reduce((y, z) => y + z, 0), 0) };
+  const out = { v: 3, at: Date.now(), people, errors, openTotal: people.reduce((x, p) => x + p.open, 0), closedTotal: people.reduce((x, p) => x + p.closed.reduce((y, z) => y + z, 0), 0) };
   if (people.length) ctx.write('notion-team.json', out);
   return out;
+}
+
+/**
+ * Comentarios sin responder en los tickets abiertos de cada responsable: el último
+ * mensaje es de otra persona (cliente, CSM…) y lleva más de 48 h sin respuesta.
+ * Se lee de a un ticket (máx. `max`) y se guarda por ticket para no repetir.
+ */
+async function teamComments(ctx, people, { max = 45, hours = 48 } = {}) {
+  const cache = ctx.read('notion-comments.json', {});
+  const out = [];
+  let asked = 0;
+  for (const p of people || []) {
+    for (const t of p.tickets || []) {
+      const id = String(t.url || '').split('/').pop().split('?')[0].replace(/^.*-/, '');
+      if (!id) continue;
+      let c = cache[id];
+      if (!c || Date.now() - c.at > 6 * 3600000) {
+        if (asked >= max) continue;
+        asked++;
+        try {
+          const list = parseComments(await tool(ctx, 'get-comments', { page_id: id, include_all_blocks: true }));
+          const last = list[list.length - 1];
+          c = { at: Date.now(), last: last ? { uid: String(last.uid).replace(/-/g, ''), author: last.author, at: last.at, text: last.text.slice(0, 220) } : null };
+        } catch {
+          c = { at: Date.now() - 5 * 3600000, last: null };
+        }
+        cache[id] = c;
+      }
+      const last = c.last;
+      if (!last) continue;
+      const age = Date.now() - new Date(last.at).getTime();
+      if (last.uid === String(p.id).replace(/-/g, '') || age < hours * 3600000) continue;
+      out.push({ squad: p.squad, leader: p.leader, ticket: t.title, url: t.url, author: last.author, at: last.at, hours: Math.round(age / 3600000), text: last.text });
+    }
+  }
+  ctx.write('notion-comments.json', cache);
+  return out.sort((a, b) => b.hours - a.hours);
 }
 
 function logout({ read, write }) {
@@ -590,4 +627,4 @@ async function watch(ctx) {
   return { first: !prev, events };
 }
 
-module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze, watch, team };
+module.exports = { login, logout, linked, overview, ticketChat, parseComments, analyze, watch, team, teamComments };
