@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.31.2
+
+- **Música (Spotify)**: las canciones de las playlists vuelven a cargar. Spotify cambió su API en marzo de 2026 y las apps personales ya no pueden usar la ruta antigua; ViperTeca usa la nueva. Esas apps ahora solo pueden ver las canciones de playlists tuyas o colaborativas; en las de otras personas sale el motivo y botones para reproducirla igual o abrirla en Spotify, en vez de quedarse «Cargando canciones…».
+- «Me gusta» y «Para ti» usan también las rutas nuevas, y ya no se muestra si la cuenta es Premium o gratis (Spotify dejó de decirlo).
+
 ## Novedades de la 1.31.1
 
 - **Televisores**: las apps se abren como app (Crunchyroll, Netflix, YouTube…), no en el navegador. Cada televisor tiene su lista: las más comunes y las que vas abriendo en él; con «Leer las apps instaladas» aparecen todas las del televisor. Para eso hay que activar una vez la depuración del televisor (la app explica los pasos y el televisor pide permiso con un aviso que aceptas tú); ViperTeca solo lee la lista.

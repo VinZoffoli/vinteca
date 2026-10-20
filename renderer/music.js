@@ -42,8 +42,11 @@
       if (page === 'home' && !S.home) S.home = await sp.home();
       else if (page !== 'home' && !S.tracks[page]) S.tracks[page] = await sp.tracks(page);
       S.error = null;
+      if (S.trackErr) delete S.trackErr[page];
     } catch (e) {
-      S.error = errMsg(e);
+      // el error de una lista se muestra en la propia lista (si no, se quedaba «Cargando canciones…»)
+      if (page !== 'home') (S.trackErr ||= {})[page] = errMsg(e);
+      else S.error = errMsg(e);
     }
     render();
   }
@@ -73,7 +76,7 @@
         h(
           'aside',
           { class: 'sp-side', 'aria-label': 'Tu biblioteca de Spotify' },
-          h('div', { class: 'sp-me' }, S.me?.avatar && h('img', { src: S.me.avatar, alt: '' }), h('div', {}, h('b', { text: S.me?.name || '' }), h('span', { class: S.me?.premium ? 'ok' : 'warn', text: S.me ? (S.me.premium ? 'Premium' : 'Gratis: solo para ver y abrir en Spotify') : '' }))),
+          h('div', { class: 'sp-me' }, S.me?.avatar && h('img', { src: S.me.avatar, alt: '' }), h('div', {}, h('b', { text: S.me?.name || '' }), S.me?.premium != null && h('span', { class: S.me.premium ? 'ok' : 'warn', text: S.me.premium ? 'Premium' : 'Gratis: solo para ver y abrir en Spotify' }))),
           navBtn('home', 'Inicio', null),
           navBtn('liked', 'Canciones que te gustan', null, 'liked'),
           h('p', { class: 'sp-side-h', text: 'Tus playlists' }),
@@ -153,7 +156,8 @@
           tracks?.length > 0 && h('div', { class: 'row' }, h('button', { class: 'btn primary sp-big-play', text: '▶ Reproducir', onclick: () => act('play', isLiked ? { uris: tracks.slice(0, 100).map((x) => x.uri) } : { context: pl.uri }) }), h('button', { class: 'btn ghost', text: 'Aleatorio', onclick: async () => { await act('shuffle', { value: true }); act('play', isLiked ? { uris: tracks.slice(0, 100).map((x) => x.uri) } : { context: pl.uri }); } }), !isLiked && h('button', { class: 'btn ghost subtle', text: 'Abrir en Spotify', onclick: () => window.api.open(pl.uri) }))
         )
       ),
-      !tracks ? h('p', { class: 'hint', text: 'Cargando canciones…' }) : tracks.length ? h('ol', { class: 'sp-list' }, h('li', { class: 'sp-row sp-row-h' }, h('span', { text: '#' }), h('span', { text: 'Título' }), h('span', { text: 'Álbum' }), h('span', { text: 'Duración' })), tracks.map((t, i) => trackRow(t, i, args))) : h('p', { class: 'hint', text: 'Esta playlist está vacía.' }),
+      !tracks && S.trackErr?.[page] ? h('div', { class: 'empty' }, h('b', { text: 'No se pudieron cargar las canciones' }), h('p', { class: 'hint', text: S.trackErr[page] }), h('div', { class: 'row' }, !isLiked && pl && h('button', { class: 'btn primary small', text: '▶ Reproducir la playlist', onclick: () => act('play', { context: pl.uri }) }), !isLiked && pl && h('button', { class: 'btn ghost small', text: 'Abrir en Spotify', onclick: () => window.api.open(pl.uri) }), h('button', { class: 'btn ghost small', text: 'Reintentar', onclick: () => { delete S.trackErr[page]; openPage(page); } })))
+      : !tracks ? h('p', { class: 'hint', text: 'Cargando canciones…' }) : tracks.length ? h('ol', { class: 'sp-list' }, h('li', { class: 'sp-row sp-row-h' }, h('span', { text: '#' }), h('span', { text: 'Título' }), h('span', { text: 'Álbum' }), h('span', { text: 'Duración' })), tracks.map((t, i) => trackRow(t, i, args))) : h('p', { class: 'hint', text: 'Esta playlist está vacía.' }),
     ];
   }
 

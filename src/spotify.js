@@ -173,7 +173,7 @@ const playlist = (p) => p && { id: p.id, uri: p.uri, name: p.name, owner: p.owne
 
 async function me(ctx) {
   const u = await api(ctx, '/me');
-  return { name: u.display_name || u.id, premium: u.product === 'premium', country: u.country, avatar: img(u.images, 120) };
+  return { name: u.display_name || u.id, premium: u.product ? u.product === 'premium' : null, country: u.country, avatar: img(u.images, 120) };
 }
 
 async function playlists(ctx) {
@@ -189,10 +189,15 @@ async function playlists(ctx) {
 
 async function playlistTracks(ctx, id) {
   const out = [];
-  let next = `/playlists/${encodeURIComponent(id)}/tracks?limit=100&additional_types=track`;
+  // desde marzo de 2026 Spotify solo deja /items (antes /tracks) y cada canción viene en «item»
+  let next = `/playlists/${encodeURIComponent(id)}/items?limit=100&additional_types=track`;
   for (let i = 0; next && i < 20; i++) {
-    const j = await api(ctx, next);
-    out.push(...(j.items || []).map((x) => track(x.track)).filter(Boolean));
+    const j = await api(ctx, next).catch((e) => {
+      // en modo desarrollo Spotify solo enseña las canciones de playlists tuyas o colaborativas
+      if (e.status === 403) e.message = 'Spotify ya no deja a las apps personales ver las canciones de playlists de otras personas (solo las tuyas o colaborativas). Puedes reproducirla igual o abrirla en Spotify.';
+      throw e;
+    });
+    out.push(...(j.items || []).map((x) => track(x.item || x.track)).filter(Boolean));
     next = j.next;
   }
   return out;
@@ -220,15 +225,15 @@ async function home(ctx) {
   const artists = (topA.items || []).map((a) => ({ id: a.id, uri: a.uri, name: a.name, image: img(a.images, 300), genres: (a.genres || []).slice(0, 3) }));
   const seen = new Set();
   const recentTracks = (recent.items || []).map((x) => track(x.track)).filter((t) => t && !seen.has(t.id) && seen.add(t.id));
-  // "Para ti": las canciones más populares de tus artistas favoritos que no
+  // "Para ti": canciones de tus artistas favoritos (buscadas por artista) que no
   // están entre lo que más escuchas (Spotify cerró su servicio de
   // recomendaciones a las apps nuevas en 2024).
   const known = new Set([...topTracks, ...recentTracks].map((t) => t.id));
   const forYou = [];
   for (const a of artists.slice(0, 8)) {
     try {
-      const j = await api(ctx, `/artists/${a.id}/top-tracks`, { query: { market: 'from_token' } });
-      for (const t of (j.tracks || []).slice(0, 6)) {
+      const j = await api(ctx, '/search', { query: { q: 'artist:"' + a.name + '"', type: 'track', limit: 10 } });
+      for (const t of (j.tracks?.items || []).filter((x) => (x.artists || []).some((y) => y.id === a.id)).slice(0, 6)) {
         const tt = track(t);
         if (tt && !known.has(tt.id)) {
           known.add(tt.id);
@@ -299,7 +304,7 @@ async function control(ctx, action, arg = {}) {
     case 'transfer':
       return api(ctx, '/me/player', { method: 'PUT', body: { device_ids: [arg.device], play: true } });
     case 'like':
-      return api(ctx, '/me/tracks', { method: arg.value ? 'PUT' : 'DELETE', query: { ids: arg.id } });
+      return api(ctx, '/me/library', { method: arg.value ? 'PUT' : 'DELETE', query: { uris: 'spotify:track:' + arg.id } });
     default:
       throw new Error('Acción desconocida.');
   }
@@ -307,7 +312,7 @@ async function control(ctx, action, arg = {}) {
 
 async function isLiked(ctx, ids) {
   if (!ids.length) return [];
-  return api(ctx, '/me/tracks/contains', { query: { ids: ids.slice(0, 50).join(',') } });
+  return api(ctx, '/me/library/contains', { query: { uris: ids.slice(0, 40).map((id) => 'spotify:track:' + id).join(',') } });
 }
 
 function logout({ read, write }) {
