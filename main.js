@@ -4086,6 +4086,15 @@ function tvConnect(t) {
   const r = new tv.Remote(t.host, tvCreds());
   r.on('state', (st) => {
     tvState.set(t.host, { ...(tvState.get(t.host) || {}), ...st });
+    // cada app que se abre queda en «las que usas»
+    if (st.app && !/launcher|tvinput|setupwraith|settings/i.test(st.app)) {
+      const list = tvList();
+      const me = list.find((x) => x.host === t.host);
+      if (me && !(me.seen || []).includes(st.app)) {
+        me.seen = [...(me.seen || []), st.app].slice(-40);
+        tvSave(list);
+      }
+    }
     if (st.unpaired) {
       const list = tvList().map((x) => (x.host === t.host ? { ...x, paired: false } : x));
       tvSave(list);
@@ -4180,7 +4189,12 @@ async function tvCmd(id, what, arg) {
   if (!r || !st.connected) throw new Error(t.paired ? 'El televisor no responde (¿está apagado del todo?).' : 'Primero vincula este televisor.');
   if (what === 'off') return r.key('sleep'), true;
   if (what === 'power') return r.key('power'), true;
-  if (what === 'open') return r.open(String(arg || '')), true;
+  if (what === 'open') {
+    const a = String(arg || '');
+    // un paquete (com.crunchyroll.crunchyroid) abre la app instalada; un enlace, lo que el televisor decida
+    r.open(/^[a-z][\w]*(\.[\w]+)+$/i.test(a) ? tv.launchLink(a) : a);
+    return true;
+  }
   if (what === 'vol') {
     // volumen exacto: se sube o baja de a uno hasta llegar
     const target = Math.max(0, Math.min(100, Number(arg) || 0));
@@ -4197,6 +4211,21 @@ async function tvCmd(id, what, arg) {
   return true;
 }
 ipcMain.handle('tv:cmd', (_e, id, what, arg) => tvCmd(String(id), String(what), arg));
+const TV_DEFAULT_APPS = ['com.netflix.ninja', 'com.google.android.youtube.tv', 'com.crunchyroll.crunchyroid', 'com.spotify.tv.android', 'com.disney.disneyplus', 'com.wbd.stream', 'com.amazon.amazonvideo.livingroom'];
+ipcMain.handle('tv:apps', (_e, id) => {
+  const t = tvList().find((x) => x.id === id);
+  if (!t) return { apps: [], source: null };
+  const pkgs = t.apps?.length ? t.apps : [...new Set([...(t.seen || []), ...TV_DEFAULT_APPS])];
+  return { source: t.apps?.length ? 'instaladas' : 'usadas', scannedAt: t.appsAt || null, apps: pkgs.map((p) => ({ pkg: p, name: tv.appName(p) })).sort((a, b) => a.name.localeCompare(b.name)) };
+});
+ipcMain.handle('tv:scanApps', async (_e, id) => {
+  const t = tvList().find((x) => x.id === id);
+  if (!t) throw new Error('Ese televisor no está en la lista.');
+  const pkgs = await tv.installedApps(t.host, tvCreds().key, { onPrompt: () => win && !win.isDestroyed() && win.webContents.send('tv:adbPrompt', t.label) });
+  const list = tvList().map((x) => (x.id === id ? { ...x, apps: pkgs, appsAt: Date.now() } : x));
+  tvSave(list);
+  return pkgs.length;
+});
 
 // ---------- 1.30: copias y restauración, calendario de juego, diario de partidas ----------
 const DATA_DIR_NOW = () => path.join(app.getPath('appData'), 'biblioteca-juegos');

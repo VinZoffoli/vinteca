@@ -1,7 +1,7 @@
 'use strict';
 // 1.31: Casa → Televisores: encender, apagar, volumen, silencio, pausa y qué se ve.
 (function () {
-  const T = { list: null, busy: false, asked: false, pairing: null, hooked: false };
+  const T = { list: null, busy: false, asked: false, pairing: null, hooked: false, apps: {}, scanning: null };
   const rr = () => window.casaUI?.show?.();
   async function load(scan) {
     T.asked = true;
@@ -9,6 +9,7 @@
     rr();
     try {
       T.list = scan ? await window.api.tv.scan() : await window.api.tv.list();
+      for (const t of T.list || []) if (t.paired) T.apps[t.id] = await window.api.tv.apps(t.id).catch(() => null);
     } catch (e) {
       toast(errMsg(e), true);
     }
@@ -61,7 +62,38 @@
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[name] + '</svg>';
     return b;
   };
-  const APPS = [['Netflix', 'https://www.netflix.com/title'], ['YouTube', 'https://www.youtube.com'], ['Crunchyroll', 'https://www.crunchyroll.com'], ['Spotify', 'spotify:'], ['Disney+', 'https://www.disneyplus.com'], ['Max', 'https://play.max.com']];
+  // leer las apps instaladas: necesita la depuración ADB del televisor (una vez)
+  async function scanApps(t) {
+    T.scanning = t.id;
+    rr();
+    try {
+      const n = await window.api.tv.scanApps(t.id);
+      toast(n + ' apps encontradas en ' + t.label + '.');
+      T.apps[t.id] = await window.api.tv.apps(t.id);
+    } catch (e) {
+      if (/apagada|ADB/i.test(errMsg(e))) adbHelp(t);
+      else toast(errMsg(e), true);
+    }
+    T.scanning = null;
+    rr();
+  }
+  function adbHelp(t) {
+    const dlg = h('dialog', { class: 'rx-dlg ks-dlg' });
+    dlg.append(
+      h('h2', { text: 'Activar la lectura de apps en ' + t.label }),
+      h('p', { class: 'hint', text: 'El televisor solo comparte la lista de apps instaladas con la depuración activada. Se hace una vez, con el control remoto:' }),
+      h('ol', { class: 'cl-ul' },
+        h('li', { text: 'Ajustes → Sistema → Acerca de → baja hasta «Compilación del SO de Android TV» y púlsalo 7 veces (sale «Ahora eres desarrollador»).' }),
+        h('li', { text: 'Vuelve a Ajustes → Sistema → Opciones para desarrolladores y activa «Depuración por USB» (o «Depuración por red», si aparece).' }),
+        h('li', { text: 'Pulsa aquí «Leer las apps instaladas». En el televisor saldrá «¿Permitir la depuración?»: marca «Permitir siempre desde este equipo» y acepta.' })
+      ),
+      h('p', { class: 'hint', text: 'ViperTeca solo lee la lista de apps; no instala ni cambia nada. Mientras tanto, las apps que abras en el televisor aparecen solas aquí.' }),
+      h('div', { class: 'actions' }, h('button', { class: 'btn ghost', text: 'Cerrar', onclick: () => dlg.close() }), h('button', { class: 'btn primary', text: 'Ya lo activé: leer', onclick: () => { dlg.close(); scanApps(t); } }))
+    );
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+  }
   function card(t) {
     const st = t.state || {};
     const media = st.cast?.media;
@@ -93,7 +125,16 @@
           ib('home', 'Inicio', () => cmd(t, 'home'))
         ),
         vol ? h('label', { class: 'tv-vol-row' }, h('span', { text: 'Volumen ' + vol.level + (vol.muted ? ' (silencio)' : '') }), slider) : null,
-        h('div', { class: 'tv-apps' }, APPS.map(([n, l]) => h('button', { class: 'btn subtle small', text: n, onclick: () => cmd(t, 'open', l) }))),
+        (() => {
+          const a = T.apps[t.id];
+          return h('div', { class: 'tv-apps-box' },
+            h('div', { class: 'tv-apps' }, (a?.apps || []).map((x) => h('button', { class: 'btn subtle small' + (st.app === x.pkg ? ' on' : ''), text: x.name, title: x.pkg, onclick: () => cmd(t, 'open', x.pkg) }))),
+            h('div', { class: 'tv-apps-foot' },
+              h('small', { class: 'hint', text: a?.source === 'instaladas' ? 'Apps instaladas en el televisor · leídas ' + relTime(a.scannedAt / 1000) : 'Las que más se usan y las que has abierto en este televisor.' }),
+              h('button', { class: 'link-btn', disabled: T.scanning === t.id, text: T.scanning === t.id ? 'Leyendo las apps…' : a?.source === 'instaladas' ? 'Volver a leer' : 'Leer las apps instaladas', onclick: () => scanApps(t) })
+            )
+          );
+        })(),
       ] : h('div', { class: 'tv-pair' }, h('p', { class: 'hint', text: 'Para controlarlo, vincúlalo una vez: el televisor tiene que estar encendido; mostrará un código.' }), h('button', { class: 'btn primary small', text: 'Vincular', onclick: () => pair(t) })),
       h('div', { class: 'tv-foot' },
         h('button', { class: 'link-btn', text: 'Cambiar nombre', onclick: () => window.casaForm?.('Nombre del televisor', [{ key: 'label', label: 'Nombre', value: t.label, placeholder: 'Sala, cuarto…' }], async (v) => { await window.api.tv.rename(t.id, v.label); load(false); }) }),
@@ -104,6 +145,7 @@
   function televisores() {
     if (!T.hooked) {
       T.hooked = true;
+      window.api.tv.onAdbPrompt?.((name) => toast('Mira el televisor ' + name + ': acepta «Permitir la depuración» con el control remoto.'));
       window.api.tv.onChanged(() => {
         clearTimeout(T.t);
         T.t = setTimeout(() => load(false), 600);

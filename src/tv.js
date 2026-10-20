@@ -418,12 +418,131 @@ function wake(mac, broadcast = '255.255.255.255') {
   return true;
 }
 
+// ============================================================ APPS INSTALADAS (ADB)
+// La lista de apps instaladas solo la da la depuración ADB del televisor (Opciones de
+// desarrollador → Depuración por USB/red). La primera vez el televisor pregunta si
+// permites a este PC; ViperTeca solo lee la lista de apps.
+const A = { CNXN: 0x4e584e43, AUTH: 0x48545541, OPEN: 0x4e45504f, OKAY: 0x59414b4f, CLSE: 0x45534c43, WRTE: 0x45545257 };
+function adbPacket(cmd, a0, a1, data = Buffer.alloc(0)) {
+  const h = Buffer.alloc(24);
+  h.writeUInt32LE(cmd, 0);
+  h.writeUInt32LE(a0 >>> 0, 4);
+  h.writeUInt32LE(a1 >>> 0, 8);
+  h.writeUInt32LE(data.length, 12);
+  h.writeUInt32LE(data.reduce((s, b) => (s + b) >>> 0, 0), 16);
+  h.writeUInt32LE((cmd ^ 0xffffffff) >>> 0, 20);
+  return Buffer.concat([h, data]);
+}
+/** Llave pública en el formato de ADB (android_pubkey_encode) + nombre. */
+function adbPubKey(keyPem) {
+  const jwk = crypto.createPublicKey(keyPem).export({ format: 'jwk' });
+  const nBuf = Buffer.from(jwk.n, 'base64url');
+  const n = BigInt('0x' + nBuf.toString('hex'));
+  const words = 64;
+  const le = (big, bytes) => {
+    const b = Buffer.alloc(bytes);
+    let v = big;
+    for (let i = 0; i < bytes; i++) {
+      b[i] = Number(v & 0xffn);
+      v >>= 8n;
+    }
+    return b;
+  };
+  const r32 = 1n << 32n;
+  const n0 = n % r32;
+  // n0inv = -1 / n0 mod 2^32
+  let inv = 1n;
+  for (let i = 0; i < 32; i++) inv = (inv * (2n - n0 * inv)) % r32;
+  const n0inv = (r32 - inv) % r32;
+  const rr = (1n << 4096n) % n;
+  const head = Buffer.alloc(8);
+  head.writeUInt32LE(words, 0);
+  head.writeUInt32LE(Number(n0inv), 4);
+  const exp = Buffer.alloc(4);
+  exp.writeUInt32LE(65537, 0);
+  const struct = Buffer.concat([head, le(n, 256), le(rr, 256), exp]);
+  return Buffer.from(struct.toString('base64') + ' viperteca@pc\0');
+}
+/** Firma del desafío de ADB (RSA PKCS#1 con prefijo SHA-1, sin volver a hashear). */
+function adbSign(keyPem, token) {
+  const prefix = Buffer.from('3021300906052b0e03021a05000414', 'hex');
+  return crypto.privateEncrypt({ key: keyPem, padding: crypto.constants.RSA_PKCS1_PADDING }, Buffer.concat([prefix, token]));
+}
+/**
+ * Ejecuta un comando de solo lectura en el televisor por ADB y devuelve la salida.
+ * onPrompt: se llama si el televisor está preguntando si permite este PC.
+ */
+function adbShell(host, keyPem, command, { onPrompt, timeout = 45000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const s = net.connect({ host, port: 5555, timeout: 8000 });
+    let buf = Buffer.alloc(0);
+    let sentSig = false;
+    let out = '';
+    const localId = 7;
+    const fail = (e) => {
+      s.destroy();
+      reject(e);
+    };
+    const timer = setTimeout(() => fail(new Error('El televisor no respondió a tiempo (¿aceptaste el permiso en la pantalla?).')), timeout);
+    s.on('connect', () => {
+      s.setTimeout(0);
+      s.write(adbPacket(A.CNXN, 0x01000001, 256 * 1024, Buffer.from('host::\0')));
+    });
+    s.on('timeout', () => fail(new Error('No puedo conectar con el televisor por ADB.')));
+    s.on('error', (e) => fail(e.code === 'ECONNREFUSED' ? Object.assign(new Error('La depuración ADB del televisor está apagada.'), { code: 'ADB_OFF' }) : e));
+    s.on('data', (chunk) => {
+      buf = Buffer.concat([buf, chunk]);
+      while (buf.length >= 24) {
+        const len = buf.readUInt32LE(12);
+        if (buf.length < 24 + len) break;
+        const cmd = buf.readUInt32LE(0);
+        const a0 = buf.readUInt32LE(4);
+        const a1 = buf.readUInt32LE(8);
+        const data = buf.subarray(24, 24 + len);
+        buf = buf.subarray(24 + len);
+        if (cmd === A.AUTH && a0 === 1) {
+          if (!sentSig) {
+            sentSig = true;
+            s.write(adbPacket(A.AUTH, 2, 0, adbSign(keyPem, data)));
+          } else {
+            // no conoce la llave: se la mandamos y el televisor pregunta si la permites
+            s.write(adbPacket(A.AUTH, 3, 0, adbPubKey(keyPem)));
+            onPrompt?.();
+          }
+        } else if (cmd === A.CNXN) {
+          s.write(adbPacket(A.OPEN, localId, 0, Buffer.from('shell:' + command + '\0')));
+        } else if (cmd === A.WRTE) {
+          out += data.toString('utf8');
+          s.write(adbPacket(A.OKAY, localId, a0));
+        } else if (cmd === A.CLSE) {
+          clearTimeout(timer);
+          s.write(adbPacket(A.CLSE, localId, a0));
+          s.end();
+          resolve(out);
+        }
+      }
+    });
+  });
+}
+/** Apps que se pueden abrir en la tele (las del lanzador de Android TV). */
+async function installedApps(host, keyPem, opts) {
+  const out = await adbShell(host, keyPem, 'cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER', opts);
+  let pkgs = [...new Set((out.match(/^\s*([a-zA-Z][\w.]+)\/[\w.$]+/gm) || []).map((l) => l.trim().split('/')[0]))];
+  if (!pkgs.length) {
+    const alt = await adbShell(host, keyPem, 'pm list packages', opts);
+    pkgs = (alt.match(/package:([\w.]+)/g) || []).map((x) => x.slice(8)).filter((p) => !/^(com\.android|android|com\.google\.android\.(gms|gsf|tvrecommendations|katniss|backdrop|leanbacklauncher|tts|partnersetup|apps\.tv\.dreamx|feedback|configupdater|sss|syncadapters))|\.overlay|provider|service|tcl\.(sys|factory|settings|fae|com|mt|logo|imageset)/.test(p));
+  }
+  return pkgs.sort();
+}
+/** Abre una app instalada por su paquete (no el navegador). */
+const launchLink = (pkg) => 'market://launch?id=' + pkg;
+
 // nombres legibles de las apps más comunes
 const APPS = {
   'com.netflix.ninja': 'Netflix', 'com.google.android.youtube.tv': 'YouTube', 'com.google.android.youtube.tvkids': 'YouTube Kids', 'com.disney.disneyplus': 'Disney+', 'com.hbo.hbonow': 'Max', 'com.wbd.stream': 'Max',
   'com.amazon.amazonvideo.livingroom': 'Prime Video', 'com.crunchyroll.crunchyroid': 'Crunchyroll', 'com.spotify.tv.android': 'Spotify', 'com.google.android.apps.tv.launcherx': 'Inicio', 'com.google.android.tvlauncher': 'Inicio',
-  'com.tcl.tvinput': 'Entrada (HDMI / TV)', 'com.tcl.tv': 'TV', 'com.google.android.videos': 'Google TV', 'com.plexapp.android': 'Plex', 'com.apple.atve.androidtv.appletv': 'Apple TV', 'com.paramount.android.pplus': 'Paramount+', 'tv.twitch.android.app': 'Twitch',
+  'com.tcl.tvinput': 'Entrada (HDMI / TV)', 'com.crunchyroll.crunchyroid': 'Crunchyroll', 'com.google.android.youtube.tvmusic': 'YouTube Music', 'com.amazon.avod.thirdpartyclient': 'Prime Video', 'com.pluto.tv': 'Pluto TV', 'tv.pluto.android': 'Pluto TV', 'com.vix.vixapp': 'ViX', 'com.claro.claro_video': 'Claro video', 'com.star.plus': 'Star+', 'com.google.android.apps.youtube.kids': 'YouTube Kids', 'com.tcl.browser': 'Navegador', 'org.chromium.webview_shell': 'Navegador', 'com.nvidia.geforcenow': 'GeForce NOW', 'com.microsoft.xcloud': 'Xbox Cloud', 'com.valvesoftware.steamlink': 'Steam Link', 'com.plexapp.android': 'Plex', 'com.mxtech.videoplayer.ad': 'MX Player', 'com.google.android.play.games': 'Juegos', 'com.apple.android.music': 'Apple Music', 'com.deezer.android.tv': 'Deezer', 'com.tidal.android.tv': 'Tidal', 'com.hulu.livingroomplus': 'Hulu', 'com.peacocktv.peacockandroid': 'Peacock', 'com.mubi': 'MUBI', 'com.zte.iptvclient': 'IPTV', 'com.google.android.apps.tv.launcherx': 'Inicio', 'com.tcl.tv': 'TV', 'com.google.android.videos': 'Google TV', 'com.plexapp.android': 'Plex', 'com.apple.atve.androidtv.appletv': 'Apple TV', 'com.paramount.android.pplus': 'Paramount+', 'tv.twitch.android.app': 'Twitch',
 };
 const appName = (pkg) => (pkg ? APPS[pkg] || pkg.split('.').filter((x) => !/^(com|tv|android|app|google|apps)$/.test(x)).pop()?.replace(/^./, (c) => c.toUpperCase()) || pkg : null);
 
-module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec };
+module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec, installedApps, launchLink, adbPubKey, adbSign, APPS };

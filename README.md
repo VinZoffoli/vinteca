@@ -258,6 +258,10 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.31.1
+
+- **Televisores**: las apps se abren como app (Crunchyroll, Netflix, YouTube…), no en el navegador. Cada televisor tiene su lista: las más comunes y las que vas abriendo en él; con «Leer las apps instaladas» aparecen todas las del televisor. Para eso hay que activar una vez la depuración del televisor (la app explica los pasos y el televisor pide permiso con un aviso que aceptas tú); ViperTeca solo lee la lista.
+
 ## Novedades de la 1.31
 
 - **Casa → Televisores**: los televisores con Google TV o Android TV de la casa (como los TCL) aparecen solos al pulsar «Buscar televisores». Se vinculan una vez: el televisor muestra un código de 6 caracteres y lo escribes en la app. Después: encender, apagar, subir y bajar volumen (o ponerlo exacto con la barra), silencio, reproducir o pausar, inicio y abrir Netflix, YouTube, Crunchyroll, Spotify, Disney+ o Max. Muestra qué app está abierta y, si algo se transmite (Chromecast, Spotify, YouTube desde el celular), el título con su portada y si está en pausa.
