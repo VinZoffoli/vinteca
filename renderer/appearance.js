@@ -70,9 +70,12 @@
 
   function tokens(p, light) {
     const { hue: h, sat: s } = p;
+    // 1.33: fondos grafito con solo un toque del tono de la paleta (antes el tono teñía todo
+    // y quedaba turbio) y escalones de luz parejos entre fondo, panel, tarjeta y borde
+    const t = Math.min(s, 40) * 0.32;
     const base = light
-      ? { night: hsl(h, Math.min(s + 20, 70), 97), night2: [255, 255, 255], surface: hsl(h, Math.min(s + 15, 60), 93.5), surface2: hsl(h, Math.min(s + 15, 55), 89), line: hsl(h, Math.min(s + 10, 45), 83), text: hsl(h, Math.min(s + 15, 45), 13), muted: hsl(h, Math.min(s, 22), 36), faint: hsl(h, Math.min(s, 16), 52) }
-      : { night: hsl(h, s, 10), night2: hsl(h, s, 12.5), surface: hsl(h, s, 15.5), surface2: hsl(h, s, 21), line: hsl(h, Math.max(s - 4, 0), 29), text: hsl(h, Math.min(s + 30, 60), 95), muted: hsl(h, Math.min(s, 24), 70), faint: hsl(h, Math.min(s, 16), 52) };
+      ? { night: hsl(h, t + 6, 96.5), night2: hsl(h, t + 10, 99), surface: [255, 255, 255], surface2: hsl(h, t + 8, 94.5), line: hsl(h, t + 4, 86), text: hsl(h, t + 10, 12), muted: hsl(h, t, 36), faint: hsl(h, t, 52) }
+      : { night: hsl(h, t, 6.5), night2: hsl(h, t, 8.5), surface: hsl(h, t, 11.5), surface2: hsl(h, t, 15.5), line: hsl(h, t * 0.8, 21), text: hsl(h, Math.min(t + 6, 14), 94), muted: hsl(h, t * 0.9, 68), faint: hsl(h, t * 0.7, 50) };
     const bg = base.night2;
     const accent = readable(hexToRgb(p.accent), bg, light ? 3.4 : 3);
     const sale = readable(hexToRgb(p.sale), bg, 3.4);
@@ -90,7 +93,10 @@
       '--faint': rgbToHex(base.faint),
       '--amber': rgbToHex(accent),
       '--amber-ink': ink(accent),
-      '--pink': rgbToHex(sale),
+      // 1.33: --pink es siempre «problema» (vencido, error, crítico) en todas las paletas;
+      // el color de rebajas de la paleta queda en --sale
+      '--pink': light ? '#c22f4a' : '#f06b7e',
+      '--sale': rgbToHex(sale),
       '--cyan': rgbToHex(fresh),
       '--cyan-ink': ink(fresh),
       '--green': rgbToHex(green),

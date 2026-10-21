@@ -258,6 +258,13 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.33
+
+- **Diseño nuevo en toda la app**: fondos grafito (antes se teñían del color de la paleta y quedaban turbios), cuatro alturas de superficie bien separadas (página, panel, tarjeta e interior), bordes finos, sombras suaves y una textura de grano muy sutil en el fondo y las tarjetas.
+- **Colores con significado fijo** en todas las paletas: verde es «bien», ámbar «atención», rojo «problema» y celeste «dato o enlace». El color de tu paleta queda para la marca, lo seleccionado y el botón principal; el de rebajas, solo para las ofertas.
+- Tipografía más ordenada: títulos y cifras en Bahnschrift con números de ancho fijo (las columnas ya no bailan), textos en Segoe UI con mejor contraste, pestañas, botones, campos, tablas y etiquetas con las mismas medidas en todas partes.
+- **La semana del equipo** (Websites → Squads): debajo de cada frase salen los tickets de Notion, las webs del pipeline y las ramas de GitHub de las que habla, para abrirlos con un clic. Los resúmenes nuevos los marcan exactos; en los ya preparados se buscan por el título.
+
 ## Novedades de la 1.32
 
 Más para Resto Experience, en **Websites**:

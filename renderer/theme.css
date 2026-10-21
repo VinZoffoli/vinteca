@@ -1,0 +1,256 @@
+/* ViperTeca 1.33 — sistema de diseño.
+   Se carga al final y ordena todo con las mismas piezas:
+   - Colores con significado fijo: --ok (bien), --warn (atención), --bad (problema),
+     --info (dato o enlace). El acento de la paleta (--amber) queda solo para la marca,
+     lo seleccionado y la acción principal.
+   - Cuatro alturas de superficie: página, panel, tarjeta e interior de tarjeta, con
+     bordes finos del color del texto (se ven igual en cualquier paleta).
+   - Grano: una textura de ruido muy suave sobre el fondo y las tarjetas, para que las
+     superficies no se vean planas ni digitales.
+   - Tipografía: Bahnschrift para títulos y cifras, Segoe UI Variable para leer; las
+     cifras con ancho fijo para que las columnas no bailen. */
+
+:root {
+  /* semántica (oscuro) */
+  --ok: #5ccf97;
+  --warn: #e8b04d;
+  --bad: #f06b7e;
+  --info: #6fc3ec;
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --bad-soft: color-mix(in srgb, var(--bad) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --accent: var(--amber);
+  --accent-soft: color-mix(in srgb, var(--amber) 14%, transparent);
+
+  /* líneas y capas, siempre a partir del color del texto */
+  --hair: color-mix(in srgb, var(--text) 8%, transparent);
+  --hair-strong: color-mix(in srgb, var(--text) 14%, transparent);
+  --layer: color-mix(in srgb, var(--text) 3.5%, transparent);
+  --layer-hover: color-mix(in srgb, var(--text) 6.5%, transparent);
+  --text-2: color-mix(in srgb, var(--text) 82%, var(--muted));
+
+  /* forma */
+  --r-card: 14px;
+  --r-inner: 10px;
+  --r-ctl: 10px;
+  --r-field: 10px;
+  --shadow-card: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent) inset, 0 1px 2px rgba(0, 0, 0, .28), 0 14px 32px -22px rgba(0, 0, 0, .75);
+  --shadow-pop: 0 24px 60px -20px rgba(0, 0, 0, .7), 0 2px 6px rgba(0, 0, 0, .3);
+
+  /* grano: ruido fractal en SVG (claro para el modo oscuro) */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-page: .05;
+  --grain-card: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .085 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --card-surface: var(--grain-card), linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--text) 2.5%) 0%, var(--surface) 46%);
+  --ring: 0 0 0 2px var(--night-2), 0 0 0 4px color-mix(in srgb, var(--amber) 70%, transparent);
+}
+:root[data-theme="light"] {
+  --ok: #17784a;
+  --warn: #9a5f00;
+  --bad: #c22f4a;
+  --info: #0f6a9c;
+  --hair: color-mix(in srgb, var(--text) 10%, transparent);
+  --hair-strong: color-mix(in srgb, var(--text) 18%, transparent);
+  --layer: color-mix(in srgb, var(--text) 3%, transparent);
+  --layer-hover: color-mix(in srgb, var(--text) 6%, transparent);
+  --shadow-card: 0 1px 2px rgba(20, 16, 40, .06), 0 10px 28px -20px rgba(20, 16, 40, .3);
+  --shadow-pop: 0 24px 60px -24px rgba(20, 16, 40, .35), 0 2px 6px rgba(20, 16, 40, .08);
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --grain-page: .03;
+  --grain-card: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --card-surface: var(--grain-card), linear-gradient(180deg, #fff 0%, var(--surface) 100%);
+}
+:root[data-radius="rectas"] { --r-card: 6px; --r-inner: 5px; --r-ctl: 6px; --r-field: 6px; }
+:root[data-radius="redondas"] { --r-card: 22px; --r-inner: 14px; --r-ctl: 999px; --r-field: 14px; }
+
+/* ================================================================ BASE */
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { background: var(--night); color: var(--text); font-size: 14px; line-height: 1.55; }
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
+  background-image: var(--grain); background-size: 180px 180px; opacity: var(--grain-page);
+}
+::selection { background: color-mix(in srgb, var(--amber) 35%, transparent); color: var(--text); }
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 16%, transparent) transparent; }
+:focus-visible { outline: none; box-shadow: var(--ring); }
+dd, .count, td, .num, .stat-strip dd, .cl-kpis b, .tw-stats b, .r2-exp-d b { font-variant-numeric: tabular-nums; }
+
+/* la luz de fondo: más tenue y del color del acento */
+body::before {
+  background:
+    radial-gradient(70vw 55vh at 90% -15%, color-mix(in srgb, var(--amber) calc(7% * var(--glow)), transparent), transparent 70%),
+    radial-gradient(55vw 50vh at -10% 115%, color-mix(in srgb, var(--info) calc(4% * var(--glow)), transparent), transparent 70%);
+}
+
+/* ================================================================ TIPOGRAFÍA */
+.view-head { padding: 34px 0 6px; }
+.view-head h1 { font-weight: 700; letter-spacing: -0.015em; color: var(--text); }
+.view-head .sub { color: var(--muted); font-size: 14px; max-width: 68ch; }
+.section-h, .rx-card h2, .sheet-h { letter-spacing: -0.005em; }
+h3 { letter-spacing: 0; }
+.rx-card h3, .dy-card h3, .sx-box h3, .tw-extra h3, .r2-month h3 { font: 600 15px/1.3 var(--display); color: var(--text); }
+.hint { color: var(--muted); }
+small.hint, .hint small { color: var(--faint); }
+.tw-h, .cl-grid h4, .r2-grid h4 { font: 600 11.5px/1.2 var(--display); letter-spacing: .02em; color: var(--faint); }
+p, li { text-wrap: pretty; }
+.link-btn { color: var(--info); text-decoration-color: color-mix(in srgb, var(--info) 40%, transparent); }
+.link-btn:hover { color: var(--text); text-decoration-color: currentColor; }
+
+/* estados con significado */
+.ok-t { color: var(--ok) !important; }
+.warn-t { color: var(--warn) !important; }
+.bad-t { color: var(--bad) !important; }
+.hint.bad, p.bad { color: var(--bad); }
+.cl-tag { font: 600 11px/1.5 var(--display); padding: 1px 8px; border-radius: 6px; letter-spacing: .01em; }
+.cl-tag.cl-t-ok { background: var(--ok-soft); color: var(--ok); }
+.cl-tag.cl-t-warn { background: var(--warn-soft); color: var(--warn); }
+.cl-tag.cl-t-bad { background: var(--bad-soft); color: var(--bad); }
+.cl-tag.cl-t-info { background: var(--info-soft); color: var(--info); }
+
+/* ================================================================ MENÚ LATERAL */
+.side { background: color-mix(in srgb, var(--night-2) 88%, transparent); border-right: 1px solid var(--hair); }
+.side-h { color: var(--faint); font: 600 11px/1 var(--display); letter-spacing: .03em; margin: 20px 12px 6px; }
+.side .tab { color: var(--muted); border-radius: 8px; font-size: 13.5px; }
+.side .tab .ico { color: var(--faint); }
+.side .tab:hover { background: var(--layer); color: var(--text); }
+.side .tab:hover .ico { color: var(--muted); }
+.side .tab.active { background: var(--layer-hover); color: var(--text); box-shadow: inset 0 0 0 1px var(--hair); }
+.side .tab.active .ico { color: var(--amber); }
+.side .tab.active::after { background: var(--amber); box-shadow: none; width: 2px; top: 9px; bottom: 9px; }
+.side .count { color: var(--faint); font-size: 12px; }
+.top { border-bottom: 1px solid var(--hair); background: color-mix(in srgb, var(--night) 82%, transparent); backdrop-filter: blur(16px) saturate(1.15); }
+
+/* ================================================================ SUPERFICIES */
+.rx-card, .dy-card, .sx-box, .cl-card, .tw-person, .tv-card, .notice, .r2-month > .r2-list > li, .stat-strip.rx-stats > div {
+  background: var(--card-surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+.rx-card:hover, .dy-card:hover { border-color: var(--hair-strong); }
+/* lo que vive dentro de una tarjeta: un escalón más, sin sombra */
+.cl-grid section, .r2-list > li, .r2-bus-p, .r2-retro-sq, .sx-stand, .oo-note, .r2-reply textarea {
+  background: var(--layer);
+  border: 1px solid var(--hair);
+  border-radius: var(--r-inner);
+  box-shadow: none;
+}
+.r2-month > .r2-list > li { border-radius: var(--r-inner); box-shadow: none; }
+.r2-list > li.r2-bad { border-left: 2px solid var(--bad); }
+.r2-list > li.r2-warn { border-left: 2px solid var(--warn); }
+.cl-card.cl-bad { border-color: color-mix(in srgb, var(--bad) 45%, var(--hair)); }
+.cl-card.cl-warn { border-color: color-mix(in srgb, var(--warn) 35%, var(--hair)); }
+.cl-card > header { cursor: pointer; }
+.cl-card > header:hover { background: var(--layer); }
+
+/* avisos */
+.notice { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-left: 2px solid var(--warn); color: var(--text-2); }
+
+/* cifras arriba de cada sección */
+.stat-strip { border-bottom: 0; gap: 12px; margin: 22px 0 16px; padding: 0; }
+.stat-strip.rx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.stat-strip.rx-stats > div { padding: 12px 16px 14px; }
+.stat-strip dt { color: var(--muted); font: 500 12px/1.3 var(--body); }
+.stat-strip dd { margin: 6px 0 0; font: 700 26px/1 var(--display); letter-spacing: -0.01em; color: var(--text); }
+.stat-strip dd.rx-hot { color: var(--bad); }
+
+/* vacío y carga */
+.empty { color: var(--muted); padding: 56px 20px; }
+.empty b { display: block; color: var(--text); font: 600 16px var(--display); margin-bottom: 6px; }
+
+/* ================================================================ CONTROLES */
+.btn {
+  border-radius: var(--r-ctl); font: 600 13px/1 var(--body); letter-spacing: .005em;
+  min-height: 34px; padding: 0 14px; border: 1px solid transparent;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 120ms var(--ease-out), box-shadow 150ms ease;
+}
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.small { min-height: 30px; padding: 0 12px; font-size: 12.5px; }
+.btn.big { min-height: 42px; padding: 0 20px; font-size: 14px; }
+.btn.primary { background: var(--amber); color: var(--amber-ink); box-shadow: 0 1px 0 rgba(255, 255, 255, .18) inset, 0 6px 16px -8px color-mix(in srgb, var(--amber) 70%, transparent); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.btn.ghost { background: var(--layer); border-color: var(--hair-strong); color: var(--text); }
+.btn.ghost:hover:not(:disabled) { background: var(--layer-hover); }
+.btn.subtle { background: transparent; color: var(--text-2); border-color: var(--hair); }
+.btn.subtle:hover:not(:disabled) { background: var(--layer); color: var(--text); }
+.btn.ghost.on { border-color: color-mix(in srgb, var(--amber) 60%, transparent); color: var(--amber); }
+
+/* pestañas y selectores */
+.seg { background: var(--layer); border: 1px solid var(--hair); border-radius: calc(var(--r-ctl) + 2px); padding: 3px; box-shadow: none; gap: 2px; flex-wrap: wrap; }
+.seg button { border-radius: var(--r-ctl); padding: 6px 12px; color: var(--muted); font: 500 13px/1.2 var(--body); transition: background-color 150ms ease, color 150ms ease; }
+.seg button:hover { color: var(--text); background: var(--layer); }
+.seg button.on { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .25), inset 0 0 0 1px var(--hair); }
+:root[data-theme="light"] .seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(20, 16, 40, .1), inset 0 0 0 1px var(--hair); }
+.rx-tabs { margin-bottom: 14px; }
+.r2-sub { background: transparent; border: 0; padding: 0; gap: 4px; }
+.r2-sub button { border: 1px solid transparent; }
+.r2-sub button.on { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent); }
+
+/* campos */
+.rx-input, .sn-select, input[type="text"], input[type="search"], input[type="number"], input[type="email"], input[type="date"], input[type="url"], textarea, select {
+  background: var(--layer); border: 1px solid var(--hair-strong); border-radius: var(--r-field); color: var(--text);
+}
+.rx-input:focus, .sn-select:focus, textarea:focus, select:focus, input:focus { border-color: color-mix(in srgb, var(--amber) 65%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.search { background: var(--layer); border: 1px solid var(--hair-strong); border-radius: var(--r-field); }
+::placeholder { color: var(--faint); }
+
+/* barra de herramientas sobre las listas */
+.toolbar.flat { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin: 4px 0 14px; padding: 0; background: none; backdrop-filter: none; }
+.toolbar.flat .hint { flex: 1 1 280px; font-size: 12.5px; }
+
+/* ================================================================ TABLAS */
+.r2-table th { font: 600 11.5px/1.3 var(--display); letter-spacing: .02em; color: var(--faint); border-bottom: 1px solid var(--hair-strong); padding: 8px 10px; }
+.r2-table td { border-bottom: 1px solid var(--hair); padding: 9px 10px; }
+.r2-table tbody tr { transition: background-color 120ms ease; }
+.r2-table tbody tr:hover { background: var(--layer); }
+.r2-v-major { color: var(--bad); background: var(--bad-soft); }
+.r2-v-minor { color: var(--warn); }
+.r2-v-ok { color: var(--ok); }
+.r2-k-ok { color: var(--ok); } .r2-k-warn { color: var(--warn); } .r2-k-bad { color: var(--bad); } .r2-k-info { color: var(--info); }
+.r2-chip { background: var(--layer-hover); color: var(--text-2); border-radius: 6px; }
+.r2-chip.hot { background: var(--warn-soft); color: var(--warn); }
+.r2-stars { color: var(--warn); }
+.r2-stars.s1, .r2-stars.s2 { color: var(--bad); }
+.r2-log { background: color-mix(in srgb, var(--night) 70%, transparent); border: 1px solid var(--hair); color: var(--text-2); }
+.cl-spark i { background: color-mix(in srgb, var(--info) 65%, transparent); }
+.cl-kpis b.ok, .cl-cwv b.ok { color: var(--ok); }
+.cl-kpis b.warn, .cl-cwv b.warn { color: var(--warn); }
+.cl-kpis b.bad, .cl-cwv b.bad { color: var(--bad); }
+
+/* resumen semanal: enlaces a tickets, webs y ramas */
+.tw-ref { border-color: var(--hair-strong); background: var(--layer); border-radius: 7px; }
+.tw-ref:hover { background: var(--layer-hover); border-color: color-mix(in srgb, var(--text) 24%, transparent); }
+.tw-ref i { background: var(--info-soft); color: var(--info); border-radius: 4px; }
+.tw-ref.k-W i { background: var(--ok-soft); color: var(--ok); }
+.tw-ref.k-R i { background: var(--warn-soft); color: var(--warn); }
+.tw-person { border-top: 2px solid var(--sq); }
+.tw-list li::marker { color: var(--faint); }
+.tw-list.next li::marker { color: var(--info); }
+.tw-list.watch li::marker { color: var(--warn); }
+
+/* ================================================================ DIÁLOGOS Y AVISOS */
+dialog.rx-dlg, dialog.ks-dlg {
+  background: var(--card-surface), var(--night-2);
+  background-color: var(--night-2);
+  border: 1px solid var(--hair-strong); border-radius: calc(var(--r-card) + 4px);
+  box-shadow: var(--shadow-pop); color: var(--text);
+}
+dialog::backdrop { background: color-mix(in srgb, var(--night) 55%, transparent); backdrop-filter: blur(6px); }
+.ks-field > span { font: 600 12px var(--display); color: var(--muted); letter-spacing: .01em; }
+.toast { border: 1px solid var(--hair-strong); box-shadow: var(--shadow-pop); }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .seg button, .tw-ref, .r2-table tbody tr { transition: none; }
+  .btn:active:not(:disabled) { transform: none; }
+}
+
+/* rebajas: el color de la paleta (el resto de --pink es «problema») */
+.count.sale, .pct, .ends.soon { color: var(--sale, var(--pink)); }
+.toast.error { border-color: var(--bad); }
+
+/* el buscador ya es la caja: el campo de dentro va sin borde */
+.search input, .search input:focus { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
+.search:focus-within { border-color: color-mix(in srgb, var(--amber) 65%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.seg button { padding: 6px 11px; }

@@ -159,7 +159,7 @@ async function collect({ read, vercelApi, notionTeam, leaders, pipeline }) {
       projects: count(deps, (d) => d.name).map(([name, k]) => ({ name, deploys: k })),
       failed: deps.filter((d) => d.state === 'ERROR').map((d) => ({ name: d.name, at: d.at })),
       notion: np ? { open: np.open, late: np.late, stale: np.stale, closed: np.week?.closed || [], touched: np.week?.touched || [], next: np.week?.next || [], overdue: (np.tickets || []).filter((t) => t.late).slice(0, 6) } : null,
-      pipeline: (pipeline || []).filter((r) => (String(r.squad || '').match(/squad\s*([a-d])/i)?.[1] || String(r.repo || '').match(/website-([a-d])-/i)?.[1] || '').toLowerCase() === squad && r.group !== 'done' && !/cancel/i.test(r.status || '')).map((r) => ({ name: String(r.name || '').replace(/<[^>]+>|\*\*/g, '').trim(), status: r.status })),
+      pipeline: (pipeline || []).filter((r) => (String(r.squad || '').match(/squad\s*([a-d])/i)?.[1] || String(r.repo || '').match(/website-([a-d])-/i)?.[1] || '').toLowerCase() === squad && r.group !== 'done' && !/cancel/i.test(r.status || '')).map((r) => ({ name: String(r.name || '').replace(/<[^>]+>|\*\*/g, '').trim(), status: r.status, url: r.url || null })),
     };
   });
   const known = new Set(Object.values(ids).flatMap((x) => x.gh.map(lc)));
@@ -172,29 +172,76 @@ async function collect({ read, vercelApi, notionTeam, leaders, pipeline }) {
   return { at: Date.now(), since: since.getTime(), org, errors, sources: { github: !!g, vercel: !!v, notion: !!n }, totals: { repos: g?.repos || 0, commits: g?.commits.length || 0, deploys: v?.length || 0 }, people, others, stale, noTicket };
 }
 
+/**
+ * Lo que se puede abrir de cada persona, con un código corto para que Claude diga a qué
+ * se refiere cada frase: T = ticket de Notion, W = web del pipeline, R = rama de GitHub.
+ */
+function refTable(data) {
+  const out = {};
+  const branchUrl = (repo, branch) => 'https://github.com/' + data.org + '/' + repo + '/tree/' + encodeURIComponent(branch).replace(/%2F/g, '/');
+  for (const p of data.people) {
+    const t = {};
+    const seen = new Set();
+    let n = 0;
+    const add = (kind, label, url, extra) => {
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      t[kind + ++n] = { kind, label: String(label || '').slice(0, 90), url, ...extra };
+    };
+    const tk = p.notion ? [...p.notion.overdue, ...p.notion.next, ...p.notion.touched, ...p.notion.closed] : [];
+    for (const x of tk) add('T', x.title, x.url, { status: x.status, deadline: x.deadline || null });
+    for (const w of p.pipeline || []) add('W', w.name, w.url, { status: w.status });
+    for (const b of p.branches || []) add('R', b.repo.replace(/^website-[a-d]-/, '') + '/' + b.branch, branchUrl(b.repo, b.branch));
+    for (const b of (data.stale || []).filter((x) => x.squad === p.squad)) add('R', b.repo.replace(/^website-[a-d]-/, '') + '/' + b.branch, b.pr || b.url);
+    out[p.squad] = t;
+  }
+  return out;
+}
+/** Las frases de Claude vuelven a ser texto, y los códigos que citó, enlaces al lado. */
+function attachRefs(ai, data) {
+  if (!ai?.people) return ai;
+  const refs = refTable(data);
+  for (const p of ai.people) {
+    const t = refs[String(p.squad).toLowerCase()] || {};
+    p.links = {};
+    for (const k of ['week', 'next', 'watch']) {
+      const items = Array.isArray(p[k]) ? p[k] : [];
+      p.links[k] = items.map((x) => [...new Set((x && typeof x === 'object' ? x.refs || [] : []).map(String))].filter((c) => t[c]).map((c) => ({ code: c, ...t[c] })).slice(0, 4));
+      // si se le escapa algún código dentro del texto ([T3]), se quita
+      p[k] = items.map((x) => String(x && typeof x === 'object' ? x.t || x.text || '' : x).replace(/\s*\[(?:[TWR]\d+(?:,\s*)?)+\]/g, '').trim());
+    }
+  }
+  return ai;
+}
+
 /** Texto para Claude Code con los datos de cada persona. */
 function prompt(data) {
+  const refs = refTable(data);
+  const tag = (squad, url) => {
+    const c = Object.entries(refs[squad] || {}).find(([, v]) => v.url === url)?.[0];
+    return c ? '[' + c + '] ' : '';
+  };
   const day = (t) => new Date(t).toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
   const lines = data.people.map((p) => {
     const L = ['## ' + p.name + ' (Squad ' + p.squad.toUpperCase() + ')'];
     L.push('GitHub: ' + p.commits + ' commits.');
     for (const r of p.repos.slice(0, 8)) L.push('- ' + r.repo + ' (' + r.commits + '): ' + r.msgs.join(' | '));
-    if (p.branches.length) L.push('Ramas con trabajo sin pasar a main: ' + p.branches.map((b) => b.repo + '/' + b.branch).join(', '));
+    if (p.branches.length) L.push('Ramas con trabajo sin pasar a main: ' + p.branches.map((b) => tag(p.squad, 'https://github.com/' + data.org + '/' + b.repo + '/tree/' + encodeURIComponent(b.branch).replace(/%2F/g, '/')) + b.repo + '/' + b.branch).join(', '));
     if (data.sources.vercel) L.push('Vercel: ' + p.deploys + ' deploys a producción' + (p.projects.length ? ' (' + p.projects.map((x) => x.name + ' ' + x.deploys).join(', ') + ')' : '') + (p.failed.length ? '; fallidos: ' + p.failed.map((f) => f.name).join(', ') : '') + '.');
     if (p.notion) {
       L.push('Notion: ' + p.notion.open + ' tickets abiertos, ' + p.notion.late + ' vencidos.');
-      if (p.notion.closed.length) L.push('Cerró esta semana: ' + p.notion.closed.map((t) => t.title).join(' | '));
-      if (p.notion.touched.length) L.push('Movió esta semana: ' + p.notion.touched.map((t) => t.title + ' [' + t.status + ']').join(' | '));
-      if (p.notion.next.length) L.push('Vence en los próximos días: ' + p.notion.next.map((t) => t.title + ' (' + t.deadline + ', ' + t.status + ')').join(' | '));
-      if (p.notion.overdue.length) L.push('Vencidos: ' + p.notion.overdue.map((t) => t.title + ' (' + t.deadline + ')').join(' | '));
+      if (p.notion.closed.length) L.push('Cerró esta semana: ' + p.notion.closed.map((t) => tag(p.squad, t.url) + t.title).join(' | '));
+      if (p.notion.touched.length) L.push('Movió esta semana: ' + p.notion.touched.map((t) => tag(p.squad, t.url) + t.title + ' (' + t.status + ')').join(' | '));
+      if (p.notion.next.length) L.push('Vence en los próximos días: ' + p.notion.next.map((t) => tag(p.squad, t.url) + t.title + ' (' + t.deadline + ', ' + t.status + ')').join(' | '));
+      if (p.notion.overdue.length) L.push('Vencidos: ' + p.notion.overdue.map((t) => tag(p.squad, t.url) + t.title + ' (' + t.deadline + ')').join(' | '));
     }
-    if (p.pipeline.length) L.push('Webs de su squad en el pipeline: ' + p.pipeline.map((w) => w.name + ' [' + w.status + ']').join(', '));
+    if (p.pipeline.length) L.push('Webs de su squad en el pipeline: ' + p.pipeline.map((w) => tag(p.squad, w.url) + w.name + ' (' + w.status + ')').join(', '));
     return L.join('\n');
   });
   const missing = [!data.sources.github && 'GitHub', !data.sources.vercel && 'los deploys de Vercel', !data.sources.notion && 'los tickets de Notion'].filter(Boolean);
   return 'Semana desde el ' + day(data.since) + ' hasta hoy, ' + day(Date.now()) + '. Equipo web de Resto Experience (una agencia de marketing para restaurantes). Cada web vive en un repo «website-<squad>-<cliente>».\n\n' +
     lines.join('\n\n') +
-    (data.stale?.length ? '\n\nRamas olvidadas (commits sin pasar a main desde hace más de 7 días): ' + data.stale.slice(0, 15).map((b) => b.repo + '/' + b.branch + ' de ' + b.login + ' (' + b.ahead + ' commits, último ' + new Date(b.at).toLocaleDateString('es') + ')').join('; ') : '') +
+    (data.stale?.length ? '\n\nRamas olvidadas (commits sin pasar a main desde hace más de 7 días): ' + data.stale.slice(0, 15).map((b) => tag(b.squad, b.pr || b.url) + b.repo + '/' + b.branch + ' de ' + b.login + ' (' + b.ahead + ' commits, último ' + new Date(b.at).toLocaleDateString('es') + ')').join('; ') : '') +
     (data.noTicket?.length ? '\n\nWebs con trabajo esta semana sin ticket en Notion: ' + data.noTicket.map((x) => x.repo + ' (' + x.commits + ' commits de ' + x.who.join(', ') + ')').join('; ') : '') +
     (data.others.length ? '\n\nOtros que hicieron commits: ' + data.others.map((o) => o.login + ' (' + o.commits + ': ' + o.repos.join(', ') + ')').join('; ') : '') +
     (missing.length ? '\n\nNo se pudieron leer ' + missing.join(' ni ') + ': no digas nada sobre eso (ni que hubo cero), simplemente no lo menciones.' : '') +
@@ -203,7 +250,8 @@ function prompt(data) {
     '- "next": 2 a 4 frases de en qué probablemente trabajará la próxima semana (según ramas abiertas, webs en QA o en curso, tickets que vencen y lo que quedó a medias).\n' +
     '- "watch": 0 a 3 cosas a vigilar (tickets vencidos, deploys fallidos, trabajo sin ticket en Notion, webs de otro squad).\n' +
     'Y "team": una frase con el resumen del equipo.\n' +
-    'Responde SOLO con este JSON: {"team":"","people":[{"squad":"a","week":[""],"next":[""],"watch":[""]}]}';
+    'Los tickets, webs y ramas llevan un código entre corchetes ([T1], [W2], [R3]). No escribas los códigos en el texto: cada frase va como {"t":"la frase","refs":["T1"]} con los códigos de lo que menciona esa frase (lista vacía si nada).\n' +
+    'Responde SOLO con este JSON: {"team":"","people":[{"squad":"a","week":[{"t":"","refs":[]}],"next":[{"t":"","refs":[]}],"watch":[{"t":"","refs":[]}]}]}';
 }
 
-module.exports = { collect, prompt, weekStart, DEFAULT_IDS, staleBranches, withoutTicket, gh, pool };
+module.exports = { collect, prompt, refTable, attachRefs, weekStart, DEFAULT_IDS, staleBranches, withoutTicket, gh, pool };

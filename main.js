@@ -398,6 +398,8 @@ function snapshot(dir) {
         'w-infra-run': [`Promise.all(['usage','versions','env','previews'].map((k) => window.api.r132.run(k).catch((e) => console.error('R132 ' + k + ': ' + e.message)))).then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click())`, 240000],
         'w-infra2': [`document.querySelector('.r2-ver')?.scrollIntoView()`, 1500],
         'w-infra3': [`document.querySelector('.r2-env')?.scrollIntoView()`, 1500],
+        'w-sq': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(), 1500)`, 6000],
+        'w-sq2': [`document.querySelector('.tw')?.scrollIntoView(); setTimeout(() => document.querySelector('.tw-grid')?.scrollIntoView({ block: 'start' }), 800)`, 2500],
         'w-use': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 2500)`, 4500],
         'w-use-run': [`window.api.r132.run('usage').catch((e) => console.error('USO: ' + e.message)).then(() => { [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 1500); })`, 400000],
         'w-card': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Clientes')?.click(); setTimeout(() => document.querySelector('[data-r2sub="webs"]')?.click(), 800); setTimeout(() => { document.querySelector('.cl-card header')?.click(); setTimeout(() => [...document.querySelectorAll('.cl-grid h4')].find((x) => x.textContent === 'Contacto del cliente')?.scrollIntoView({ block: 'center' }), 1200); }, 2000)`, 5000],
@@ -5671,7 +5673,7 @@ async function teamWeekRun() {
   let ai = null;
   let aiError = null;
   try {
-    ai = await aiJson(teamweek.prompt(data), { system: 'Eres el líder técnico de un equipo de desarrollo web y escribes resúmenes semanales claros en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' });
+    ai = teamweek.attachRefs(await aiJson(teamweek.prompt(data), { system: 'Eres el líder técnico de un equipo de desarrollo web y escribes resúmenes semanales claros en español neutro. Respondes SOLO con un bloque de código json válido, sin texto antes ni después.' }), data);
   } catch (e) {
     aiError = e.message;
   }

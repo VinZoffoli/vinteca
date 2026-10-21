@@ -29,8 +29,34 @@
     W.busy = false;
     W.rerender?.();
   }
-  const list = (items, cls) => (items?.length ? h('ul', { class: 'tw-list ' + (cls || '') }, items.map((x) => h('li', { text: x }))) : null);
+  const list = (items, cls, links) => (items?.length ? h('ul', { class: 'tw-list ' + (cls || '') }, items.map((x, i) => h('li', {}, h('span', { text: x }), refChips(links?.[i])))) : null);
+  // 1.32.1: los tickets, webs y ramas de cada frase, para abrirlos
+  const KIND = { T: 'Ticket', W: 'Web', R: 'Rama' };
+  function refChips(refs) {
+    if (!refs?.length) return null;
+    return h('span', { class: 'tw-refs' }, refs.map((r) => h('button', { class: 'tw-ref k-' + r.kind, title: (KIND[r.kind] || '') + ': ' + r.label + (r.status ? ' · ' + r.status : '') + (r.deadline ? ' · vence ' + r.deadline : ''), onclick: () => window.api.open(r.url) }, h('i', { text: KIND[r.kind] || '' }), h('span', { text: r.label }))));
+  }
+  const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ');
+  const STOP = new Set(['para', 'with', 'from', 'that', 'this', 'pagina', 'paginas', 'website', 'landing', 'ticket', 'nueva', 'nuevo', 'cambios', 'ajustes', 'correcciones', 'general']);
+  /** Resúmenes de antes de la 1.32.1 (sin códigos): se buscan los títulos de los tickets en cada frase. */
+  function guessLinks(p, items) {
+    const n = p.notion;
+    const cands = [];
+    const seen = new Set();
+    for (const t of n ? [...(n.overdue || []), ...(n.next || []), ...(n.touched || []), ...(n.closed || [])] : []) if (t.url && !seen.has(t.url)) { seen.add(t.url); cands.push({ kind: 'T', label: t.title, url: t.url, status: t.status, deadline: t.deadline }); }
+    for (const w of p.pipeline || []) if (w.url && !seen.has(w.url)) { seen.add(w.url); cands.push({ kind: 'W', label: w.name, url: w.url, status: w.status }); }
+    return (items || []).map((text) => {
+      const s = ' ' + norm(text) + ' ';
+      return cands.filter((c) => {
+        const title = norm(c.label).replace(/\s+/g, ' ').trim();
+        if (title.length >= 6 && s.includes(' ' + title + ' ')) return true;
+        const words = title.split(' ').filter((w) => w.length >= 4 && !STOP.has(w));
+        return words.length >= 2 && words.filter((w) => s.includes(' ' + w)).length / words.length >= 0.75;
+      }).slice(0, 3);
+    });
+  }
   function person(p, ai) {
+    const links = ai ? Object.fromEntries(['week', 'next', 'watch'].map((k) => [k, ai.links?.[k] || guessLinks(p, ai[k])])) : {};
     const n = p.notion;
     const stats = [
       [p.commits, 'commits'],
@@ -42,7 +68,7 @@
       h('header', {}, h('span', { class: 'tw-badge', text: p.squad.toUpperCase() }), h('div', {}, h('b', { text: p.name }), h('small', { class: 'hint', text: p.repos.slice(0, 3).map((r) => r.repo.replace(/^website-[a-d]-/, '')).join(', ') || 'Sin commits esta semana' }))),
       h('div', { class: 'tw-stats' }, stats.map(([v, l, c]) => h('div', { class: c || '' }, h('b', { text: String(v) }), h('span', { text: l })))),
       ai
-        ? [h('p', { class: 'tw-h', text: 'Esta semana' }), list(ai.week), h('p', { class: 'tw-h', text: 'La próxima, probablemente' }), list(ai.next, 'next'), ai.watch?.length ? [h('p', { class: 'tw-h', text: 'Para vigilar' }), list(ai.watch, 'watch')] : null]
+        ? [h('p', { class: 'tw-h', text: 'Esta semana' }), list(ai.week, '', links.week), h('p', { class: 'tw-h', text: 'La próxima, probablemente' }), list(ai.next, 'next', links.next), ai.watch?.length ? [h('p', { class: 'tw-h', text: 'Para vigilar' }), list(ai.watch, 'watch', links.watch)] : null]
         : [
             h('p', { class: 'tw-h', text: 'Dónde hizo commits' }),
             list(p.repos.slice(0, 5).map((r) => r.repo.replace(/^website-/, '') + ' · ' + r.commits)),
