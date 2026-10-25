@@ -4647,8 +4647,50 @@ async function sunshineOn() {
     s.on('timeout', () => (s.destroy(), res(false)));
   });
 }
+/**
+ * Televisores con la depuración por red (ADB) encendida en la wifi de casa: se prueban
+ * todas las IP del rango en el puerto 5555 y se les pregunta su nombre. Se añaden a la lista.
+ */
+async function playScan() {
+  const { localIp } = require('./src/lan');
+  const me = localIp();
+  const base = String(me || '').split('.').slice(0, 3).join('.');
+  if (!/^\d+\.\d+\.\d+$/.test(base)) return [];
+  const open = [];
+  const ips = Array.from({ length: 254 }, (_, i) => base + '.' + (i + 1)).filter((ip) => ip !== me);
+  await Promise.all(ips.map((ip) => new Promise((res) => {
+    const s = require('net').connect({ host: ip, port: 5555, timeout: 600 });
+    s.on('connect', () => (open.push(ip), s.destroy(), res()));
+    s.on('error', () => res());
+    s.on('timeout', () => (s.destroy(), res()));
+  })));
+  const list = tvList();
+  const found = [];
+  for (const ip of open) {
+    const name = (await playAdb(ip, 'settings get global device_name').catch(() => '')).trim();
+    if (!name) continue;
+    let t = list.find((x) => x.host === ip);
+    if (!t) list.push((t = { id: require('crypto').randomBytes(4).toString('hex'), host: ip, name, label: name, paired: false, mac: macOf(ip) }));
+    found.push(t);
+  }
+  if (found.length) tvSave(list);
+  return found;
+}
 ipcMain.handle('playtv:status', async (_e, id) => {
-  const t = playTvOf(id);
+  let t = playTvOf(id);
+  // sin televisor elegido, o el elegido no tiene ADB: se busca uno que sí lo tenga
+  if (!id) {
+    const ok = t ? await playAdb(t.host, 'echo ok').then(() => true, () => false) : false;
+    if (!ok) {
+      const found = await playScan().catch(() => []);
+      if (found[0]) {
+        t = found[0];
+        const s = store.read('settings.json', {});
+        s.playTvId = t.id;
+        store.write('settings.json', s);
+      }
+    }
+  }
   const out = { tv: t ? { id: t.id, label: t.label, host: t.host } : null, tvs: tvList().map((x) => ({ id: x.id, label: x.label, host: x.host })), adb: null, steamlink: null, moonlight: null, sunshine: await sunshineOn().catch(() => false) };
   if (!t) return out;
   try {

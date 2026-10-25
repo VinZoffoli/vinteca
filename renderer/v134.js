@@ -9,7 +9,7 @@
 
   async function playOnTv(g) {
     const dlg = h('dialog', { class: 'rx-dlg ks-dlg wide ptv' });
-    const body = h('div', { class: 'ptv-body' }, h('p', { class: 'hint', text: 'Revisando el televisor…' }));
+    const body = h('div', { class: 'ptv-body' }, h('p', { class: 'hint', text: 'Buscando el televisor en la red de casa…' }));
     dlg.append(h('h2', { text: g.title + ' en el televisor' }), body);
     dlg.addEventListener('close', () => dlg.remove());
     document.body.append(dlg);
@@ -18,7 +18,7 @@
 
     async function render(st) {
       if (!st) {
-        body.replaceChildren(h('p', { class: 'hint', text: 'Revisando el televisor…' }));
+        body.replaceChildren(h('p', { class: 'hint', text: 'Buscando el televisor en la red de casa…' }));
         try {
           st = await window.api.playTv.status();
         } catch (e) {
@@ -38,7 +38,7 @@
       const ready = st.tv && st.adb && need;
       body.replaceChildren(
         h('label', { class: 'ks-field' }, h('span', { text: 'Televisor' }), tvPick),
-        !st.tvs.length || !st.tv ? h('details', { class: 'ptv-more', open: !st.tvs.length }, h('summary', { text: '¿No está en la lista? Añádelo por su IP' }), addRow) : null,
+        h('details', { class: 'ptv-more', open: !st.tvs.length }, h('summary', { text: '¿No está en la lista? Añádelo por su IP' }), addRow),
         h('ol', { class: 'ptv-steps' },
           STEP(st.tv ? st.adb : null, 'Conexión con el televisor', st.adb === false ? (st.adbError || 'No responde.') + ' Si en la tele sale «¿Permitir la depuración?», marca «Permitir siempre» y acepta.' : st.adb ? 'Lista (por ADB en la red de casa).' : 'Elige el televisor arriba.'),
           isSteam ? STEP(st.adb ? st.steamlink : null, 'Steam Link en el televisor', st.steamlink ? 'Instalado. La primera vez elige este PC en la tele y escribe el PIN que te muestra Steam aquí.' : 'Con Steam Link el juego de Steam se ve en la tele y el control le llega al PC.', st.adb && !st.steamlink ? storeBtn('steamlink', 'Steam Link') : null) : null,
