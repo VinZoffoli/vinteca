@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.35
+
+- **Puente del control**: los televisores TCL reservan el botón R1 del control como tecla del sistema y no se lo pasan a ninguna app («Not Support Key»). ViperTeca ahora lee el control directamente en la tele, antes de que el sistema lo interprete, y lo reproduce en un control de Xbox virtual en el PC. El juego recibe todos los botones, R1 incluido, con el control conectado por Bluetooth a la tele. Se enciende solo al jugar «En el televisor» y sigue activo mientras ViperTeca esté abierto; se puede apagar desde ese mismo cuadro.
+- Usa el controlador ViGEmBus (gratuito) y Moonlight + Sunshine para todos los juegos; el control propio de Sunshine queda apagado para que el juego no vea dos.
+
 ## Novedades de la 1.34.1
 
 - **En el televisor**: si el televisor elegido no tiene la depuración por red encendida, ViperTeca busca en la wifi de casa el que sí la tiene, lo añade con su nombre y lo elige solo. «Añadir por IP» siempre está a mano.

@@ -1009,6 +1009,8 @@ app.whenReady().then(() => {
       setTimeout(() => connTick().catch(() => {}), 3 * 60000);
       setTimeout(forgottenTick, 20 * 60000);
       setTimeout(() => { try { tvStartAll(); } catch {} }, 8000);
+      // 1.35: el puente del control, si ya se usó para jugar en la tele
+      setTimeout(() => { try { const s = store.read('settings.json', {}); if (s.padBridge && s.playTvId) padStart(); } catch {} }, 12000);
       // 1.32: equipo, Vercel, reseñas y vencimientos (cada uno se revisa cuando le toca)
       setTimeout(() => r132Tick().catch(() => {}), 18 * 60000);
       setInterval(() => r132Tick().catch(() => {}), 3 * 3600000);
@@ -4750,15 +4752,71 @@ ipcMain.handle('playtv:play', async (_e, gameId, id) => {
   const has = (p) => pk.includes('package:' + PLAY_PKGS[p]);
   const sun = await sunshineOn().catch(() => false);
   // Steam → Steam Link; lo demás → Moonlight (o Moonlight también para Steam si no hay Steam Link)
-  const method = g.store === 'steam' && has('steamlink') ? 'steamlink' : has('moonlight') && sun ? 'moonlight' : null;
+  // con el puente del control encendido se usa Moonlight para todo: Steam Link pondría su
+  // propio control (sin R1) y el juego vería dos
+  const bridgeOn = store.read('settings.json', {}).padBridge !== false;
+  const method = bridgeOn && has('moonlight') && sun ? 'moonlight' : g.store === 'steam' && has('steamlink') ? 'steamlink' : has('moonlight') && sun ? 'moonlight' : null;
   if (!method) throw new Error(g.store === 'steam' ? 'Falta Steam Link en el televisor.' : !has('moonlight') ? 'Falta Moonlight en el televisor.' : 'Falta abrir Sunshine en este PC.');
   launchFromMain(g);
   await new Promise((r) => setTimeout(r, 2500));
   await playTvOpen(t.host, PLAY_PKGS[method]);
   const s = store.read('settings.json', {});
   s.playTvId = t.id;
+  // el puente del control: todos los botones (R1 incluido) llegan al PC; queda encendido
+  if (s.padBridge !== false) s.padBridge = true;
   store.write('settings.json', s);
+  if (s.padBridge) padStart(true);
   return { method, tv: t.label };
+});
+
+// ---------- 1.35: puente del control (R1 y todos los botones con el control en la tele) ----------
+const padbridge = require('./src/padbridge');
+let padB = null;
+let padState = { status: 'off' };
+const padPush = () => win && !win.isDestroyed() && win.webContents.send('playtv:bridge', padState);
+function padDll() {
+  const packaged = path.join(process.resourcesPath || '', 'vigem', 'ViGEmClient.dll');
+  return require('fs').existsSync(packaged) ? packaged : path.join(__dirname, 'vendor', 'vigem', 'ViGEmClient.dll');
+}
+function padStart(restart) {
+  const t = playTvOf();
+  if (!t) return padState;
+  if (padB && !restart && padB.host === t.host) return padState;
+  padStop();
+  const b = padbridge.start({
+    host: t.host,
+    key: playAdbKey(),
+    adbShell: tv.adbShell,
+    adbStream: tv.adbStream,
+    dll: padDll(),
+    onState: (st) => {
+      padState = { ...st, tv: t.label };
+      padPush();
+    },
+  });
+  padB = { ...b, host: t.host };
+  return padState;
+}
+function padStop() {
+  padB?.stop();
+  padB = null;
+  padState = { status: 'off' };
+  padPush();
+}
+ipcMain.handle('playtv:bridge', (_e, on) => {
+  if (on === true || on === false) {
+    const s = store.read('settings.json', {});
+    s.padBridge = on;
+    store.write('settings.json', s);
+    if (on) padStart(true);
+    else padStop();
+  }
+  return padState;
+});
+app.on('before-quit', () => {
+  try {
+    padB?.stop();
+  } catch {}
 });
 
 // ---------- 1.30: copias y restauración, calendario de juego, diario de partidas ----------

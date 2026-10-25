@@ -537,6 +537,64 @@ function adbShell(host, keyPem, command, { onPrompt, timeout = 45000 } = {}) {
     });
   });
 }
+/**
+ * 1.35: un comando que sigue corriendo en la tele (por ejemplo `getevent`) y va mandando su
+ * salida a onData. Devuelve { close }; onEnd se llama si se corta (tele apagada, red…).
+ */
+function adbStream(host, keyPem, command, { onData, onEnd, onPrompt } = {}) {
+  const s = net.connect({ host, port: 5555, timeout: 8000 });
+  s.setNoDelay(true);
+  let buf = Buffer.alloc(0);
+  let sentSig = false;
+  let remote = 0;
+  let ended = false;
+  const localId = 9;
+  const end = (why) => {
+    if (ended) return;
+    ended = true;
+    s.destroy();
+    onEnd?.(why);
+  };
+  s.on('connect', () => {
+    s.setTimeout(0);
+    s.setKeepAlive(true, 5000);
+    s.write(adbPacket(A.CNXN, 0x01000001, 256 * 1024, Buffer.from('host::\0')));
+  });
+  s.on('timeout', () => end(new Error('No puedo conectar con el televisor por ADB.')));
+  s.on('error', (e) => end(e));
+  s.on('close', () => end(null));
+  s.on('data', (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    while (buf.length >= 24) {
+      const len = buf.readUInt32LE(12);
+      if (buf.length < 24 + len) break;
+      const cmd = buf.readUInt32LE(0);
+      const a0 = buf.readUInt32LE(4);
+      const data = buf.subarray(24, 24 + len);
+      buf = buf.subarray(24 + len);
+      if (cmd === A.AUTH && a0 === 1) {
+        if (!sentSig) {
+          sentSig = true;
+          s.write(adbPacket(A.AUTH, 2, 0, adbSign(keyPem, data)));
+        } else {
+          s.write(adbPacket(A.AUTH, 3, 0, adbPubKey(keyPem)));
+          onPrompt?.();
+        }
+      } else if (cmd === A.CNXN) {
+        s.write(adbPacket(A.OPEN, localId, 0, Buffer.from('shell:' + command + '\0')));
+      } else if (cmd === A.OKAY) {
+        remote = a0;
+      } else if (cmd === A.WRTE) {
+        remote = a0;
+        s.write(adbPacket(A.OKAY, localId, a0));
+        onData?.(data.toString('utf8'));
+      } else if (cmd === A.CLSE) {
+        end(null);
+      }
+    }
+  });
+  return { close: () => { if (remote) try { s.write(adbPacket(A.CLSE, localId, remote)); } catch {} end(null); } };
+}
 /** Apps que se pueden abrir en la tele (las del lanzador de Android TV). */
 async function installedApps(host, keyPem, opts) {
   const out = await adbShell(host, keyPem, 'cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.LEANBACK_LAUNCHER', opts);
@@ -558,4 +616,4 @@ const APPS = {
 };
 const appName = (pkg) => (pkg ? APPS[pkg] || pkg.split('.').filter((x) => !/^(com|tv|android|app|google|apps)$/.test(x)).pop()?.replace(/^./, (c) => c.toUpperCase()) || pkg : null);
 
-module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec, installedApps, launchLink, adbPubKey, adbSign, adbShell, APPS };
+module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec, installedApps, launchLink, adbPubKey, adbSign, adbShell, adbStream, APPS };
