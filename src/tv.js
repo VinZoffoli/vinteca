@@ -558,4 +558,4 @@ const APPS = {
 };
 const appName = (pkg) => (pkg ? APPS[pkg] || pkg.split('.').filter((x) => !/^(com|tv|android|app|google|apps)$/.test(x)).pop()?.replace(/^./, (c) => c.toUpperCase()) || pkg : null);
 
-module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec, installedApps, launchLink, adbPubKey, adbSign, APPS };
+module.exports = { makeCert, pair, Remote, castStatus, discover, reachable, wake, appName, KEY, enc, dec, installedApps, launchLink, adbPubKey, adbSign, adbShell, APPS };

@@ -279,6 +279,7 @@ function renderHero() {
         'div',
         { class: 'hero-actions' },
         h('button', { class: 'btn primary', onclick: () => launch(g) }, svg(PLAY_ICON), g.installed ? 'Jugar' : 'Instalar'),
+        g.installed && h('button', { class: 'btn ghost', title: 'Jugar en el televisor con tu control', onclick: () => window.playOnTv?.(g) }, 'En el televisor'),
         g.storeUrl && h('button', { class: 'btn ghost', text: 'Ver en la tienda', onclick: () => window.api.open(g.storeUrl) })
       ),
       recent.length > 1 &&
@@ -3862,6 +3863,7 @@ function renderGame() {
             'div',
             { class: 'sheet-cta' },
             h('button', { class: 'btn primary big', onclick: () => { close(); launch(g); } }, h('span', { 'aria-hidden': 'true', text: g.installed ? '▶' : '↓' }), g.installed ? 'Jugar' : 'Instalar'),
+            g.installed && g.kind !== 'tool' && h('button', { class: 'btn ghost', title: 'Jugar en el televisor con tu control', onclick: () => window.playOnTv?.(g) }, h('span', { 'aria-hidden': 'true', text: '📺' }), 'En el televisor'),
             appid && a && !a.noStats && h('button', { class: 'btn ghost', text: 'Logros', onclick: () => { close(); showView('ach'); openAchDetail(g); } }),
             /genshin impact/i.test(g.title) && h('button', { class: 'btn ghost', text: 'Tu perfil', onclick: () => { close(); showView('genshin'); } }),
             g.trainer && h('button', { class: 'btn ghost trainer', title: state.wand ? 'Abrir sus trucos en Wand (solo para partidas de un jugador)' : 'Ver sus trucos en la web de Wand (no está instalado)', onclick: () => window.api.open(state.wand ? g.trainer.play : g.trainer.web) }, h('span', { class: 'wand-dot', 'aria-hidden': 'true' }), `Trucos (${g.trainer.cheats})`),

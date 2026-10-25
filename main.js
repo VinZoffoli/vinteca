@@ -398,6 +398,7 @@ function snapshot(dir) {
         'w-infra-run': [`Promise.all(['usage','versions','env','previews'].map((k) => window.api.r132.run(k).catch((e) => console.error('R132 ' + k + ': ' + e.message)))).then(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click())`, 240000],
         'w-infra2': [`document.querySelector('.r2-ver')?.scrollIntoView()`, 1500],
         'w-infra3': [`document.querySelector('.r2-env')?.scrollIntoView()`, 1500],
+        'ptv': [`showView('library'); setTimeout(() => { const L = state.lib.games; const g = L.find((x) => x.installed && x.store === 'epic') || L.find((x) => x.installed); openGame(g); setTimeout(() => [...document.querySelectorAll('.sheet-cta .btn')].find((b) => /televisor/.test(b.textContent))?.click(), 1500); }, 2000)`, 9000],
         'w-sq': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(), 1500)`, 6000],
         'w-sq2': [`document.querySelector('.tw')?.scrollIntoView(); setTimeout(() => document.querySelector('.tw-grid')?.scrollIntoView({ block: 'start' }), 800)`, 2500],
         'w-use': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 2500)`, 4500],
@@ -4614,6 +4615,108 @@ ipcMain.handle('tv:scanApps', async (_e, id) => {
   const list = tvList().map((x) => (x.id === id ? { ...x, apps: pkgs, appsAt: Date.now() } : x));
   tvSave(list);
   return pkgs.length;
+});
+
+// ---------- 1.34: jugar en el televisor (el juego corre en el PC y se ve en la tele) ----------
+// Steam: Steam Link en la tele (Remote Play de Steam). Epic y los demás: Sunshine en el PC +
+// Moonlight en la tele. ViperTeca abre el juego en el PC y el cliente en la tele por ADB.
+const PLAY_PKGS = { steamlink: 'com.valvesoftware.steamlink', moonlight: 'com.limelight' };
+/** La llave de ADB: la de este PC (~/.android/adbkey, si ya la aceptó la tele) o la de ViperTeca. */
+function playAdbKey() {
+  try {
+    const p = path.join(require('os').homedir(), '.android', 'adbkey');
+    const k = require('fs').readFileSync(p, 'utf8');
+    if (/BEGIN (RSA )?PRIVATE KEY/.test(k)) return k;
+  } catch {}
+  return tvCreds().key;
+}
+const playAdb = (host, cmd) => tv.adbShell(host, playAdbKey(), cmd, { timeout: 25000, onPrompt: () => win && !win.isDestroyed() && win.webContents.send('tv:adbPrompt', 'el televisor') });
+function playTvOf(id) {
+  const list = tvList();
+  const want = id || store.read('settings.json', {}).playTvId;
+  return list.find((t) => t.id === want) || null;
+}
+/** Sunshine en este PC: el servicio o el programa abierto, o su puerto de control. */
+async function sunshineOn() {
+  const running = await new Promise((res) => require('child_process').execFile('tasklist', ['/FI', 'IMAGENAME eq sunshine.exe', '/NH'], { windowsHide: true, timeout: 8000 }, (e, out) => res(!e && /sunshine\.exe/i.test(out || ''))));
+  if (running) return true;
+  return new Promise((res) => {
+    const s = require('net').connect({ host: '127.0.0.1', port: 47990, timeout: 1500 });
+    s.on('connect', () => (s.destroy(), res(true)));
+    s.on('error', () => res(false));
+    s.on('timeout', () => (s.destroy(), res(false)));
+  });
+}
+ipcMain.handle('playtv:status', async (_e, id) => {
+  const t = playTvOf(id);
+  const out = { tv: t ? { id: t.id, label: t.label, host: t.host } : null, tvs: tvList().map((x) => ({ id: x.id, label: x.label, host: x.host })), adb: null, steamlink: null, moonlight: null, sunshine: await sunshineOn().catch(() => false) };
+  if (!t) return out;
+  try {
+    const pk = await playAdb(t.host, 'pm list packages ' + PLAY_PKGS.steamlink + '; pm list packages ' + PLAY_PKGS.moonlight);
+    out.adb = true;
+    out.steamlink = pk.includes('package:' + PLAY_PKGS.steamlink);
+    out.moonlight = pk.includes('package:' + PLAY_PKGS.moonlight);
+  } catch (e) {
+    out.adb = false;
+    out.adbError = e.code === 'ADB_OFF' ? 'La depuración por red (ADB) del televisor está apagada o el televisor está apagado.' : e.message;
+  }
+  return out;
+});
+ipcMain.handle('playtv:choose', (_e, id) => {
+  const s = store.read('settings.json', {});
+  s.playTvId = String(id || '') || null;
+  store.write('settings.json', s);
+  return true;
+});
+/** Añadir un televisor por su IP (el de la habitación, si la búsqueda no lo encuentra). */
+ipcMain.handle('playtv:add', (_e, host, label) => {
+  const h = String(host || '').trim();
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(h)) throw new Error('Escribe la IP del televisor, por ejemplo 192.168.50.121.');
+  const list = tvList();
+  let t = list.find((x) => x.host === h);
+  if (!t) {
+    t = { id: require('crypto').randomBytes(4).toString('hex'), host: h, name: String(label || 'Televisor').slice(0, 40), label: String(label || 'Televisor').slice(0, 40), paired: false, mac: macOf(h) };
+    list.push(t);
+    tvSave(list);
+  }
+  const s = store.read('settings.json', {});
+  s.playTvId = t.id;
+  store.write('settings.json', s);
+  return t.id;
+});
+/** Abre en la tele la página de Play Store de Steam Link o Moonlight (la instalación la confirmas tú). */
+ipcMain.handle('playtv:store', async (_e, id, which) => {
+  const t = playTvOf(id);
+  const pkg = PLAY_PKGS[which];
+  if (!t || !pkg) throw new Error('Elige primero el televisor.');
+  await playAdb(t.host, 'input keyevent 224; am start -a android.intent.action.VIEW -d market://details?id=' + pkg);
+  return true;
+});
+async function playTvOpen(host, pkg) {
+  // despierta la tele y abre la app (las de Android TV tienen la categoría LEANBACK_LAUNCHER)
+  let out = await playAdb(host, 'input keyevent 224; monkey -p ' + pkg + ' -c android.intent.category.LEANBACK_LAUNCHER 1');
+  if (/No activities found|monkey aborted/i.test(out)) out = await playAdb(host, 'monkey -p ' + pkg + ' -c android.intent.category.LAUNCHER 1');
+  if (/No activities found|monkey aborted/i.test(out)) throw new Error('No pude abrir la app en el televisor.');
+}
+ipcMain.handle('playtv:play', async (_e, gameId, id) => {
+  const g = (store.read('library.json', null)?.games || []).find((x) => x.id === gameId);
+  if (!g) throw new Error('No se encuentra ese juego.');
+  if (!g.installed) throw new Error(g.title + ' no está instalado en el PC.');
+  const t = playTvOf(id);
+  if (!t) throw new Error('Elige primero el televisor.');
+  const pk = await playAdb(t.host, 'pm list packages ' + PLAY_PKGS.steamlink + '; pm list packages ' + PLAY_PKGS.moonlight);
+  const has = (p) => pk.includes('package:' + PLAY_PKGS[p]);
+  const sun = await sunshineOn().catch(() => false);
+  // Steam → Steam Link; lo demás → Moonlight (o Moonlight también para Steam si no hay Steam Link)
+  const method = g.store === 'steam' && has('steamlink') ? 'steamlink' : has('moonlight') && sun ? 'moonlight' : null;
+  if (!method) throw new Error(g.store === 'steam' ? 'Falta Steam Link en el televisor.' : !has('moonlight') ? 'Falta Moonlight en el televisor.' : 'Falta abrir Sunshine en este PC.');
+  launchFromMain(g);
+  await new Promise((r) => setTimeout(r, 2500));
+  await playTvOpen(t.host, PLAY_PKGS[method]);
+  const s = store.read('settings.json', {});
+  s.playTvId = t.id;
+  store.write('settings.json', s);
+  return { method, tv: t.label };
 });
 
 // ---------- 1.30: copias y restauración, calendario de juego, diario de partidas ----------

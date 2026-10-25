@@ -258,6 +258,11 @@ A la derecha está el chat con **Claude**: usa el Claude Code que ya tienes inst
 
 **Novedades** tiene tres pestañas. *Juegos*: arriba lo próximo que sale de tu lista de deseados (con cuenta regresiva), y debajo los anuncios de tus juegos en tarjetas con su portada, el más reciente destacado, filtrables entre parches y anuncios. *Anime*: los estrenos más esperados y las próximas tres temporadas, con portada oficial, fecha, estudio, dónde se ve, géneros, tráiler y sinopsis (de AniList, en inglés); un buscador para cualquier anime y **Mi calendario**, con los que añades y los que pongas a mano, en lista o en calendario mensual. Te avisa el día antes del estreno, el mismo día y cuando sale cada episodio nuevo. *Nintendo*: las noticias de siempre.
 
+## Novedades de la 1.34
+
+- **En el televisor**: en cada juego instalado hay un botón para jugarlo en la tele con tu control (por ejemplo el de PS5). El juego corre en el PC y se transmite: los de Steam con **Steam Link** y los de Epic y demás con **Moonlight** en la tele + **Sunshine** en el PC. ViperTeca abre el juego en el PC y la app en la tele.
+- La primera vez muestra lo que falta: elegir el televisor (o añadirlo por su IP), abrir Steam Link o Moonlight en la Play Store de la tele para que pulses Instalar, la página de descarga de Sunshine y cómo vincular el control de PS5 en la tele. Usa la depuración por red (ADB) del televisor.
+
 ## Novedades de la 1.33
 
 - **Diseño nuevo en toda la app**: fondos grafito (antes se teñían del color de la paleta y quedaban turbios), cuatro alturas de superficie bien separadas (página, panel, tarjeta e interior), bordes finos, sombras suaves y una textura de grano muy sutil en el fondo y las tarjetas.

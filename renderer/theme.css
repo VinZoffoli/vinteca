@@ -254,3 +254,17 @@ dialog::backdrop { background: color-mix(in srgb, var(--night) 55%, transparent)
 .search input, .search input:focus { background: transparent; border: 0; box-shadow: none; border-radius: 0; }
 .search:focus-within { border-color: color-mix(in srgb, var(--amber) 65%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .seg button { padding: 6px 11px; }
+
+/* 1.34: jugar en el televisor */
+.ptv .ptv-body { display: grid; gap: 14px; }
+.ptv-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ptv-step { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: var(--r-inner); background: var(--layer); border: 1px solid var(--hair); }
+.ptv-step p { margin: 3px 0 6px; font-size: 13px; }
+.ptv-dot { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; font: 700 12px var(--display); background: var(--layer-hover); color: var(--muted); }
+.ptv-step.ok .ptv-dot { background: var(--ok-soft); color: var(--ok); }
+.ptv-step.todo .ptv-dot { background: var(--warn-soft); color: var(--warn); }
+.ptv-add { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ptv-add .rx-input { flex: 1 1 160px; }
+.ptv-more summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+dialog.ptv { padding: 22px 24px 20px; width: min(640px, calc(100vw - 32px)); }
+dialog.ptv h2 { margin: 0 0 14px; }
