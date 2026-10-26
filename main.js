@@ -399,6 +399,8 @@ function snapshot(dir) {
         'w-infra2': [`document.querySelector('.r2-ver')?.scrollIntoView()`, 1500],
         'w-infra3': [`document.querySelector('.r2-env')?.scrollIntoView()`, 1500],
         'ptv': [`showView('library'); setTimeout(() => { const L = state.lib.games; const g = L.find((x) => x.installed && x.store === 'epic') || L.find((x) => x.installed); openGame(g); setTimeout(() => [...document.querySelectorAll('.sheet-cta .btn')].find((b) => /televisor/.test(b.textContent))?.click(), 1500); }, 2000)`, 9000],
+        'bb': [`showView('library'); refresh().then(() => { const g = state.lib.games.find((x) => x.store === 'local'); console.log('BB ' + JSON.stringify(g && { id: g.id, title: g.title, cover: !!g.cover, exe: g.launch?.exe })); if (g) openGame(g); })`, 60000],
+        'gf': [`document.querySelector('dialog[open]')?.close(); openSettings().then(() => setTimeout(() => document.querySelector('#gameFolders')?.scrollIntoView({ block: 'center' }), 800))`, 4000],
         'w-sq': [`showView('webs'); setTimeout(() => [...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Squads')?.click(), 1500)`, 6000],
         'w-sq2': [`document.querySelector('.tw')?.scrollIntoView(); setTimeout(() => document.querySelector('.tw-grid')?.scrollIntoView({ block: 'start' }), 800)`, 2500],
         'w-use': [`[...document.querySelectorAll('.rx-tabs button')].find((x) => x.textContent === 'Vercel y versiones')?.click(); setTimeout(() => document.querySelector('.r2-use')?.scrollIntoView(), 2500)`, 4500],
@@ -1982,7 +1984,7 @@ ipcMain.handle('library:export', async (_e, format, opts = {}) => {
   const tracked = {};
   for (const s of sessions) tracked[s.id] = (tracked[s.id] || 0) + Math.max(0, (s.end - s.start) / 60000);
   const STATUS = { pending: 'Pendiente', playing: 'Jugando', finished: 'Terminado', dropped: 'Abandonado' };
-  const STORES = { steam: 'Steam', epic: 'Epic Games', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA app', ubisoft: 'Ubisoft Connect' };
+  const STORES = { steam: 'Steam', epic: 'Epic Games', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA app', ubisoft: 'Ubisoft Connect', local: 'Carpeta del PC' };
   const day = (t) => (t ? new Date(t * 1000).toISOString().slice(0, 10) : '');
   const rows = games
     .map((g) => {
@@ -5983,6 +5985,11 @@ ipcMain.handle('epic:link', async () => {
   if (!exe) throw new Error('No se encuentra legendary.exe. Indica su ruta en Ajustes.');
   epic.legendaryAuth(exe);
   return true;
+});
+
+ipcMain.handle('folders:pick', async () => {
+  const r = await dialog.showOpenDialog(win, { title: 'Carpeta con juegos', properties: ['openDirectory'] });
+  return r.canceled ? null : r.filePaths[0] || null;
 });
 
 ipcMain.handle('epic:pickLegendary', async () => {

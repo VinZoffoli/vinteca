@@ -174,10 +174,10 @@ async function loadEpic({ legendaryPath, warnings, previous }) {
   return { games, source };
 }
 
-/** Juegos instalados de Riot, Rockstar, GOG, EA y Ubisoft. */
-async function loadOthers(previous) {
+/** Juegos instalados de Riot, Rockstar, GOG, EA, Ubisoft y de las carpetas de juegos. */
+async function loadOthers(previous, gameFolders) {
   const prevPlayed = new Map((previous?.games || []).map((g) => [g.id, g.lastPlayed]));
-  const list = await stores.installed().catch(() => []);
+  const list = await stores.installed({ gameFolders }).catch(() => []);
   return list.map((x) => ({
     id: `${x.store}:${x.key}`,
     store: x.store,
@@ -208,13 +208,13 @@ async function refresh({ apiKey, settings, previous, purchaseDates, cache, famil
     loadSteam({ apiKey, steamId: settings.steamId, purchaseDates, warnings, family }),
     loadEpic({ legendaryPath: settings.legendaryPath, warnings, previous }),
   ]);
-  const others = await loadOthers(previous);
+  const others = await loadOthers(previous, settings.gameFolders);
   const games = [...s.games, ...e.games, ...others];
   await meta.enrich(games, { ...cache, warnings });
 
   // Solo se marcan como nuevos los juegos de una tienda si la lectura anterior
   // usó la misma fuente (si no, al añadir la clave de Steam todo saldría "nuevo").
-  const sources = { steam: s.source, epic: e.source, riot: 'local', rockstar: 'local', gog: 'local', ea: 'local', ubisoft: 'local' };
+  const sources = { steam: s.source, epic: e.source, riot: 'local', rockstar: 'local', gog: 'local', ea: 'local', ubisoft: 'local', local: 'local' };
   const prevSources = previous?.sources || {};
   const prevKnown = new Set(previous?.knownIds || []);
   const comparable = (g) => previous?.knownIds && prevSources[g.store] === sources[g.store];

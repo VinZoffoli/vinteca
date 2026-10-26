@@ -98,8 +98,8 @@ function relTime(unix) {
   if (Math.abs(days) < 365) return rtf.format(Math.round(days / 30), 'month');
   return rtf.format(Math.round(days / 365), 'year');
 }
-const STORE_LABEL = { steam: 'Steam', epic: 'Epic', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA', ubisoft: 'Ubisoft' };
-const STORE_FULL = { ...STORE_LABEL, epic: 'Epic Games', ea: 'EA app', ubisoft: 'Ubisoft Connect' };
+const STORE_LABEL = { steam: 'Steam', epic: 'Epic', riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA', ubisoft: 'Ubisoft', local: 'PC' };
+const STORE_FULL = { ...STORE_LABEL, epic: 'Epic Games', ea: 'EA app', ubisoft: 'Ubisoft Connect', local: 'Carpeta del PC' };
 const storeName = (g) => STORE_LABEL[g.store] || g.store;
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const games = () => (state.lib?.games || []).filter((g) => g.kind !== 'tool');
@@ -3804,7 +3804,7 @@ function renderGame() {
   const appid = g.store === 'steam' ? g.id.split(':')[1] : null;
   const a = appid && ach.summary?.games?.[appid];
   const facts = [
-    ['Horas jugadas', g.store === 'steam' ? (g.playtimeMin ? fmtHours(g.playtimeMin) : 'Nunca jugado') : 'Epic no da las horas'],
+    ['Horas jugadas', g.store === 'steam' ? (g.playtimeMin ? fmtHours(g.playtimeMin) : 'Nunca jugado') : g.store === 'epic' ? 'Epic no da las horas' : '—'],
     g.playtime2wMin ? ['Últimas 2 semanas', fmtHours(g.playtime2wMin)] : null,
     ['Última partida', g.lastPlayed ? `${relTime(g.lastPlayed)} (${dateFmt.format(g.lastPlayed * 1000)})` : '—'],
     ['Comprado', g.purchased ? dateFmt.format(g.purchased * 1000) : g.store === 'epic' ? 'Epic no da la fecha' : '—'],
@@ -4075,6 +4075,7 @@ async function openSettings() {
     s.hasSteamKey ? h('b', { class: 'ok', text: ' Hay una clave guardada.' }) : h('b', { class: 'bad', text: ' Aún no hay ninguna clave guardada.' })
   );
   $('#legendaryPath').value = s.legendaryPath || '';
+  fillGameFolders(s.gameFolders || []);
   $('#focusPower').checked = s.focus?.powerPlan !== false;
   $('#trackSessions').checked = s.trackSessions !== false;
   for (const k of ['autoBackup', 'sessionSummary', 'weeklySummary', 'epicReminder', 'friendAlerts', 'hotkey', 'priceAlerts', 'dndGaming', 'sundaySummary', 'weatherAlerts']) $(`#set-${k}`).checked = s[k] !== false;
@@ -4099,6 +4100,28 @@ async function openSettings() {
   const info = state.lib?.purchaseInfo;
   $('#purchState').textContent = info ? `Última importación: ${plural(info.games, 'juego', 'juegos')} con fecha.` : '';
   dlg.showModal();
+}
+
+// 1.35.1: carpetas con juegos sin tienda
+function fillGameFolders(list) {
+  const save = async (next) => {
+    try {
+      const s = await window.api.saveSettings({ gameFolders: next });
+      fillGameFolders(s.gameFolders);
+      refresh();
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+  };
+  $('#gameFolders').replaceChildren(
+    ...(list.length
+      ? list.map((d) => h('li', { class: 'gf-item' }, h('span', { class: 'gf-path', title: d, text: d }), h('button', { type: 'button', class: 'btn subtle small', text: 'Quitar', onclick: () => save(list.filter((x) => x !== d)) })))
+      : [h('li', { class: 'hint', text: 'Ninguna carpeta todavía.' })])
+  );
+  $('#addGameFolder').onclick = async () => {
+    const d = await window.api.pickGameFolder();
+    if (d && !list.includes(d)) save([...list, d]);
+  };
 }
 
 async function saveSettings(ev) {

@@ -232,12 +232,46 @@ function assignSagas(games) {
   }
 }
 
+// 1.35.1: portada de los juegos de carpetas que no están en Steam (ports de consola, etc.):
+// la imagen principal del artículo del juego en Wikipedia, que suele ser la carátula.
+const WIKI_RETRY = 7 * 24 * 3600 * 1000;
+async function wikiCover(title) {
+  for (const lang of ['en', 'es']) {
+    for (const t of [title + ' (video game)', title + ' (videojuego)', title]) {
+      try {
+        const r = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`, { headers: { 'user-agent': 'ViperTeca/1.0' }, signal: AbortSignal.timeout(10000) });
+        if (!r.ok) continue;
+        const j = await r.json();
+        if (j.type === 'standard' && /video ?game|videojuego/i.test(j.description || '') && j.originalimage?.source) return j.originalimage.source.replace(/\?.*$/, '');
+      } catch {}
+    }
+  }
+  return null;
+}
+async function enrichLocal(games, { read, write }) {
+  const list = games.filter((g) => g.store === 'local' && !g.cover);
+  if (!list.length) return;
+  const map = read('local-covers.json', {});
+  const now = Date.now();
+  let changed = false;
+  for (const g of list) {
+    const m = map[g.id];
+    if (!m || (!m.url && now - m.at > WIKI_RETRY)) {
+      map[g.id] = { url: await wikiCover(g.title.replace(/[™®©]/g, '').trim()), at: now };
+      changed = true;
+    }
+    if (map[g.id].url) g.cover = map[g.id].url;
+  }
+  if (changed) write('local-covers.json', map);
+}
+
 async function enrich(games, cache) {
   try {
     await enrichEpic(games, cache);
   } catch (e) {
     cache.warnings.push(`Categorías de Epic: ${e.message}`);
   }
+  await enrichLocal(games, cache).catch(() => {});
   await applyTagNames(games, cache);
   assignSagas(games);
 }

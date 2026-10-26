@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 
-const LABEL = { riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA', ubisoft: 'Ubisoft' };
+const LABEL = { riot: 'Riot', rockstar: 'Rockstar', gog: 'GOG', ea: 'EA', ubisoft: 'Ubisoft', local: 'Carpeta' };
 
 /** `reg query <clave> /s` -> { 'subclave completa': { valor: dato } } */
 function regTree(key) {
@@ -152,10 +152,64 @@ async function ea() {
   return out;
 }
 
-/** Todos los juegos instalados de las otras tiendas. */
-async function installed() {
-  const parts = await Promise.all([riot(), rockstar(), gog(), ubisoft(), ea()].map((p) => p.catch(() => [])));
+// ---------- Carpetas de juegos (1.35.1) ----------
+// Juegos sin tienda (ports, emuladores, copias sueltas): cada subcarpeta de una carpeta
+// de juegos es un juego, y se abre con el .exe que mejor parezca su lanzador.
+const SKIP_DIR = /^(_internal|__installer|redist|redistributables?|directx|vcredist|support|commonredist|engine|binaries|tools|licenses|patches|shaders?|fsr\d?_shaders|mods|scripts|saves?|user|out|logs?|node_modules|sce_\w+|dvdroot\w*|cusa\d+)$/i;
+const SKIP_EXE = /unins|setup|install|redist|vc_?redist|dxsetup|crash|report|helper|updater|uninstall|python|pythonw|7z|unitycrash|launcherhelper/i;
+function exesIn(dir, depth, out = []) {
+  let ents = [];
+  try {
+    ents = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of ents) {
+    const p = path.join(dir, e.name);
+    if (e.isFile() && /\.exe$/i.test(e.name) && !SKIP_EXE.test(e.name)) out.push({ p, depth });
+    else if (e.isDirectory() && depth < 3 && !SKIP_DIR.test(e.name)) exesIn(p, depth + 1, out);
+  }
+  return out;
+}
+const squash = (s) => s.toLowerCase().replace(/\.exe$/, '').replace(/[^a-z0-9]/g, '');
+/** El .exe para abrir el juego: «Play …» o «Launch …» primero, luego el que se llama como la carpeta. */
+function pickExe(dir, title) {
+  const list = exesIn(dir, 1);
+  const t = squash(title);
+  const score = ({ p, depth }) => {
+    const b = path.basename(p);
+    let s = -depth;
+    if (/^(play|launch|start)\b/i.test(b)) s += 20;
+    if (squash(b).includes(t) || t.includes(squash(b))) s += 10;
+    if (/launcher/i.test(b)) s -= 2;
+    return s;
+  };
+  return list.sort((a, b) => score(b) - score(a))[0]?.p || null;
+}
+function folders(dirs) {
+  const out = [];
+  for (const root of dirs || []) {
+    let ents = [];
+    try {
+      ents = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of ents) {
+      if (!e.isDirectory()) continue;
+      const dir = path.join(root, e.name);
+      const exe = pickExe(dir, e.name);
+      if (!exe) continue;
+      out.push({ store: 'local', key: dir.toLowerCase(), title: e.name, installPath: dir, launch: { exe, args: [], cwd: path.dirname(exe) } });
+    }
+  }
+  return out;
+}
+
+/** Todos los juegos instalados de las otras tiendas y de las carpetas de juegos. */
+async function installed({ gameFolders } = {}) {
+  const parts = await Promise.all([riot(), rockstar(), gog(), ubisoft(), ea(), Promise.resolve().then(() => folders(gameFolders))].map((p) => p.catch(() => [])));
   return parts.flat();
 }
 
-module.exports = { installed, LABEL, regTree };
+module.exports = { installed, folders, pickExe, LABEL, regTree };

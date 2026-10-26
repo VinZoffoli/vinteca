@@ -77,11 +77,18 @@ function write(name, data) {
   }
 }
 
+// 1.35.1: carpetas con juegos sin tienda; si nunca se eligió ninguna, se prueban las del escritorio
+function defaultGameFolders() {
+  const desk = path.join(require('os').homedir(), 'Desktop');
+  return [path.join(desk, 'Juegos'), path.join(desk, 'Vincenzo', 'Juegos')].filter((d) => fs.existsSync(d));
+}
+
 function getSettings() {
   const s = read('settings.json', {});
   return {
     steamId: s.steamId || '',
     legendaryPath: s.legendaryPath || '',
+    gameFolders: Array.isArray(s.gameFolders) ? s.gameFolders : defaultGameFolders(),
     country: s.country === 'CR' ? 'CR' : 'CL',
     focus: {
       powerPlan: s.focus?.powerPlan !== false,
@@ -178,6 +185,7 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   if (rest.customAccent !== undefined && /^#[0-9a-f]{6}$/i.test(rest.customAccent)) s.customAccent = rest.customAccent;
   if (rest.customHue !== undefined) s.customHue = Math.max(0, Math.min(360, Math.round(Number(rest.customHue) || 0)));
   if (rest.customSat !== undefined) s.customSat = Math.max(0, Math.min(60, Math.round(Number(rest.customSat) || 0)));
+  if (Array.isArray(rest.gameFolders)) s.gameFolders = [...new Set(rest.gameFolders.map((d) => String(d || '').trim()).filter((d) => path.isAbsolute(d)))].slice(0, 20);
   if (rest.bgGame !== undefined) s.bgGame = String(rest.bgGame || '').slice(0, 200);
   // estilo de la interfaz (Ajustes → Apariencia)
   const LOOK = { density: ['comoda', 'compacta'], radius: ['suaves', 'rectas', 'redondas'], glow: ['soft', 'off', 'strong'], uiScale: ['100', '90', '110', '120'], motion: ['full', 'reduced'] };

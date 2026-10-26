@@ -330,5 +330,6 @@ contextBridge.exposeInMainWorld('api', {
   cachedDeals: () => ipcRenderer.invoke('deals:cached'),
   linkEpic: () => ipcRenderer.invoke('epic:link'),
   pickLegendary: () => ipcRenderer.invoke('epic:pickLegendary'),
+  pickGameFolder: () => ipcRenderer.invoke('folders:pick'),
   importPurchases: () => ipcRenderer.invoke('steam:importPurchases'),
 });
