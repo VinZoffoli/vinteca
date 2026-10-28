@@ -104,17 +104,26 @@
     };
   }
 
+  // 1.36: estilo «Estudio» (inspirado en un dashboard claro de tarjetas blancas): lienzo gris
+  // perla, tarjetas blancas, tinta casi negra para lo principal y lavanda para lo elegido.
+  // La paleta de colores no lo tiñe; el modo claro u oscuro sí.
+  const STUDIO = {
+    light: { '--night': '#ecebf0', '--night-2': '#f5f4f8', '--night-rgb': '236, 235, 240', '--surface': '#ffffff', '--surface-2': '#f3f2f7', '--line': '#e1dfe8', '--text': '#17161c', '--muted': '#615f6c', '--faint': '#95939f', '--amber': '#6a56e3', '--amber-ink': '#ffffff', '--pink': '#c8314d', '--sale': '#b4356f', '--cyan': '#1f78b8', '--cyan-ink': '#ffffff', '--green': '#1d7f4f', '--plat': '#4b3fb0' },
+    dark: { '--night': '#0d0d10', '--night-2': '#131317', '--night-rgb': '13, 13, 16', '--surface': '#19191e', '--surface-2': '#222228', '--line': '#2d2d35', '--text': '#f2f1f6', '--muted': '#a3a1b0', '--faint': '#6f6d7c', '--amber': '#b4a5ff', '--amber-ink': '#17161c', '--pink': '#f06b7e', '--sale': '#f59ac5', '--cyan': '#7cc4f2', '--cyan-ink': '#17161c', '--green': '#7ee2a8', '--plat': '#d6dcff' },
+  };
+  const tokensFor = (s, light) => ((s.skin || 'studio') === 'studio' ? STUDIO[light ? 'light' : 'dark'] : tokens(palette(s), light));
+
   function apply(s, findGame) {
     current = { s, findGame };
     // Se recuerda para pintar los colores al instante la próxima vez que se abra la app
     try {
-      localStorage.setItem('vt-look', JSON.stringify({ theme: s.theme, palette: s.palette, customAccent: s.customAccent, customHue: s.customHue, customSat: s.customSat, density: s.density, radius: s.radius, glow: s.glow, uiScale: s.uiScale, motion: s.motion }));
+      localStorage.setItem('vt-look', JSON.stringify({ skin: s.skin, theme: s.theme, palette: s.palette, customAccent: s.customAccent, customHue: s.customHue, customSat: s.customSat, density: s.density, radius: s.radius, glow: s.glow, uiScale: s.uiScale, motion: s.motion }));
     } catch {}
     const light = s.theme === 'system' ? media.matches : s.theme === 'light';
     const root = document.documentElement;
     root.dataset.theme = light ? 'light' : 'dark';
     root.style.colorScheme = light ? 'light' : 'dark';
-    for (const [k, v] of Object.entries(tokens(palette(s), light))) root.style.setProperty(k, v);
+    for (const [k, v] of Object.entries(tokensFor(s, light))) root.style.setProperty(k, v);
     style(s);
     const g = s.bgGame && findGame ? findGame(s.bgGame) : null;
     const bg = document.getElementById('appBg');
@@ -130,6 +139,7 @@
   // Densidad, esquinas, brillo del fondo, tamaño y movimiento
   function style(s) {
     const root = document.documentElement;
+    root.dataset.skin = s.skin || 'studio';
     root.dataset.density = s.density || 'comoda';
     root.dataset.radius = s.radius || 'suaves';
     root.dataset.glow = s.glow || 'soft';
@@ -157,7 +167,7 @@
     if (last) {
       const light = last.theme === 'system' ? media.matches : last.theme === 'light';
       document.documentElement.dataset.theme = light ? 'light' : 'dark';
-      for (const [k, v] of Object.entries(tokens(palette(last), light))) document.documentElement.style.setProperty(k, v);
+      for (const [k, v] of Object.entries(tokensFor(last, light))) document.documentElement.style.setProperty(k, v);
       if (document.body) style(last);
       else document.addEventListener('DOMContentLoaded', () => style(last), { once: true });
     }

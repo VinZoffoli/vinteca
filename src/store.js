@@ -121,6 +121,9 @@ function getSettings() {
     glow: s.glow || 'soft',
     uiScale: s.uiScale || '100',
     motion: s.motion || 'full',
+    // 1.36: estilo de la app: «Estudio» (claro, riel negro, tarjetas blancas) o «Nocturno» (el de antes)
+    skin: s.skin === 'nocturno' ? 'nocturno' : 'studio',
+    skinSet: !!s.skin,
     lanAuto: !!s.lanAuto,
     priceAlerts: s.priceAlerts !== false,
     calReminders: s.calReminders !== false,
@@ -188,7 +191,7 @@ function saveSettings({ steamId, steamKey, legendaryPath, clearSteamKey, country
   if (Array.isArray(rest.gameFolders)) s.gameFolders = [...new Set(rest.gameFolders.map((d) => String(d || '').trim()).filter((d) => path.isAbsolute(d)))].slice(0, 20);
   if (rest.bgGame !== undefined) s.bgGame = String(rest.bgGame || '').slice(0, 200);
   // estilo de la interfaz (Ajustes → Apariencia)
-  const LOOK = { density: ['comoda', 'compacta'], radius: ['suaves', 'rectas', 'redondas'], glow: ['soft', 'off', 'strong'], uiScale: ['100', '90', '110', '120'], motion: ['full', 'reduced'] };
+  const LOOK = { density: ['comoda', 'compacta'], radius: ['suaves', 'rectas', 'redondas'], glow: ['soft', 'off', 'strong'], uiScale: ['100', '90', '110', '120'], motion: ['full', 'reduced'], skin: ['studio', 'nocturno'] };
   for (const [k, ok] of Object.entries(LOOK)) if (rest[k] !== undefined) s[k] = ok.includes(String(rest[k])) ? String(rest[k]) : ok[0];
   if (clearSteamKey) delete s.steamKeyEnc;
   if (steamKey) {

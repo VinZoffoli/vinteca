@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="app.css">
   <link rel="stylesheet" href="design.css">
   <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="studio.css">
 </head>
 <body>
   <div id="appBg" class="app-bg" aria-hidden="true"></div>
@@ -272,10 +273,7 @@
 
     <!-- Mi día -->
     <section id="dayView" class="view" hidden>
-      <div class="view-head">
-        <h1 id="dayTitle">Mi día</h1>
-        <p id="daySub" class="sub"></p>
-      </div>
+      <h1 class="sr-only">Mi día</h1>
       <div id="dayBody"></div>
     </section>
 
@@ -634,6 +632,7 @@
         <legend>Estilo</legend>
         <p class="hint">Ajusta la interfaz a tu gusto. Los cambios se ven al momento.</p>
         <div class="look-grid" id="lookGrid">
+          <div><span>Estilo de la app</span><div class="seg" data-look="skin" role="group" aria-label="Estilo de la app"><button type="button" data-v="studio">Estudio</button><button type="button" data-v="nocturno">Nocturno</button></div></div>
           <div><span>Densidad</span><div class="seg" data-look="density" role="group" aria-label="Densidad"><button type="button" data-v="comoda">Cómoda</button><button type="button" data-v="compacta">Compacta</button></div></div>
           <div><span>Esquinas</span><div class="seg" data-look="radius" role="group" aria-label="Esquinas"><button type="button" data-v="rectas">Rectas</button><button type="button" data-v="suaves">Suaves</button><button type="button" data-v="redondas">Redondas</button></div></div>
           <div><span>Luz de fondo</span><div class="seg" data-look="glow" role="group" aria-label="Luz de fondo"><button type="button" data-v="off">Apagada</button><button type="button" data-v="soft">Suave</button><button type="button" data-v="strong">Intensa</button></div></div>
@@ -732,6 +731,7 @@
   <script src="v131.js"></script>
   <script src="v132.js"></script>
   <script src="v134.js"></script>
+  <script src="studio.js"></script>
   <script src="gamepad.js"></script>
 </body>
 </html>

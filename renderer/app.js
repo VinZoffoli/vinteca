@@ -957,7 +957,7 @@ function applyAppearance(s) {
 
 function fillAppearance(s) {
   for (const b of $$('#themeSeg button')) b.classList.toggle('on', b.dataset.v === (s.theme || 'dark'));
-  const LOOK_DEF = { density: 'comoda', radius: 'suaves', glow: 'soft', uiScale: '100', motion: 'full' };
+  const LOOK_DEF = { skin: 'studio', density: 'comoda', radius: 'suaves', glow: 'soft', uiScale: '100', motion: 'full' };
   for (const seg of $$('#lookGrid .seg')) {
     const k = seg.dataset.look;
     for (const b of seg.querySelectorAll('button')) {
@@ -965,6 +965,9 @@ function fillAppearance(s) {
       b.onclick = () => saveAppearance({ [k]: b.dataset.v });
     }
   }
+  // 1.36: «Estudio» tiene sus propios colores; las paletas son del estilo «Nocturno»
+  // (las pestañas de Ajustes manejan .hidden de cada grupo, por eso aquí va con display)
+  $('#paletteGrid').closest('fieldset').style.display = (s.skin || 'studio') === 'studio' ? 'none' : '';
   const light = document.documentElement.dataset.theme === 'light';
   const ids = [...Object.keys(window.appearance.PALETTES), 'custom'];
   fill(
@@ -4430,6 +4433,12 @@ function bind() {
   state.lib = lib;
   state.country = settings.country || 'CL';
   state.settings = settings;
+  // 1.36: la primera vez se estrena el estilo «Estudio» en claro, como el diseño de referencia
+  // (en Ajustes → Apariencia se vuelve a «Nocturno» o a oscuro)
+  if (!settings.skinSet) {
+    Object.assign(settings, { skin: 'studio', theme: 'light' });
+    window.api.saveSettings({ skin: 'studio', theme: 'light' }).catch(() => {});
+  }
   applyAppearance(settings);
   window.api.wandInstalled().then((v) => (state.wand = v)).catch(() => {});
   if (!settings.onboarded) {
